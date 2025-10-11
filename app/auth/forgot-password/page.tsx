@@ -11,6 +11,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ArrowLeft, Mail, Check } from "lucide-react"
 import { useRouter } from "next/navigation"
 
+// ✅ ADDED: real API
+import { AuthAPI } from "@/lib/api"
+
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -35,16 +38,19 @@ export default function ForgotPasswordPage() {
       return
     }
 
-    // Simulate API call
-    setTimeout(() => {
+    try {
+      const normalizedEmail = email.trim().toLowerCase()
+      await AuthAPI.forgotPassword({ email: normalizedEmail })
       setIsSuccess(true)
-      setIsLoading(false)
-
-      // Redirect to OTP verification after showing success
       setTimeout(() => {
-        router.push(`/auth/verify-otp?email=${encodeURIComponent(email)}`)
+        // Pass a mode so verify-otp knows this is a password-reset flow
+        router.push(`/auth/verify-otp?email=${encodeURIComponent(normalizedEmail)}&mode=reset`)
       }, 2000)
-    }, 1000)
+    } catch (err: any) {
+      setError(err?.message || "Failed to send reset code. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   if (isSuccess) {
@@ -83,7 +89,6 @@ export default function ForgotPasswordPage() {
         />
         {/* Overlay */}
         
-
         {/* Content */}
         
       </div>
