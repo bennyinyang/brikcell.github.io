@@ -11,6 +11,7 @@ export function HeroSection() {
 
   return (
     <section className="relative bg-gradient-to-br from-primary/5 via-white to-accent/5 py-24 overflow-hidden">
+      <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(186,36,213,0.1)_0%,transparent_50%)] pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_80%,rgba(30,58,138,0.08)_0%,transparent_50%)] pointer-events-none" />
 
