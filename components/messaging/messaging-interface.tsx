@@ -1010,9 +1010,13 @@ export function MessagingInterface() {
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-600">₦{material.cost.toLocaleString()}</span>
                           {material.receipt && (
-                            <Button variant="ghost" size="sm" className="h-6 text-xs p-1">
-                              <Download className="h-3 w-3 mr-1" />
-                              Receipt
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-6 w-6 p-0 bg-transparent hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                              title="Download Receipt"
+                            >
+                              <Download className="h-3 w-3" />
                             </Button>
                           )}
                         </div>
