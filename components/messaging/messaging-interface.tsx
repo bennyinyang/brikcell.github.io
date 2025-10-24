@@ -697,7 +697,7 @@ export function MessagingInterface() {
         <Card
           className={`lg:col-span-6 flex flex-col ${showConversationList ? "hidden" : "block"} lg:block ${!showJobSummary ? "lg:col-span-9" : ""} overflow-hidden`}
         >
-          <CardHeader className="pb-2 sm:pb-3 border-b px-2 sm:px-3 lg:px-4 xl:px-6 py-2.5 sm:py-3 lg:py-4 xl:py-6 flex-shrink-0">
+          <CardHeader className="sm:pb-3 border-b px-2 sm:px-3 lg:px-4 xl:px-6 sm:py-3 lg:py-4 xl:py-6 flex-shrink-0 py-2">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
                 <Button
