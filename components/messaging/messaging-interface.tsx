@@ -736,9 +736,7 @@ export function MessagingInterface() {
                 <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
                   <Phone className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
-                  <Video className="h-4 w-4" />
-                </Button>
+                
                 <Button
                   variant="outline"
                   size="sm"
