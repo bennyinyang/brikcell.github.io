@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
+import { ContractCreationModal } from "@/components/modals/contract-creation-modal"
 import {
   Search,
   Send,
@@ -273,6 +274,7 @@ export function MessagingInterface() {
   const [showConversationList, setShowConversationList] = useState(true)
   const [showJobSummary, setShowJobSummary] = useState(true)
   const [activeContract, setActiveContract] = useState<Contract>(mockContract)
+  const [showContractModal, setShowContractModal] = useState(false)
 
   const filteredConversations = conversations.filter(
     (conv) =>
@@ -590,8 +592,18 @@ export function MessagingInterface() {
     )
   }
 
+  const handleSendContract = (contract: any) => {
+    console.log("Sending contract:", contract)
+  }
+
   return (
     <div className="max-w-[1800px] mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4 lg:py-8">
+      <ContractCreationModal
+        open={showContractModal}
+        onOpenChange={setShowContractModal}
+        onSendContract={handleSendContract}
+      />
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-4 lg:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
         {/* Conversations List - Left Panel */}
         <Card className={`lg:col-span-3 ${showConversationList ? "block" : "hidden"} lg:block`}>
@@ -838,6 +850,15 @@ export function MessagingInterface() {
 
           <div className="border-t p-3 sm:p-4">
             <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
+                onClick={() => setShowContractModal(true)}
+                title="Send Contract"
+              >
+                <FileText className="h-4 w-4" />
+              </Button>
               <Button variant="outline" size="sm" className="h-10 w-10 p-0 flex-shrink-0 bg-transparent">
                 <Paperclip className="h-4 w-4" />
               </Button>
