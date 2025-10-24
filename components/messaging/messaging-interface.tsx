@@ -606,7 +606,7 @@ export function MessagingInterface() {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-4 lg:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
         {/* Conversations List - Left Panel */}
-        <Card className={`lg:col-span-3 ${showConversationList ? "block" : "hidden"} lg:block`}>
+        <Card className={`lg:col-span-3 py-0 ${showConversationList ? "block" : "hidden"} lg:block`}>
           <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
             <CardTitle className="flex items-center justify-between">
               <span className="text-base sm:text-lg lg:text-xl">Messages</span>
