@@ -29,7 +29,6 @@ import {
   AlertCircle,
   Download,
   Shield,
-  ChevronLeft,
 } from "lucide-react"
 
 interface Phase {
@@ -272,7 +271,7 @@ export function MessagingInterface() {
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [showConversationList, setShowConversationList] = useState(true)
-  const [showJobSummary, setShowJobSummary] = useState(false)
+  const [showJobSummary, setShowJobSummary] = useState(true)
   const [activeContract, setActiveContract] = useState<Contract>(mockContract)
 
   const filteredConversations = conversations.filter(
@@ -388,60 +387,56 @@ export function MessagingInterface() {
   }
 
   const ContractCard = ({ contract, sender }: { contract: Contract; sender: "me" | "them" }) => (
-    <div className="max-w-full sm:max-w-2xl">
+    <div className="max-w-2xl">
       <Card className="border-2 border-primary/20 shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 pb-3 sm:pb-4 px-3 sm:px-4 lg:px-6">
-          <div className="flex items-start justify-between gap-2">
+        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 pb-4">
+          <div className="flex items-start justify-between">
             <div className="flex items-center space-x-2">
-              <FileText className="h-4 w-4 sm:h-5 sm:w-5 text-primary flex-shrink-0" />
-              <CardTitle className="text-base sm:text-lg">Contract Proposal</CardTitle>
+              <FileText className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Contract Proposal</CardTitle>
             </div>
-            <Badge
-              className={`${contract.status === "accepted" ? "bg-green-500" : "bg-yellow-500"} text-xs sm:text-sm flex-shrink-0`}
-            >
+            <Badge className={contract.status === "accepted" ? "bg-green-500" : "bg-yellow-500"}>
               {contract.status === "accepted" ? "Accepted" : "Pending"}
             </Badge>
           </div>
         </CardHeader>
-        <CardContent className="space-y-3 sm:space-y-4 pt-3 sm:pt-4 px-3 sm:px-4 lg:px-6">
+        <CardContent className="space-y-4 pt-4">
           <div>
-            <h3 className="font-semibold text-base sm:text-lg mb-2">{contract.title}</h3>
-            <p className="text-xs sm:text-sm text-gray-600 leading-relaxed">{contract.description}</p>
+            <h3 className="font-semibold text-lg mb-2">{contract.title}</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">{contract.description}</p>
           </div>
 
           <Separator />
 
-          <div className="grid grid-cols-2 gap-3 sm:gap-4">
+          <div className="grid grid-cols-2 gap-4">
             <div>
-              <p className="text-xs sm:text-sm text-gray-600 mb-1">Total Amount</p>
-              <p className="text-xl sm:text-2xl font-bold text-primary">₦{contract.totalAmount.toLocaleString()}</p>
+              <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+              <p className="text-2xl font-bold text-primary">₦{contract.totalAmount.toLocaleString()}</p>
             </div>
             <div>
-              <p className="text-xs sm:text-sm text-gray-600 mb-1">Deposit Required</p>
-              <p className="text-xl sm:text-2xl font-bold text-gray-900">₦{contract.depositAmount.toLocaleString()}</p>
+              <p className="text-sm text-gray-600 mb-1">Deposit Required</p>
+              <p className="text-2xl font-bold text-gray-900">₦{contract.depositAmount.toLocaleString()}</p>
             </div>
           </div>
 
           <Separator />
 
           <div>
-            <h4 className="font-semibold text-sm sm:text-base mb-3 flex items-center">
+            <h4 className="font-semibold mb-3 flex items-center">
               <Package className="h-4 w-4 mr-2 text-primary" />
               Project Phases ({contract.phases.length})
             </h4>
-            <div className="space-y-2 sm:space-y-3">
+            <div className="space-y-3">
               {contract.phases.map((phase, index) => (
-                <div key={phase.id} className="bg-gray-50 rounded-lg p-2 sm:p-3">
-                  <div className="flex items-start justify-between mb-2 gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium text-xs sm:text-sm">
+                <div key={phase.id} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">
                         Phase {index + 1}: {phase.name}
                       </p>
-                      <p className="text-xs text-gray-600 mt-1 line-clamp-2">{phase.description}</p>
+                      <p className="text-xs text-gray-600 mt-1">{phase.description}</p>
                     </div>
-                    <p className="font-semibold text-primary text-sm sm:text-base flex-shrink-0">
-                      ₦{phase.amount.toLocaleString()}
-                    </p>
+                    <p className="font-semibold text-primary ml-3">₦{phase.amount.toLocaleString()}</p>
                   </div>
                   <div className="mt-2">
                     <p className="text-xs text-gray-600 mb-1">Deliverables:</p>
@@ -449,7 +444,7 @@ export function MessagingInterface() {
                       {phase.deliverables.map((deliverable, idx) => (
                         <li key={idx} className="flex items-start">
                           <Check className="h-3 w-3 mr-1 mt-0.5 text-green-600 flex-shrink-0" />
-                          <span className="flex-1">{deliverable}</span>
+                          {deliverable}
                         </li>
                       ))}
                     </ul>
@@ -462,20 +457,20 @@ export function MessagingInterface() {
           <Separator />
 
           <div>
-            <h4 className="font-semibold text-sm sm:text-base mb-3 flex items-center">
+            <h4 className="font-semibold mb-3 flex items-center">
               <Wrench className="h-4 w-4 mr-2 text-primary" />
               Materials & Tools
             </h4>
             <div className="space-y-2">
               {contract.materials.map((material) => (
-                <div key={material.id} className="flex items-center justify-between text-xs sm:text-sm gap-2">
-                  <div className="flex items-center space-x-2 min-w-0 flex-1">
+                <div key={material.id} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center space-x-2">
                     <div
-                      className={`w-2 h-2 rounded-full flex-shrink-0 ${material.coveredBy === "client" ? "bg-blue-500" : "bg-green-500"}`}
+                      className={`w-2 h-2 rounded-full ${material.coveredBy === "client" ? "bg-blue-500" : "bg-green-500"}`}
                     ></div>
-                    <span className="truncate">{material.name}</span>
+                    <span>{material.name}</span>
                   </div>
-                  <div className="flex items-center space-x-2 flex-shrink-0">
+                  <div className="flex items-center space-x-2">
                     <span className="font-medium">₦{material.cost.toLocaleString()}</span>
                     <Badge variant="secondary" className="text-xs">
                       {material.coveredBy === "client" ? "You pay" : "Artisan pays"}
@@ -492,7 +487,7 @@ export function MessagingInterface() {
             <div className="flex items-start space-x-2">
               <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <div>
-                <h5 className="text-xs sm:text-sm font-medium text-blue-900">Escrow Protection</h5>
+                <h5 className="text-sm font-medium text-blue-900">Escrow Protection</h5>
                 <p className="text-xs text-blue-800 mt-1 leading-relaxed">
                   Your payment is held securely in escrow. Funds are released to the artisan only after you approve each
                   phase.
@@ -502,28 +497,24 @@ export function MessagingInterface() {
           </div>
 
           {sender === "them" && contract.status !== "accepted" && (
-            <div className="flex flex-col sm:flex-row gap-2 pt-2">
-              <Button
-                onClick={() => handleAcceptContract(contract)}
-                className="flex-1 bg-primary hover:bg-primary/90 h-10 sm:h-auto text-sm sm:text-base"
-              >
+            <div className="flex space-x-2 pt-2">
+              <Button onClick={() => handleAcceptContract(contract)} className="flex-1 bg-primary hover:bg-primary/90">
                 <CheckCircle className="h-4 w-4 mr-2" />
                 Accept Contract
               </Button>
               <Button
                 onClick={() => handleRequestChanges(contract)}
                 variant="outline"
-                className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary/30 h-10 sm:h-auto text-sm sm:text-base"
+                className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
               >
                 Request Changes
               </Button>
               <Button
                 onClick={() => handleDeclineContract(contract)}
                 variant="outline"
-                className="hover:bg-red-50 hover:text-red-600 hover:border-red-300 h-10 sm:h-auto w-full sm:w-auto"
+                className="hover:bg-red-50 hover:text-red-600 hover:border-red-300"
               >
-                <XCircle className="h-4 w-4 sm:mr-2" />
-                <span className="sm:inline">Decline</span>
+                <XCircle className="h-4 w-4" />
               </Button>
             </div>
           )}
@@ -540,15 +531,15 @@ export function MessagingInterface() {
     if (!phase) return null
 
     return (
-      <div className="max-w-full sm:max-w-md">
+      <div className="max-w-md">
         <Card className="border-2 border-purple-200 bg-purple-50">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-start space-x-2 sm:space-x-3">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
               <div className="flex-shrink-0">{getPhaseStatusIcon(phaseUpdate.status)}</div>
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-xs sm:text-sm mb-1 line-clamp-2">Phase Update: {phase.name}</h4>
-                <p className="text-xs sm:text-sm text-gray-700 mb-2">{phaseUpdate.message}</p>
-                <Badge className={`${getPhaseStatusColor(phaseUpdate.status)} text-xs`}>{phaseUpdate.status}</Badge>
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm mb-1">Phase Update: {phase.name}</h4>
+                <p className="text-sm text-gray-700 mb-2">{phaseUpdate.message}</p>
+                <Badge className={getPhaseStatusColor(phaseUpdate.status)}>{phaseUpdate.status}</Badge>
               </div>
             </div>
           </CardContent>
@@ -562,39 +553,32 @@ export function MessagingInterface() {
     if (!phase) return null
 
     return (
-      <div className="max-w-full sm:max-w-md">
+      <div className="max-w-md">
         <Card className="border-2 border-green-200 bg-green-50">
-          <CardContent className="p-3 sm:p-4">
-            <div className="flex items-start space-x-2 sm:space-x-3">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
               <DollarSign className="h-5 w-5 text-green-600 flex-shrink-0" />
-              <div className="flex-1 min-w-0">
-                <h4 className="font-semibold text-xs sm:text-sm mb-1">Payment Request</h4>
-                <p className="text-xs sm:text-sm text-gray-700 mb-3">
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm mb-1">Payment Request</h4>
+                <p className="text-sm text-gray-700 mb-3">
                   {phase.name} has been completed. Please review and approve the payment.
                 </p>
                 <div className="flex items-center justify-between mb-3">
-                  <span className="text-xs sm:text-sm text-gray-600">Amount:</span>
-                  <span className="text-base sm:text-lg font-bold text-green-600">
-                    ₦{paymentPrompt.amount.toLocaleString()}
-                  </span>
+                  <span className="text-sm text-gray-600">Amount:</span>
+                  <span className="text-lg font-bold text-green-600">₦{paymentPrompt.amount.toLocaleString()}</span>
                 </div>
                 {phase.status === "delivered" && (
-                  <div className="flex flex-col sm:flex-row gap-2">
+                  <div className="flex space-x-2">
                     <Button
                       onClick={() => handleReleasePayment(paymentPrompt.phaseId)}
                       size="sm"
-                      className="flex-1 bg-green-600 hover:bg-green-700 h-9 sm:h-8 text-xs sm:text-sm"
+                      className="flex-1 bg-green-600 hover:bg-green-700"
                     >
                       <CheckCircle className="h-4 w-4 mr-2" />
                       Approve & Release
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="hover:bg-red-50 hover:text-red-600 bg-transparent h-9 sm:h-8 w-full sm:w-auto"
-                    >
-                      <XCircle className="h-4 w-4 sm:mr-2" />
-                      <span className="sm:inline">Decline</span>
+                    <Button size="sm" variant="outline" className="hover:bg-red-50 hover:text-red-600 bg-transparent">
+                      <XCircle className="h-4 w-4" />
                     </Button>
                   </div>
                 )}
@@ -607,29 +591,29 @@ export function MessagingInterface() {
   }
 
   return (
-    <div className="max-w-[1800px] mx-auto px-2 sm:px-4 lg:px-6 xl:px-8 py-2 sm:py-4 lg:py-6 xl:py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-3 lg:gap-4 xl:gap-6 h-[calc(100vh-4rem)] sm:h-[calc(100vh-6rem)] lg:h-[calc(100vh-10rem)] xl:h-[calc(100vh-12rem)]">
+    <div className="max-w-[1800px] mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4 lg:py-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-4 lg:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
         {/* Conversations List - Left Panel */}
-        <Card className={`lg:col-span-3 ${showConversationList ? "block" : "hidden"} lg:block overflow-hidden`}>
-          <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 lg:py-5 xl:py-6">
-            <CardTitle className="flex items-center justify-between mb-3 sm:mb-4">
+        <Card className={`lg:col-span-3 ${showConversationList ? "block" : "hidden"} lg:block`}>
+          <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
+            <CardTitle className="flex items-center justify-between">
               <span className="text-base sm:text-lg lg:text-xl">Messages</span>
               <Badge variant="secondary" className="text-xs sm:text-sm">
                 {conversations.length}
               </Badge>
             </CardTitle>
             <div className="relative">
-              <Search className="absolute left-2 sm:left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 sm:pl-10 h-9 sm:h-10 lg:h-11 text-xs sm:text-sm"
+                className="pl-10 h-10 sm:h-11 text-sm sm:text-base"
               />
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-14rem)] sm:h-[calc(100vh-16rem)] lg:h-[calc(100vh-18rem)] xl:h-[calc(100vh-20rem)]">
+            <ScrollArea className="h-[calc(100vh-16rem)] sm:h-[calc(100vh-18rem)] lg:h-[calc(100vh-20rem)]">
               <div className="space-y-1 sm:space-y-2 p-2 sm:p-3">
                 {filteredConversations.map((conversation) => (
                   <div
@@ -638,20 +622,20 @@ export function MessagingInterface() {
                       setSelectedConversation(conversation)
                       setShowConversationList(false)
                     }}
-                    className={`cursor-pointer rounded-lg sm:rounded-xl p-2.5 sm:p-3 transition-all ${
+                    className={`cursor-pointer rounded-xl p-3 transition-all ${
                       selectedConversation.id === conversation.id
                         ? "bg-primary/10 border-2 border-primary/30"
                         : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent"
                     }`}
                   >
-                    <div className="flex items-start space-x-2 sm:space-x-3">
+                    <div className="flex items-start space-x-3">
                       <div className="relative flex-shrink-0">
-                        <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
+                        <Avatar className="h-12 w-12">
                           <AvatarImage
                             src={conversation.participant.avatar || "/placeholder.svg"}
                             alt={conversation.participant.name}
                           />
-                          <AvatarFallback className="text-xs sm:text-sm">
+                          <AvatarFallback>
                             {conversation.participant.name
                               .split(" ")
                               .map((n) => n[0])
@@ -659,17 +643,17 @@ export function MessagingInterface() {
                           </AvatarFallback>
                         </Avatar>
                         {conversation.participant.isOnline && (
-                          <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 sm:h-3.5 sm:w-3.5 bg-green-500 border-2 border-white rounded-full"></div>
+                          <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full"></div>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1 gap-2">
-                          <h3 className="font-semibold text-xs sm:text-sm truncate">{conversation.participant.name}</h3>
-                          <span className="text-xs text-gray-500 flex-shrink-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-semibold text-sm truncate">{conversation.participant.name}</h3>
+                          <span className="text-xs text-gray-500">
                             {formatTime(conversation.lastMessage.timestamp)}
                           </span>
                         </div>
-                        <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mb-1">
+                        <div className="flex items-center space-x-2 mb-1">
                           <Badge variant="secondary" className="text-xs">
                             {conversation.participant.service}
                           </Badge>
@@ -682,7 +666,7 @@ export function MessagingInterface() {
                         </div>
                         <p className="text-xs text-gray-600 line-clamp-1">{conversation.lastMessage.text}</p>
                         {conversation.unreadCount > 0 && (
-                          <Badge className="mt-1.5 bg-primary text-white text-xs">{conversation.unreadCount} new</Badge>
+                          <Badge className="mt-1 bg-primary text-white text-xs">{conversation.unreadCount} new</Badge>
                         )}
                       </div>
                     </div>
@@ -695,26 +679,26 @@ export function MessagingInterface() {
 
         {/* Chat Interface - Middle Panel */}
         <Card
-          className={`lg:col-span-6 flex flex-col ${showConversationList ? "hidden" : "block"} lg:block ${!showJobSummary ? "lg:col-span-9" : ""} overflow-hidden`}
+          className={`lg:col-span-6 flex flex-col py-0 ${showConversationList ? "hidden" : "block"} lg:block ${!showJobSummary ? "lg:col-span-9" : ""}`}
         >
-          <CardHeader className="sm:pb-3 border-b px-2 sm:px-3 lg:px-4 xl:px-6 sm:py-3 lg:py-4 xl:py-6 flex-shrink-0 py-2">
-            <div className="flex items-center justify-between gap-2">
+          <CardHeader className="pb-2 sm:pb-3 border-b px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
+            <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="lg:hidden h-8 w-8 sm:h-9 sm:w-9 p-0 flex-shrink-0"
+                  className="lg:hidden h-9 w-9 p-0 flex-shrink-0"
                   onClick={() => setShowConversationList(true)}
                 >
-                  <ChevronLeft className="h-4 w-4 sm:h-5 sm:w-5" />
+                  ←
                 </Button>
                 <div className="relative flex-shrink-0">
-                  <Avatar className="h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12">
+                  <Avatar className="h-10 w-10 lg:h-12 lg:w-12">
                     <AvatarImage
                       src={selectedConversation.participant.avatar || "/placeholder.svg"}
                       alt={selectedConversation.participant.name}
                     />
-                    <AvatarFallback className="text-xs sm:text-sm">
+                    <AvatarFallback>
                       {selectedConversation.participant.name
                         .split(" ")
                         .map((n) => n[0])
@@ -722,11 +706,11 @@ export function MessagingInterface() {
                     </AvatarFallback>
                   </Avatar>
                   {selectedConversation.participant.isOnline && (
-                    <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 sm:h-3 sm:w-3 bg-green-500 border-2 border-white rounded-full"></div>
+                    <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-white rounded-full"></div>
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-xs sm:text-sm lg:text-base truncate">
+                  <h3 className="font-semibold text-sm lg:text-base truncate">
                     {selectedConversation.participant.name}
                   </h3>
                   <p className="text-xs text-gray-600 truncate">
@@ -736,43 +720,41 @@ export function MessagingInterface() {
                   </p>
                 </div>
               </div>
-              <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-                <Button variant="outline" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 hidden sm:flex bg-transparent">
-                  <Phone className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <div className="flex items-center space-x-2 flex-shrink-0">
+                <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
+                  <Phone className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 hidden sm:flex bg-transparent">
-                  <Video className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
+                  <Video className="h-4 w-4" />
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="h-8 w-8 sm:h-9 sm:w-9 p-0 lg:hidden bg-transparent"
+                  className="h-9 w-9 p-0 lg:hidden bg-transparent"
                   onClick={() => setShowJobSummary(!showJobSummary)}
                 >
-                  <FileText className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                  <FileText className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" className="h-8 w-8 sm:h-9 sm:w-9 p-0 bg-transparent">
-                  <MoreVertical className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </div>
             </div>
           </CardHeader>
 
-          <CardContent className="flex-1 p-0 overflow-hidden">
-            <ScrollArea className="h-[calc(100vh-16rem)] sm:h-[calc(100vh-18rem)] lg:h-[calc(100vh-24rem)] xl:h-[calc(100vh-28rem)] p-2 sm:p-3 lg:p-4 xl:p-6">
-              <div className="space-y-3 sm:space-y-4">
+          <CardContent className="flex-1 p-0">
+            <ScrollArea className="h-[calc(100vh-18rem)] sm:h-[calc(100vh-22rem)] lg:h-[calc(100vh-28rem)] p-3 sm:p-4 lg:p-6">
+              <div className="space-y-4">
                 {messages.map((message) => (
                   <div key={message.id} className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
                     {message.type === "text" && (
-                      <div
-                        className={`max-w-[90%] sm:max-w-[85%] lg:max-w-[75%] ${message.sender === "me" ? "order-2" : "order-1"}`}
-                      >
+                      <div className={`max-w-[85%] ${message.sender === "me" ? "order-2" : "order-1"}`}>
                         <div
-                          className={`rounded-2xl px-3 py-2 sm:px-4 sm:py-3 ${
+                          className={`rounded-2xl px-4 py-3 ${
                             message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
                           }`}
                         >
-                          <p className="text-xs sm:text-sm leading-relaxed break-words">{message.text}</p>
+                          <p className="text-sm leading-relaxed">{message.text}</p>
                         </div>
                         <div
                           className={`flex items-center mt-1 space-x-1 ${
@@ -786,17 +768,13 @@ export function MessagingInterface() {
                     )}
 
                     {message.type === "file" && message.attachments && (
-                      <div
-                        className={`max-w-[90%] sm:max-w-[85%] lg:max-w-[75%] ${message.sender === "me" ? "order-2" : "order-1"}`}
-                      >
+                      <div className={`max-w-[85%] ${message.sender === "me" ? "order-2" : "order-1"}`}>
                         <div
-                          className={`rounded-2xl px-3 py-2 sm:px-4 sm:py-3 ${
+                          className={`rounded-2xl px-4 py-3 ${
                             message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
                           }`}
                         >
-                          {message.text && (
-                            <p className="text-xs sm:text-sm leading-relaxed mb-2 break-words">{message.text}</p>
-                          )}
+                          {message.text && <p className="text-sm leading-relaxed mb-2">{message.text}</p>}
                           <div className="space-y-2">
                             {message.attachments.map((attachment, index) => (
                               <div
@@ -804,7 +782,7 @@ export function MessagingInterface() {
                                 className={`rounded p-2 ${message.sender === "me" ? "bg-white/20" : "bg-white"}`}
                               >
                                 <div className="flex items-center space-x-2">
-                                  <ImageIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                                  <ImageIcon className="h-4 w-4 flex-shrink-0" />
                                   <span className="text-xs truncate">{attachment.name}</span>
                                 </div>
                               </div>
@@ -833,7 +811,7 @@ export function MessagingInterface() {
 
                     {message.type === "phase-update" && message.phaseUpdate && (
                       <div className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"} w-full`}>
-                        <div className="w-full sm:w-auto">
+                        <div>
                           <PhaseUpdateCard phaseUpdate={message.phaseUpdate} sender={message.sender} />
                           <div className={`flex mt-1 ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
                             <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
@@ -844,7 +822,7 @@ export function MessagingInterface() {
 
                     {message.type === "payment-prompt" && message.paymentPrompt && (
                       <div className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"} w-full`}>
-                        <div className="w-full sm:w-auto">
+                        <div>
                           <PaymentPromptCard paymentPrompt={message.paymentPrompt} />
                           <div className={`flex mt-1 ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
                             <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
@@ -858,28 +836,23 @@ export function MessagingInterface() {
             </ScrollArea>
           </CardContent>
 
-          <div className="border-t p-2 sm:p-3 lg:p-4 flex-shrink-0">
-            <div className="flex items-center space-x-1.5 sm:space-x-2">
-              <Button variant="outline" size="sm" className="h-9 w-9 sm:h-10 sm:w-10 p-0 flex-shrink-0 bg-transparent">
-                <Paperclip className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+          <div className="border-t p-3 sm:p-4">
+            <div className="flex items-center space-x-2">
+              <Button variant="outline" size="sm" className="h-10 w-10 p-0 flex-shrink-0 bg-transparent">
+                <Paperclip className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" className="h-9 w-9 sm:h-10 sm:w-10 p-0 flex-shrink-0 bg-transparent">
-                <ImageIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <Button variant="outline" size="sm" className="h-10 w-10 p-0 flex-shrink-0 bg-transparent">
+                <ImageIcon className="h-4 w-4" />
               </Button>
               <Input
                 placeholder="Type your message..."
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-                className="h-9 sm:h-10 text-xs sm:text-sm"
+                className="h-10 text-sm"
               />
-              <Button
-                size="sm"
-                onClick={sendMessage}
-                disabled={!newMessage.trim()}
-                className="h-9 w-9 sm:h-10 sm:w-10 p-0 flex-shrink-0"
-              >
-                <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <Button size="sm" onClick={sendMessage} disabled={!newMessage.trim()} className="h-10 w-10 p-0">
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>
@@ -887,35 +860,33 @@ export function MessagingInterface() {
 
         {/* Job Summary Panel - Right Panel */}
         <Card
-          className={`lg:col-span-3 ${showJobSummary ? "block" : "hidden"} lg:block fixed lg:relative inset-0 lg:inset-auto z-50 lg:z-auto m-2 sm:m-4 lg:m-0 overflow-hidden`}
+          className={`lg:col-span-3 ${showJobSummary ? "block" : "hidden"} lg:block absolute lg:relative inset-0 lg:inset-auto z-50 lg:z-auto`}
         >
-          <CardHeader className="pb-2 sm:pb-3 border-b px-3 sm:px-4 lg:px-5 xl:px-6 py-3 sm:py-4 lg:py-5 xl:py-6">
+          <CardHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-sm sm:text-base lg:text-lg">Job Summary</CardTitle>
+              <CardTitle className="text-base lg:text-lg">Job Summary</CardTitle>
               <Button
                 variant="ghost"
                 size="sm"
-                className="lg:hidden h-8 w-8 p-0 hover:bg-gray-100"
+                className="lg:hidden h-8 w-8 p-0"
                 onClick={() => setShowJobSummary(false)}
               >
-                <XCircle className="h-4 w-4" />
+                ×
               </Button>
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-8rem)] sm:h-[calc(100vh-10rem)] lg:h-[calc(100vh-14rem)] xl:h-[calc(100vh-16rem)]">
-              <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
+            <ScrollArea className="h-[calc(100vh-10rem)] lg:h-[calc(100vh-16rem)]">
+              <div className="p-4 space-y-4">
                 {/* Contract Status */}
                 <div>
-                  <h3 className="font-semibold text-xs sm:text-sm mb-2">Contract Status</h3>
-                  <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-2.5 sm:p-3">
+                  <h3 className="font-semibold text-sm mb-2">Contract Status</h3>
+                  <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs sm:text-sm font-medium">Overall Progress</span>
-                      <span className="text-xs sm:text-sm font-bold text-primary">
-                        {Math.round(calculateProgress())}%
-                      </span>
+                      <span className="text-sm font-medium">Overall Progress</span>
+                      <span className="text-sm font-bold text-primary">{Math.round(calculateProgress())}%</span>
                     </div>
-                    <Progress value={calculateProgress()} className="h-1.5 sm:h-2 mb-2" />
+                    <Progress value={calculateProgress()} className="h-2 mb-2" />
                     <div className="flex items-center justify-between text-xs text-gray-600">
                       <span>
                         {activeContract.phases.filter((p) => p.status === "paid").length} of{" "}
@@ -929,26 +900,24 @@ export function MessagingInterface() {
 
                 {/* Payment Summary */}
                 <div>
-                  <h3 className="font-semibold text-xs sm:text-sm mb-2 sm:mb-3">Payment Summary</h3>
-                  <div className="space-y-1.5 sm:space-y-2">
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                  <h3 className="font-semibold text-sm mb-3">Payment Summary</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">Total Contract</span>
                       <span className="font-semibold">₦{activeContract.totalAmount.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                    <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">Deposit Paid</span>
                       <div className="flex items-center space-x-2">
                         <span className="font-semibold">₦{activeContract.depositAmount.toLocaleString()}</span>
-                        {activeContract.depositPaid && (
-                          <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-green-600" />
-                        )}
+                        {activeContract.depositPaid && <CheckCircle className="h-4 w-4 text-green-600" />}
                       </div>
                     </div>
-                    <div className="flex items-center justify-between text-xs sm:text-sm">
+                    <div className="flex items-center justify-between text-sm">
                       <span className="text-gray-600">Total Paid</span>
                       <span className="font-semibold text-green-600">₦{calculateTotalPaid().toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs sm:text-sm pt-1.5 sm:pt-2 border-t">
+                    <div className="flex items-center justify-between text-sm pt-2 border-t">
                       <span className="text-gray-600">Remaining</span>
                       <span className="font-bold text-primary">
                         ₦{(activeContract.totalAmount - calculateTotalPaid()).toLocaleString()}
@@ -961,26 +930,26 @@ export function MessagingInterface() {
 
                 {/* Phases */}
                 <div>
-                  <h3 className="font-semibold text-xs sm:text-sm mb-2 sm:mb-3">Project Phases</h3>
-                  <div className="space-y-2 sm:space-y-3">
+                  <h3 className="font-semibold text-sm mb-3">Project Phases</h3>
+                  <div className="space-y-3">
                     {activeContract.phases.map((phase, index) => (
-                      <div key={phase.id} className="border rounded-lg p-2.5 sm:p-3">
-                        <div className="flex items-start justify-between mb-2 gap-2">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center flex-wrap gap-1.5 sm:gap-2 mb-1">
+                      <div key={phase.id} className="border rounded-lg p-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
                               <span className="text-xs font-medium text-gray-500">Phase {index + 1}</span>
                               <Badge className={`${getPhaseStatusColor(phase.status)} text-xs`}>{phase.status}</Badge>
                             </div>
-                            <p className="text-xs sm:text-sm font-medium line-clamp-2">{phase.name}</p>
+                            <p className="text-sm font-medium">{phase.name}</p>
                           </div>
-                          <div className="flex-shrink-0">{getPhaseStatusIcon(phase.status)}</div>
+                          {getPhaseStatusIcon(phase.status)}
                         </div>
                         <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
                           <span>Amount:</span>
                           <span className="font-semibold text-primary">₦{phase.amount.toLocaleString()}</span>
                         </div>
                         {phase.dueDate && (
-                          <div className="flex items-center text-xs text-gray-600 mb-2">
+                          <div className="flex items-center text-xs text-gray-600">
                             <Clock className="h-3 w-3 mr-1" />
                             Due: {new Date(phase.dueDate).toLocaleDateString()}
                           </div>
@@ -989,9 +958,9 @@ export function MessagingInterface() {
                           <Button
                             onClick={() => handleReleasePayment(phase.id)}
                             size="sm"
-                            className="w-full mt-2 bg-green-600 hover:bg-green-700 h-8 sm:h-9 text-xs sm:text-sm"
+                            className="w-full mt-2 bg-green-600 hover:bg-green-700"
                           >
-                            <CheckCircle className="h-3 w-3 sm:h-3.5 sm:w-3.5 mr-2" />
+                            <CheckCircle className="h-3 w-3 mr-2" />
                             Release Payment
                           </Button>
                         )}
@@ -1004,23 +973,23 @@ export function MessagingInterface() {
 
                 {/* Materials */}
                 <div>
-                  <h3 className="font-semibold text-xs sm:text-sm mb-2 sm:mb-3 flex items-center">
-                    <Wrench className="h-3.5 w-3.5 sm:h-4 sm:w-4 mr-2 text-primary" />
+                  <h3 className="font-semibold text-sm mb-3 flex items-center">
+                    <Wrench className="h-4 w-4 mr-2 text-primary" />
                     Materials & Tools
                   </h3>
-                  <div className="space-y-1.5 sm:space-y-2">
+                  <div className="space-y-2">
                     {activeContract.materials.map((material) => (
                       <div key={material.id} className="bg-gray-50 rounded p-2">
-                        <div className="flex items-start justify-between mb-1 gap-2">
-                          <p className="text-xs font-medium flex-1 line-clamp-2">{material.name}</p>
-                          <Badge variant="secondary" className="text-xs flex-shrink-0">
+                        <div className="flex items-start justify-between mb-1">
+                          <p className="text-xs font-medium flex-1">{material.name}</p>
+                          <Badge variant="secondary" className="text-xs ml-2">
                             {material.coveredBy === "client" ? "You" : "Artisan"}
                           </Badge>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-xs text-gray-600">₦{material.cost.toLocaleString()}</span>
                           {material.receipt && (
-                            <Button variant="ghost" size="sm" className="h-5 sm:h-6 text-xs p-1">
+                            <Button variant="ghost" size="sm" className="h-6 text-xs p-1">
                               <Download className="h-3 w-3 mr-1" />
                               Receipt
                             </Button>
@@ -1034,9 +1003,9 @@ export function MessagingInterface() {
                 <Separator />
 
                 {/* Escrow Protection */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 sm:p-3">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
                   <div className="flex items-start space-x-2">
-                    <Shield className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
                     <div>
                       <h5 className="text-xs font-medium text-blue-900 mb-1">Escrow Protection Active</h5>
                       <p className="text-xs text-blue-800 leading-relaxed">
