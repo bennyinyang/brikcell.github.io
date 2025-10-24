@@ -1000,26 +1000,31 @@ export function MessagingInterface() {
                   </h3>
                   <div className="space-y-2">
                     {activeContract.materials.map((material) => (
-                      <div key={material.id} className="bg-gray-50 rounded p-2">
-                        <div className="flex items-start justify-between mb-1">
-                          <p className="text-xs font-medium flex-1">{material.name}</p>
-                          <Badge variant="secondary" className="text-xs ml-2">
-                            {material.coveredBy === "client" ? "You" : "Artisan"}
-                          </Badge>
+                      <div key={material.id}>
+                        <div className="bg-gray-50 rounded p-2">
+                          <div className="flex items-start justify-between mb-1">
+                            <p className="text-xs font-medium flex-1">{material.name}</p>
+                            <Badge variant="secondary" className="text-xs ml-2">
+                              {material.coveredBy === "client" ? "You" : "Artisan"}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-600">₦{material.cost.toLocaleString()}</span>
+                          </div>
                         </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-gray-600">₦{material.cost.toLocaleString()}</span>
-                          {material.receipt && (
+                        {material.receipt && (
+                          <div className="mt-2 flex justify-end">
                             <Button
                               variant="outline"
                               size="sm"
-                              className="h-6 w-6 p-0 bg-transparent hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                              className="h-7 px-3 bg-transparent hover:bg-primary/10 hover:text-primary hover:border-primary/30"
                               title="Download Receipt"
                             >
-                              <Download className="h-3 w-3" />
+                              <Download className="h-3 w-3 mr-1.5" />
+                              <span className="text-xs">Download Receipt</span>
                             </Button>
-                          )}
-                        </div>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
