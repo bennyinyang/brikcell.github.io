@@ -783,11 +783,11 @@ export function MessagingInterface() {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-red-600">
-                      <Flag className="h-4 w-4 mr-2" />
+                      <Flag className="h-4 w-4 mr-2 text-red-600" />
                       Report Issue
                     </DropdownMenuItem>
                     <DropdownMenuItem className="text-red-600">
-                      <Ban className="h-4 w-4 mr-2" />
+                      <Ban className="h-4 w-4 mr-2 text-red-600" />
                       Block User
                     </DropdownMenuItem>
                   </DropdownMenuContent>
