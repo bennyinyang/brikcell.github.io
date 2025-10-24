@@ -237,7 +237,6 @@ const messages: Message[] = [
   },
   {
     id: 7,
-    text: "Perfect! I'll start tomorrow morning. Phase 1 is complete - I've assessed everything and prepared the materials.",
     timestamp: "2024-01-16T16:00:00Z",
     sender: "them",
     status: "read",
@@ -262,7 +261,6 @@ const messages: Message[] = [
   },
   {
     id: 10,
-    text: "Phase 2 is now complete! I've fixed the leak and removed the old faucet. Please review the work.",
     timestamp: "2024-01-17T16:00:00Z",
     sender: "them",
     status: "delivered",
@@ -759,7 +757,11 @@ export function MessagingInterface() {
                 </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 w-9 p-0 bg-transparent hover:text-red-600 transition-colors duration-200"
+                    >
                       <MoreVertical className="h-4 w-4" />
                     </Button>
                   </DropdownMenuTrigger>
@@ -783,11 +785,11 @@ export function MessagingInterface() {
                     </DropdownMenuItem>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem className="text-red-600">
-                      <Flag className="h-4 w-4 mr-2 text-red-600" />
+                      <Flag className="h-4 w-4 mr-2" />
                       Report Issue
                     </DropdownMenuItem>
                     <DropdownMenuItem className="text-red-600">
-                      <Ban className="h-4 w-4 mr-2 text-red-600" />
+                      <Ban className="h-4 w-4 mr-2" />
                       Block User
                     </DropdownMenuItem>
                   </DropdownMenuContent>
