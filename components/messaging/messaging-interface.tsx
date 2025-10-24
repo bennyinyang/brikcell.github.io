@@ -11,12 +11,18 @@ import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import { ContractCreationModal } from "@/components/modals/contract-creation-modal"
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+import {
   Search,
   Send,
   Paperclip,
   ImageIcon,
   Phone,
-  Video,
   MoreVertical,
   CheckCheck,
   Check,
@@ -30,6 +36,12 @@ import {
   AlertCircle,
   Download,
   Shield,
+  User,
+  BellOff,
+  Ban,
+  Flag,
+  Trash2,
+  Archive,
 } from "lucide-react"
 
 interface Phase {
@@ -736,7 +748,7 @@ export function MessagingInterface() {
                 <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
                   <Phone className="h-4 w-4" />
                 </Button>
-                
+
                 <Button
                   variant="outline"
                   size="sm"
@@ -745,9 +757,41 @@ export function MessagingInterface() {
                 >
                   <FileText className="h-4 w-4" />
                 </Button>
-                <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem>
+                      <User className="h-4 w-4 mr-2" />
+                      View Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <BellOff className="h-4 w-4 mr-2" />
+                      Mute Notifications
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Archive className="h-4 w-4 mr-2" />
+                      Archive Conversation
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Clear Chat
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-red-600">
+                      <Flag className="h-4 w-4 mr-2" />
+                      Report Issue
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-red-600">
+                      <Ban className="h-4 w-4 mr-2" />
+                      Block User
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
           </CardHeader>
