@@ -12,9 +12,6 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff, ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
 
-// ✅ Added: real API + auth helpers
-import { AuthAPI, saveAuth, type UserDTO } from "@/lib/api"
-
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -29,27 +26,15 @@ export default function LoginPage() {
     setIsLoading(true)
     setError("")
 
-    try {
-      const normalizedEmail = (email || "").trim().toLowerCase()
-      const { token, user } = await AuthAPI.login({ email: normalizedEmail, password })
-
-      // Persist session
-      saveAuth(token, user as UserDTO)
-
-      // Redirect by role
-      if (user.role === "artisan") {
-        router.push("/dashboard/artisan")
-      } else if (user.role === "employer") {
-        router.push("/dashboard/customer")
+    // Simulate API call
+    setTimeout(() => {
+      if (email === "user@example.com" && password === "password") {
+        router.push("/dashboard")
       } else {
-        router.push("/")
+        setError("Invalid email or password. Please try again.")
       }
-    } catch (err: any) {
-      // Show backend message if available (handles 401/403/etc.)
-      setError(err?.message || "Invalid email or password. Please try again.")
-    } finally {
       setIsLoading(false)
-    }
+    }, 1000)
   }
 
   return (
@@ -146,7 +131,7 @@ export default function LoginPage() {
                     <Checkbox
                       id="remember"
                       checked={rememberMe}
-                      onCheckedChange={(checked) => setRememberMe(checked === true)}
+                      onCheckedChange={setRememberMe}
                       className="border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
                     <Label htmlFor="remember" className="text-sm text-muted-foreground">

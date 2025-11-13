@@ -11,11 +11,7 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, EyeOff, ArrowLeft, Lock, Check } from "lucide-react"
 
-// ✅ ADDED: real API
-import { AuthAPI } from "@/lib/api"
-
 export default function ResetPasswordPage() {
-  const [otp, setOtp] = useState("") // ✅ ADDED: OTP field
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -23,17 +19,12 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [serverError, setServerError] = useState("") // ✅ ADDED: show backend errors
   const searchParams = useSearchParams()
   const router = useRouter()
-  const email = (searchParams.get("email") || "").trim().toLowerCase()
+  const email = searchParams.get("email") || ""
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
-
-    if (!otp || otp.trim().length !== 6) {
-      newErrors.otp = "Enter the 6-digit code sent to your email"
-    }
 
     if (!password) {
       newErrors.password = "Password is required"
@@ -58,36 +49,24 @@ export default function ResetPasswordPage() {
 
     setIsLoading(true)
     setErrors({})
-    setServerError("")
 
-    try {
-      if (!email) {
-        throw new Error("Missing email. Please restart the reset process.")
-      }
-      await AuthAPI.resetPassword({
-        email,
-        otp: otp.trim(),
-        newPassword: password
-      })
-
+    // Simulate API call
+    setTimeout(() => {
       setIsSuccess(true)
+      setIsLoading(false)
+
+      // Redirect to success page after showing confirmation
       setTimeout(() => {
         router.push("/auth/password-changed")
       }, 2000)
-    } catch (err: any) {
-      setServerError(err?.message || "Failed to update password. Please try again.")
-    } finally {
-      setIsLoading(false)
-    }
+    }, 1000)
   }
 
   const handleInputChange = (field: string, value: string) => {
     if (field === "password") {
       setPassword(value)
-    } else if (field === "confirmPassword") {
+    } else {
       setConfirmPassword(value)
-    } else if (field === "otp") {
-      setOtp(value.replace(/\D/g, "").slice(0, 6)) // digits only, max 6
     }
 
     if (errors[field]) {
@@ -180,24 +159,6 @@ export default function ResetPasswordPage() {
             </CardHeader>
             <CardContent className="space-y-6 px-0">
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* ✅ ADDED: OTP field */}
-                <div className="space-y-2">
-                  <Label htmlFor="otp" className="text-sm font-medium text-foreground">
-                    6-digit Code
-                  </Label>
-                  <Input
-                    id="otp"
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="Enter the code sent to your email"
-                    value={otp}
-                    onChange={(e) => handleInputChange("otp", e.target.value)}
-                    className={`h-12 bg-card border-border focus:border-primary focus:ring-primary/20 ${errors.otp ? "border-destructive" : ""}`}
-                  />
-                  {errors.otp && <p className="text-sm text-destructive">{errors.otp}</p>}
-                </div>
-
                 <div className="space-y-2">
                   <Label htmlFor="password" className="text-sm font-medium text-foreground">
                     New Password
@@ -266,13 +227,6 @@ export default function ResetPasswordPage() {
                   </div>
                   {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
                 </div>
-
-                {/* Server error (e.g., invalid/expired OTP) */}
-                {serverError && (
-                  <div className="p-4 text-sm text-destructive-foreground bg-destructive/10 border border-destructive/20 rounded-lg">
-                    {serverError}
-                  </div>
-                )}
 
                 <Button
                   type="submit"

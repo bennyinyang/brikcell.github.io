@@ -13,11 +13,10 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Textarea } from "@/components/ui/textarea"
 import { Eye, EyeOff, ArrowLeft, Check } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { AuthAPI } from "@/lib/api" 
 
 export default function SignUpPage() {
   const [formData, setFormData] = useState({
-    userType: "employer", // Added user type selection
+    userType: "customer", // Added user type selection
     name: "",
     email: "",
     password: "",
@@ -90,43 +89,20 @@ export default function SignUpPage() {
     setIsLoading(true)
     setErrors({})
 
-    try {
-      // Map frontend userType → backend role
-      const role = formData.userType === "artisan" ? "artisan" : "employer"
-
-      // Build payload based on role
-      const payload: any = {
-        email: formData.email,
-        password: formData.password,
-        role,
-        name: formData.name,
-      }
-
-      if (role === "artisan") {
-        payload.phone = formData.phone
-        payload.location = formData.location
-        payload.businessName = formData.businessName
-        payload.skills = formData.skills
-        payload.experience = formData.experience
-      } else {
-        // employer optional fields if you want to capture them
-        if (formData.phone) payload.phone = formData.phone
-        if (formData.location) payload.location = formData.location
-      }
-
-      await AuthAPI.signup(payload)
-
+    // Simulate API call
+    setTimeout(() => {
       setIsSuccess(true)
       setIsLoading(false)
 
-      // After success, go to verify-otp for signup flow
+      // Redirect to appropriate dashboard after showing success
       setTimeout(() => {
-        router.push(`/auth/verify-otp?email=${encodeURIComponent(formData.email)}&flow=signup`)
-      }, 1000)
-    } catch (err: any) {
-      setIsLoading(false)
-      setErrors((prev) => ({ ...prev, form: err?.message || "Signup failed" }))
-    }
+        if (formData.userType === "artisan") {
+          router.push("/dashboard/artisan")
+        } else {
+          router.push("/dashboard/customer")
+        }
+      }, 2000)
+    }, 1000)
   }
 
   const handleInputChange = (field: string, value: string) => {
@@ -154,7 +130,7 @@ export default function SignUpPage() {
                     : " You can now start connecting with skilled artisans."}
                 </p>
               </div>
-              <p className="text-sm text-muted-foreground">Redirecting to verification...</p>
+              <p className="text-sm text-muted-foreground">Redirecting to your dashboard...</p>
             </div>
           </CardContent>
         </Card>
@@ -201,13 +177,6 @@ export default function SignUpPage() {
             </CardHeader>
             <CardContent className="space-y-6 px-0">
               <form onSubmit={handleSubmit} className="space-y-5">
-                {/* Form-level error from server */}
-                {errors.form && (
-                  <div className="p-4 text-sm text-destructive-foreground bg-destructive/10 border border-destructive/20 rounded-lg">
-                    {errors.form}
-                  </div>
-                )}
-
                 <div className="space-y-3">
                   <Label className="text-sm font-medium text-foreground">I want to join as:</Label>
                   <RadioGroup
@@ -216,9 +185,9 @@ export default function SignUpPage() {
                     className="flex space-x-6"
                   >
                     <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="employer" id="employer" />
-                      <Label htmlFor="employer" className="text-sm font-medium cursor-pointer">
-                        Employer
+                      <RadioGroupItem value="customer" id="customer" />
+                      <Label htmlFor="customer" className="text-sm font-medium cursor-pointer">
+                        Customer
                       </Label>
                     </div>
                     <div className="flex items-center space-x-2">
@@ -404,7 +373,7 @@ export default function SignUpPage() {
                     <Checkbox
                       id="terms"
                       checked={agreeToTerms}
-                      onCheckedChange={(checked) => setAgreeToTerms(checked === true)}
+                      onCheckedChange={setAgreeToTerms}
                       className="mt-1 border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
                     <Label htmlFor="terms" className="text-sm text-muted-foreground leading-5">
