@@ -7,14 +7,9 @@ import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
+import { Separator } from "@/components/ui/separator"
+import { Progress } from "@/components/ui/progress"
+import { ContractCreationModal } from "@/components/modals/contract-creation-modal"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,96 +17,179 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Textarea } from "@/components/ui/textarea"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
-import { Label } from "@/components/ui/label"
 import {
   Search,
   Send,
   Paperclip,
   ImageIcon,
   Phone,
-  Video,
   MoreVertical,
   CheckCheck,
   Check,
   Clock,
-  Archive,
-  VolumeX,
-  Trash2,
-  Flag,
-  KanbanSquareDashed as MarkAsUnread,
-  AlertTriangle,
+  FileText,
+  DollarSign,
+  Package,
+  Wrench,
+  CheckCircle,
+  XCircle,
+  AlertCircle,
+  Download,
   Shield,
+  User,
+  BellOff,
+  Ban,
+  Flag,
+  Trash2,
+  Archive,
 } from "lucide-react"
 
-// Mock data for conversations
+interface Phase {
+  id: number
+  name: string
+  description: string
+  deliverables: string[]
+  amount: number
+  status: "pending" | "in-progress" | "delivered" | "approved" | "paid"
+  dueDate?: string
+  completedDate?: string
+}
+
+interface Material {
+  id: number
+  name: string
+  cost: number
+  coveredBy: "client" | "artisan"
+  receipt?: string
+}
+
+interface Contract {
+  id: number
+  title: string
+  description: string
+  totalAmount: number
+  depositAmount: number
+  depositPaid: boolean
+  phases: Phase[]
+  materials: Material[]
+  status: "draft" | "proposed" | "accepted" | "active" | "completed"
+  createdAt: string
+  acceptedAt?: string
+}
+
+interface Message {
+  id: number
+  text?: string
+  timestamp: string
+  sender: "me" | "them"
+  status: "sent" | "delivered" | "read"
+  type: "text" | "contract" | "phase-update" | "payment-prompt" | "file"
+  attachments?: { type: string; url: string; name: string }[]
+  contract?: Contract
+  phaseUpdate?: { phaseId: number; status: string; message: string }
+  paymentPrompt?: { phaseId: number; amount: number }
+}
+
+const mockContract: Contract = {
+  id: 1,
+  title: "Kitchen Plumbing Repair & Faucet Replacement",
+  description:
+    "Complete kitchen plumbing repair including fixing the leaking sink, replacing the old faucet with a new modern fixture, and ensuring all connections are properly sealed.",
+  totalAmount: 75000,
+  depositAmount: 22500,
+  depositPaid: true,
+  status: "active",
+  createdAt: "2024-01-15T10:00:00Z",
+  acceptedAt: "2024-01-15T14:00:00Z",
+  phases: [
+    {
+      id: 1,
+      name: "Initial Assessment & Preparation",
+      description: "Inspect the plumbing system, identify issues, and prepare materials",
+      deliverables: ["Detailed assessment report", "List of required materials", "Work timeline"],
+      amount: 15000,
+      status: "paid",
+      dueDate: "2024-01-16",
+      completedDate: "2024-01-16",
+    },
+    {
+      id: 2,
+      name: "Leak Repair & Old Faucet Removal",
+      description: "Fix the leaking sink and safely remove the old faucet",
+      deliverables: ["Leak completely fixed", "Old faucet removed", "Area cleaned"],
+      amount: 30000,
+      status: "delivered",
+      dueDate: "2024-01-17",
+      completedDate: "2024-01-17",
+    },
+    {
+      id: 3,
+      name: "New Faucet Installation & Testing",
+      description: "Install the new faucet and test all connections",
+      deliverables: ["New faucet installed", "All connections tested", "Final inspection"],
+      amount: 30000,
+      status: "in-progress",
+      dueDate: "2024-01-18",
+    },
+  ],
+  materials: [
+    { id: 1, name: "Modern Kitchen Faucet (Chrome)", cost: 12500, coveredBy: "client" },
+    { id: 2, name: "Plumbing Sealant & Tape", cost: 2500, coveredBy: "artisan" },
+    { id: 3, name: "Pipe Fittings & Connectors", cost: 3500, coveredBy: "artisan" },
+    { id: 4, name: "Replacement Gaskets", cost: 1500, coveredBy: "client", receipt: "/receipts/gaskets.pdf" },
+  ],
+}
+
 const conversations = [
   {
     id: 1,
     participant: {
-      name: "Sarah Johnson",
-      avatar: "/professional-hairstylist-woman.png",
-      service: "Hair Styling",
+      name: "Mike Rodriguez",
+      avatar: "/professional-plumber.png",
+      service: "Plumbing",
       isOnline: true,
     },
     lastMessage: {
-      text: "Perfect! I'll see you tomorrow at 2 PM for the hair styling session.",
+      text: "Phase 2 has been completed! Please review and approve the payment.",
+      timestamp: "2024-01-17T16:30:00Z",
+      isRead: false,
+      sender: "them",
+    },
+    unreadCount: 2,
+    jobTitle: "Kitchen Plumbing Repair",
+    jobBudget: "₦75,000",
+    hasActiveContract: true,
+  },
+  {
+    id: 2,
+    participant: {
+      name: "Sarah Johnson",
+      avatar: "/professional-hairstylist-woman.png",
+      service: "Hair Styling",
+      isOnline: false,
+      lastSeen: "1 hour ago",
+    },
+    lastMessage: {
+      text: "I've sent you a contract proposal for the wedding hair styling.",
       timestamp: "2024-01-15T14:30:00Z",
       isRead: true,
       sender: "them",
     },
     unreadCount: 0,
     jobTitle: "Wedding Hair Styling",
-    jobBudget: "$150",
-  },
-  {
-    id: 2,
-    participant: {
-      name: "Mike Rodriguez",
-      avatar: "/professional-plumber.png",
-      service: "Plumbing",
-      isOnline: false,
-      lastSeen: "2 hours ago",
-    },
-    lastMessage: {
-      text: "I can start the kitchen plumbing repair this Thursday. Does that work for you?",
-      timestamp: "2024-01-15T12:15:00Z",
-      isRead: false,
-      sender: "them",
-    },
-    unreadCount: 2,
-    jobTitle: "Kitchen Plumbing Repair",
-    jobBudget: "$150",
-  },
-  {
-    id: 3,
-    participant: {
-      name: "David Chen",
-      avatar: "/professional-carpenter.png",
-      service: "Carpentry",
-      isOnline: true,
-    },
-    lastMessage: {
-      text: "Thanks for the great review! It was a pleasure working on your bookshelf project.",
-      timestamp: "2024-01-14T16:45:00Z",
-      isRead: true,
-      sender: "them",
-    },
-    unreadCount: 0,
-    jobTitle: "Custom Bookshelf",
-    jobBudget: "$300",
+    jobBudget: "₦42,500",
+    hasActiveContract: false,
   },
 ]
 
-// Mock messages for active conversation
-const messages = [
+const messages: Message[] = [
   {
     id: 1,
     text: "Hi Mike! I saw your profile and I'm interested in hiring you for a kitchen plumbing repair.",
     timestamp: "2024-01-15T10:00:00Z",
     sender: "me",
     status: "read",
+    type: "text",
   },
   {
     id: 2,
@@ -119,13 +197,15 @@ const messages = [
     timestamp: "2024-01-15T10:05:00Z",
     sender: "them",
     status: "read",
+    type: "text",
   },
   {
     id: 3,
-    text: "The kitchen sink has been leaking for a few days, and I think the faucet needs to be replaced too. Here are some photos of the current situation.",
+    text: "The kitchen sink has been leaking for a few days, and I think the faucet needs to be replaced too. Here are some photos.",
     timestamp: "2024-01-15T10:10:00Z",
     sender: "me",
     status: "read",
+    type: "file",
     attachments: [
       { type: "image", url: "/kitchen-sink-leak.jpg", name: "kitchen-sink-leak.jpg" },
       { type: "image", url: "/old-faucet.jpg", name: "old-faucet.jpg" },
@@ -133,60 +213,78 @@ const messages = [
   },
   {
     id: 4,
-    text: "Thanks for the photos! I can see the issue clearly. This looks like a straightforward repair. I can replace the faucet and fix the leak. My rate is $80/hour and I estimate this will take about 2-3 hours.",
-    timestamp: "2024-01-15T10:20:00Z",
+    text: "Thanks for the photos! I can see the issue clearly. I've prepared a detailed contract for this project with 3 phases. Please review it.",
+    timestamp: "2024-01-15T11:00:00Z",
     sender: "them",
     status: "read",
+    type: "text",
   },
   {
     id: 5,
-    text: "That sounds reasonable. When would you be available to start the work?",
-    timestamp: "2024-01-15T10:25:00Z",
-    sender: "me",
+    timestamp: "2024-01-15T11:05:00Z",
+    sender: "them",
     status: "read",
+    type: "contract",
+    contract: mockContract,
   },
   {
     id: 6,
-    text: "I can start the kitchen plumbing repair this Thursday. Does that work for you?",
-    timestamp: "2024-01-15T12:15:00Z",
+    text: "This looks great! I've accepted the contract and paid the deposit. When can you start?",
+    timestamp: "2024-01-15T14:00:00Z",
+    sender: "me",
+    status: "read",
+    type: "text",
+  },
+  {
+    id: 7,
+    timestamp: "2024-01-16T16:00:00Z",
+    sender: "them",
+    status: "read",
+    type: "phase-update",
+    phaseUpdate: { phaseId: 1, status: "completed", message: "Assessment complete, ready for phase 2" },
+  },
+  {
+    id: 8,
+    timestamp: "2024-01-16T16:05:00Z",
+    sender: "them",
+    status: "read",
+    type: "payment-prompt",
+    paymentPrompt: { phaseId: 1, amount: 15000 },
+  },
+  {
+    id: 9,
+    text: "Great work! I've approved and released the payment for Phase 1.",
+    timestamp: "2024-01-16T17:00:00Z",
+    sender: "me",
+    status: "read",
+    type: "text",
+  },
+  {
+    id: 10,
+    timestamp: "2024-01-17T16:00:00Z",
     sender: "them",
     status: "delivered",
+    type: "phase-update",
+    phaseUpdate: { phaseId: 2, status: "delivered", message: "Leak fixed and old faucet removed" },
+  },
+  {
+    id: 11,
+    timestamp: "2024-01-17T16:30:00Z",
+    sender: "them",
+    status: "delivered",
+    type: "payment-prompt",
+    paymentPrompt: { phaseId: 2, amount: 30000 },
   },
 ]
 
 export function MessagingInterface() {
-  const [selectedConversation, setSelectedConversation] = useState(conversations[1])
+  const [selectedConversation, setSelectedConversation] = useState(conversations[0])
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
   const [showConversationList, setShowConversationList] = useState(true)
-  const [conversationState, setConversationState] = useState({
-    isMuted: false,
-    isArchived: false,
-    isBlocked: false,
-    isUnread: false,
-  })
-  const [conversationStates, setConversationStates] = useState<
-    Record<
-      number,
-      {
-        isMuted: boolean
-        isArchived: boolean
-        isBlocked: boolean
-        isUnread: boolean
-      }
-    >
-  >({})
-  const [modals, setModals] = useState({
-    blockUser: false,
-    reportUser: false,
-    deleteConversation: false,
-    reportSuccess: false,
-  })
-
-  const [reportForm, setReportForm] = useState({
-    reason: "",
-    description: "",
-  })
+  const [showJobSummary, setShowJobSummary] = useState(true)
+  const [activeContract, setActiveContract] = useState<Contract>(mockContract)
+  const [showContractModal, setShowContractModal] = useState(false)
 
   const filteredConversations = conversations.filter(
     (conv) =>
@@ -221,134 +319,315 @@ export function MessagingInterface() {
     }
   }
 
+  const getPhaseStatusColor = (status: string) => {
+    switch (status) {
+      case "paid":
+        return "bg-green-100 text-green-800"
+      case "approved":
+        return "bg-blue-100 text-blue-800"
+      case "delivered":
+        return "bg-purple-100 text-purple-800"
+      case "in-progress":
+        return "bg-yellow-100 text-yellow-800"
+      case "pending":
+        return "bg-gray-100 text-gray-800"
+      default:
+        return "bg-gray-100 text-gray-800"
+    }
+  }
+
+  const getPhaseStatusIcon = (status: string) => {
+    switch (status) {
+      case "paid":
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      case "approved":
+        return <CheckCircle className="h-4 w-4 text-blue-600" />
+      case "delivered":
+        return <Package className="h-4 w-4 text-purple-600" />
+      case "in-progress":
+        return <Clock className="h-4 w-4 text-yellow-600" />
+      case "pending":
+        return <AlertCircle className="h-4 w-4 text-gray-600" />
+      default:
+        return <AlertCircle className="h-4 w-4 text-gray-600" />
+    }
+  }
+
   const sendMessage = () => {
     if (newMessage.trim()) {
-      // In a real app, this would send the message via API/socket
       console.log("Sending message:", newMessage)
       setNewMessage("")
     }
   }
 
-  const handleMuteConversation = () => {
-    setConversationState((prev) => ({ ...prev, isMuted: !prev.isMuted }))
-    setConversationStates((prev) => ({
-      ...prev,
-      [selectedConversation.id]: {
-        ...prev[selectedConversation.id],
-        isMuted: !conversationState.isMuted,
-      },
-    }))
-    const action = conversationState.isMuted ? "Unmuted" : "Muted"
-    console.log(`${action} conversation with ${selectedConversation.participant.name}`)
+  const handleAcceptContract = (contract: Contract) => {
+    console.log("Accepting contract:", contract.id)
+    setActiveContract({ ...contract, status: "accepted" })
   }
 
-  const handleArchiveConversation = () => {
-    setConversationState((prev) => ({ ...prev, isArchived: !prev.isArchived }))
-    setConversationStates((prev) => ({
-      ...prev,
-      [selectedConversation.id]: {
-        ...prev[selectedConversation.id],
-        isArchived: !conversationState.isArchived,
-      },
-    }))
-    const action = conversationState.isArchived ? "Unarchived" : "Archived"
-    console.log(`${action} conversation with ${selectedConversation.participant.name}`)
+  const handleDeclineContract = (contract: Contract) => {
+    console.log("Declining contract:", contract.id)
   }
 
-  const handleDeleteConversation = () => {
-    setModals((prev) => ({ ...prev, deleteConversation: true }))
+  const handleRequestChanges = (contract: Contract) => {
+    console.log("Requesting changes for contract:", contract.id)
   }
 
-  const confirmDeleteConversation = () => {
-    console.log("Deleting conversation with", selectedConversation.participant.name)
-    setModals((prev) => ({ ...prev, deleteConversation: false }))
-    // In a real app, this would delete the conversation and redirect to conversation list
+  const handleApprovePhase = (phaseId: number) => {
+    console.log("Approving phase:", phaseId)
+    const updatedPhases = activeContract.phases.map((phase) =>
+      phase.id === phaseId ? { ...phase, status: "approved" as const } : phase,
+    )
+    setActiveContract({ ...activeContract, phases: updatedPhases })
   }
 
-  const handleBlockUser = () => {
-    setModals((prev) => ({ ...prev, blockUser: true }))
+  const handleReleasePayment = (phaseId: number) => {
+    console.log("Releasing payment for phase:", phaseId)
+    const updatedPhases = activeContract.phases.map((phase) =>
+      phase.id === phaseId ? { ...phase, status: "paid" as const } : phase,
+    )
+    setActiveContract({ ...activeContract, phases: updatedPhases })
   }
 
-  const confirmBlockUser = () => {
-    console.log("Blocking user", selectedConversation.participant.name)
-    setModals((prev) => ({ ...prev, blockUser: false }))
-    setConversationStates((prev) => ({
-      ...prev,
-      [selectedConversation.id]: {
-        ...prev[selectedConversation.id],
-        isBlocked: true,
-      },
-    }))
-    setConversationState((prev) => ({ ...prev, isBlocked: true }))
+  const calculateProgress = () => {
+    const completedPhases = activeContract.phases.filter((p) => p.status === "paid").length
+    return (completedPhases / activeContract.phases.length) * 100
   }
 
-  const handleReportUser = () => {
-    setModals((prev) => ({ ...prev, reportUser: true }))
+  const calculateTotalPaid = () => {
+    return activeContract.phases.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amount, 0)
   }
 
-  const confirmReportUser = () => {
-    if (!reportForm.reason) {
-      return // Don't proceed without a reason
-    }
+  const ContractCard = ({ contract, sender }: { contract: Contract; sender: "me" | "them" }) => (
+    <div className="max-w-2xl">
+      <Card className="border-2 border-primary/20 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 pb-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Contract Proposal</CardTitle>
+            </div>
+            <Badge className={contract.status === "accepted" ? "bg-green-500" : "bg-yellow-500"}>
+              {contract.status === "accepted" ? "Accepted" : "Pending"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4">
+          <div>
+            <h3 className="font-semibold text-lg mb-2">{contract.title}</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">{contract.description}</p>
+          </div>
 
-    console.log("Reported user", selectedConversation.participant.name, {
-      reason: reportForm.reason,
-      description: reportForm.description,
-    })
+          <Separator />
 
-    // Close report modal and show success modal
-    setModals((prev) => ({ ...prev, reportUser: false, reportSuccess: true }))
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+              <p className="text-2xl font-bold text-primary">₦{contract.totalAmount.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Deposit Required</p>
+              <p className="text-2xl font-bold text-gray-900">₦{contract.depositAmount.toLocaleString()}</p>
+            </div>
+          </div>
 
-    // Reset form
-    setReportForm({ reason: "", description: "" })
+          <Separator />
+
+          <div>
+            <h4 className="font-semibold mb-3 flex items-center">
+              <Package className="h-4 w-4 mr-2 text-primary" />
+              Project Phases ({contract.phases.length})
+            </h4>
+            <div className="space-y-3">
+              {contract.phases.map((phase, index) => (
+                <div key={phase.id} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">
+                        Phase {index + 1}: {phase.name}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">{phase.description}</p>
+                    </div>
+                    <p className="font-semibold text-primary ml-3">₦{phase.amount.toLocaleString()}</p>
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-600 mb-1">Deliverables:</p>
+                    <ul className="text-xs text-gray-700 space-y-0.5">
+                      {phase.deliverables.map((deliverable, idx) => (
+                        <li key={idx} className="flex items-start">
+                          <Check className="h-3 w-3 mr-1 mt-0.5 text-green-600 flex-shrink-0" />
+                          {deliverable}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h4 className="font-semibold mb-3 flex items-center">
+              <Wrench className="h-4 w-4 mr-2 text-primary" />
+              Materials & Tools
+            </h4>
+            <div className="space-y-2">
+              {contract.materials.map((material) => (
+                <div key={material.id} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div
+                      className={`w-2 h-2 rounded-full ${material.coveredBy === "client" ? "bg-blue-500" : "bg-green-500"}`}
+                    ></div>
+                    <span>{material.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">₦{material.cost.toLocaleString()}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {material.coveredBy === "client" ? "You pay" : "Artisan pays"}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-start space-x-2">
+              <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h5 className="text-sm font-medium text-blue-900">Escrow Protection</h5>
+                <p className="text-xs text-blue-800 mt-1 leading-relaxed">
+                  Your payment is held securely in escrow. Funds are released to the artisan only after you approve each
+                  phase.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {sender === "them" && contract.status !== "accepted" && (
+            <div className="flex space-x-2 pt-2">
+              <Button onClick={() => handleAcceptContract(contract)} className="flex-1 bg-primary hover:bg-primary/90">
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Accept Contract
+              </Button>
+              <Button
+                onClick={() => handleRequestChanges(contract)}
+                variant="outline"
+                className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+              >
+                Request Changes
+              </Button>
+              <Button
+                onClick={() => handleDeclineContract(contract)}
+                variant="outline"
+                className="hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  const PhaseUpdateCard = ({
+    phaseUpdate,
+    sender,
+  }: { phaseUpdate: { phaseId: number; status: string; message: string }; sender: "me" | "them" }) => {
+    const phase = activeContract.phases.find((p) => p.id === phaseUpdate.phaseId)
+    if (!phase) return null
+
+    return (
+      <div className="max-w-md">
+        <Card className="border-2 border-purple-200 bg-purple-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">{getPhaseStatusIcon(phaseUpdate.status)}</div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm mb-1">Phase Update: {phase.name}</h4>
+                <p className="text-sm text-gray-700 mb-2">{phaseUpdate.message}</p>
+                <Badge className={getPhaseStatusColor(phaseUpdate.status)}>{phaseUpdate.status}</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
-  const closeModal = (modalName: keyof typeof modals) => {
-    setModals((prev) => ({ ...prev, [modalName]: false }))
-    if (modalName === "reportUser") {
-      setReportForm({ reason: "", description: "" })
-    }
+  const PaymentPromptCard = ({ paymentPrompt }: { paymentPrompt: { phaseId: number; amount: number } }) => {
+    const phase = activeContract.phases.find((p) => p.id === paymentPrompt.phaseId)
+    if (!phase) return null
+
+    return (
+      <div className="max-w-md">
+        <Card className="border-2 border-green-200 bg-green-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <DollarSign className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm mb-1">Payment Request</h4>
+                <p className="text-sm text-gray-700 mb-3">
+                  {phase.name} has been completed. Please review and approve the payment.
+                </p>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm text-gray-600">Amount:</span>
+                  <span className="text-lg font-bold text-green-600">₦{paymentPrompt.amount.toLocaleString()}</span>
+                </div>
+                {phase.status === "delivered" && (
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => handleReleasePayment(paymentPrompt.phaseId)}
+                      size="sm"
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approve & Release
+                    </Button>
+                    <Button size="sm" variant="outline" className="hover:bg-red-50 hover:text-red-600 bg-transparent">
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
-  const handleMarkAsUnread = () => {
-    setConversationState((prev) => ({ ...prev, isUnread: !prev.isUnread }))
-    setConversationStates((prev) => ({
-      ...prev,
-      [selectedConversation.id]: {
-        ...prev[selectedConversation.id],
-        isUnread: !conversationState.isUnread,
-      },
-    }))
-    const action = conversationState.isUnread ? "Mark as Read" : "Mark as Unread"
-    console.log(`${action} conversation with ${selectedConversation.participant.name}`)
+  const handleSendContract = (contract: any) => {
+    console.log("Sending contract:", contract)
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4 lg:py-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 sm:gap-4 lg:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
-        {/* Conversations List */}
-        <Card className={`lg:col-span-1 ${showConversationList ? "block" : "hidden"} lg:block`}>
+    <div className="max-w-[1800px] mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4 lg:py-8">
+      <ContractCreationModal
+        open={showContractModal}
+        onOpenChange={setShowContractModal}
+        onSendContract={handleSendContract}
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-4 lg:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
+        {/* Conversations List - Left Panel */}
+        <Card className={`lg:col-span-3 py-0 ${showConversationList ? "block" : "hidden"} lg:block`}>
           <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
             <CardTitle className="flex items-center justify-between">
               <span className="text-base sm:text-lg lg:text-xl">Messages</span>
-              <div className="flex items-center space-x-2">
-                <Badge variant="secondary" className="text-xs sm:text-sm">
-                  {conversations.length}
-                </Badge>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="lg:hidden h-8 w-8 p-0 text-lg font-bold hover:bg-gray-100"
-                  onClick={() => setShowConversationList(false)}
-                >
-                  ×
-                </Button>
-              </div>
+              <Badge variant="secondary" className="text-xs sm:text-sm">
+                {conversations.length}
+              </Badge>
             </CardTitle>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search conversations..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-10 h-10 sm:h-11 text-sm sm:text-base"
@@ -357,339 +636,60 @@ export function MessagingInterface() {
           </CardHeader>
           <CardContent className="p-0">
             <ScrollArea className="h-[calc(100vh-16rem)] sm:h-[calc(100vh-18rem)] lg:h-[calc(100vh-20rem)]">
-              <div className="space-y-1 sm:space-y-2 p-2 sm:p-3 w-full">
-                {filteredConversations.map((conversation) => {
-                  const convState = conversationStates[conversation.id] || {
-                    isMuted: false,
-                    isArchived: false,
-                    isBlocked: false,
-                    isUnread: false,
-                  }
-
-                  return (
-                    <div
-                      key={conversation.id}
-                      onClick={() => setSelectedConversation(conversation)}
-                      className={`group relative cursor-pointer transition-all duration-300 hover:-translate-y-0.5 rounded-2xl sm:rounded-3xl overflow-hidden ${
-                        selectedConversation.id === conversation.id
-                          ? "bg-white/90 backdrop-blur-md shadow-xl border border-primary/30 ring-1 ring-primary/20"
-                          : "bg-white/70 backdrop-blur-sm hover:bg-white/85 hover:shadow-lg border border-gray-200/60 hover:border-primary/20"
-                      } ${convState.isArchived ? "opacity-60" : ""}`}
-                    >
-                      {/* ... existing gradient overlay ... */}
-                      <div
-                        className={`absolute inset-0 bg-gradient-to-br transition-opacity duration-500 ${
-                          selectedConversation.id === conversation.id
-                            ? "from-primary/8 via-primary/4 to-transparent opacity-100"
-                            : "from-primary/4 via-primary/2 to-transparent opacity-0 group-hover:opacity-100"
-                        }`}
-                      ></div>
-
-                      {/* ... existing unread indicator ... */}
-                      {(selectedConversation.id === conversation.id ||
-                        convState.isUnread ||
-                        (!conversation.lastMessage.isRead && conversation.unreadCount > 0)) && (
-                        <div
-                          className={`absolute top-3 sm:top-4 left-3 sm:left-4 w-2.5 h-2.5 sm:w-3 sm:h-3 rounded-full transition-all duration-300 ${
-                            selectedConversation.id === conversation.id
-                              ? "bg-primary shadow-lg shadow-primary/30"
-                              : convState.isUnread || (!conversation.lastMessage.isRead && conversation.unreadCount > 0)
-                                ? "bg-primary/80 shadow-md shadow-primary/20"
-                                : "bg-primary/40"
-                          }`}
-                        ></div>
-                      )}
-
-                      <div className="relative p-3 sm:p-4 lg:p-5">
-                        <div className="flex items-start space-x-2.5 sm:space-x-3 lg:space-x-4">
-                          <div className="relative flex-shrink-0">
-                            <Avatar className="h-10 w-10 sm:h-12 sm:w-12 lg:h-14 lg:w-14 ring-2 ring-white/60 shadow-lg">
-                              <AvatarImage
-                                src={conversation.participant.avatar || "/placeholder.svg"}
-                                alt={conversation.participant.name}
-                              />
-                              <AvatarFallback className="bg-gradient-to-br from-primary/30 to-primary/20 text-primary font-bold text-sm sm:text-base lg:text-lg">
-                                {conversation.participant.name
-                                  .split(" ")
-                                  .map((n) => n[0])
-                                  .join("")}
-                              </AvatarFallback>
-                            </Avatar>
-                            {conversation.participant.isOnline && (
-                              <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 sm:h-4 sm:w-4 lg:h-5 lg:w-5 bg-green-500 border-2 sm:border-3 border-white rounded-full shadow-md"></div>
-                            )}
-                            {convState.isBlocked && (
-                              <div className="absolute -top-0.5 -right-0.5 h-4 w-4 sm:h-5 sm:w-5 bg-red-500 border-2 border-white rounded-full flex items-center justify-center shadow-md">
-                                <Shield className="h-2 w-2 sm:h-2.5 sm:w-2.5 text-white" />
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center justify-between mb-1.5 sm:mb-2">
-                              <div className="flex items-center space-x-1.5 sm:space-x-2 min-w-0">
-                                <h3 className="font-bold text-gray-900 truncate text-sm sm:text-base lg:text-base">
-                                  {conversation.participant.name}
-                                </h3>
-                                <div className="flex items-center space-x-1 sm:space-x-1.5">
-                                  {convState.isMuted && <VolumeX className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-gray-400" />}
-                                  {convState.isArchived && (
-                                    <Archive className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-gray-400" />
-                                  )}
-                                </div>
-                              </div>
-                              <div className="flex items-center space-x-2 sm:space-x-3 flex-shrink-0">
-                                <span className="text-xs sm:text-xs font-medium text-gray-500">
-                                  {formatTime(conversation.lastMessage.timestamp)}
-                                </span>
-                                {(convState.isUnread ||
-                                  (!conversation.lastMessage.isRead && conversation.unreadCount > 0)) && (
-                                  <div className="relative">
-                                    <Badge className="bg-gradient-to-r from-primary to-primary/80 text-white text-xs h-5 w-5 sm:h-6 sm:w-6 rounded-full flex items-center justify-center p-0 shadow-primary/30 font-bold shadow-none">
-                                      {conversation.unreadCount}
-                                    </Badge>
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center space-x-2 sm:space-x-3 mb-2 sm:mb-3">
-                              <Badge
-                                variant="secondary"
-                                className="text-xs px-2 sm:px-3 py-0.5 sm:py-1 bg-gradient-to-r from-primary/15 to-primary/10 text-primary border-0 font-medium rounded-full"
-                              >
-                                {conversation.participant.service}
-                              </Badge>
-                              <span className="text-xs sm:text-sm font-bold text-primary bg-primary/5 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full">
-                                {conversation.jobBudget}
-                              </span>
-                            </div>
-
-                            <div className="mb-2 sm:mb-3">
-                              <p className="text-xs sm:text-sm text-gray-700 font-medium leading-relaxed line-clamp-2 sm:line-clamp-1 lg:line-clamp-2 break-words w-auto">
-                                {conversation.lastMessage.text}
-                              </p>
-                              <div className="flex items-center mt-1.5 sm:mt-2 space-x-2">
-                                <span className="text-xs text-gray-500 font-medium truncate bg-gray-50 px-1.5 sm:px-2 py-0.5 sm:py-1 rounded-full max-w-[120px] sm:max-w-[160px] lg:max-w-[200px]">
-                                  {conversation.jobTitle}
-                                </span>
-                                <div className="flex items-center space-x-1 flex-shrink-0">
-                                  {conversation.lastMessage.sender === "me" && (
-                                    <div className="flex-shrink-0">
-                                      {getMessageStatus(conversation.lastMessage.isRead ? "read" : "delivered")}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* ... existing bottom gradient line ... */}
-                      <div
-                        className={`absolute bottom-0 left-4 sm:left-6 right-4 sm:right-6 h-0.5 bg-gradient-to-r transition-opacity duration-300 ${
-                          selectedConversation.id === conversation.id
-                            ? "from-transparent via-primary/40 to-transparent opacity-100"
-                            : "from-transparent via-gray-300/50 to-transparent opacity-0 group-hover:opacity-100"
-                        }`}
-                      ></div>
-                    </div>
-                  )
-                })}
-              </div>
-            </ScrollArea>
-          </CardContent>
-        </Card>
-
-        {/* Chat Interface */}
-        <Card className={`lg:col-span-2 flex flex-col ${showConversationList ? "hidden" : "block"} lg:block`}>
-          {/* Chat Header */}
-          <CardHeader className="pb-2 sm:pb-3 border-b px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="lg:hidden h-9 w-9 p-0 flex-shrink-0 text-lg hover:bg-gray-100"
-                  onClick={() => setShowConversationList(true)}
-                >
-                  ←
-                </Button>
-                <div className="relative flex-shrink-0">
-                  <Avatar className="h-9 w-9 sm:h-10 sm:w-10 lg:h-12 lg:w-12">
-                    <AvatarImage
-                      src={selectedConversation.participant.avatar || "/placeholder.svg"}
-                      alt={selectedConversation.participant.name}
-                    />
-                    <AvatarFallback className="text-xs sm:text-sm lg:text-base">
-                      {selectedConversation.participant.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  {selectedConversation.participant.isOnline && (
-                    <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 sm:h-3 sm:w-3 lg:h-3.5 lg:w-3.5 bg-green-500 border-2 border-white rounded-full"></div>
-                  )}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center space-x-2">
-                    <h3 className="font-semibold text-gray-900 text-sm sm:text-base lg:text-lg truncate">
-                      {selectedConversation.participant.name}
-                    </h3>
-                    {conversationState.isMuted && (
-                      <Badge variant="secondary" className="text-xs">
-                        Muted
-                      </Badge>
-                    )}
-                    {conversationState.isBlocked && (
-                      <Badge variant="destructive" className="text-xs">
-                        Blocked
-                      </Badge>
-                    )}
-                    {conversationState.isUnread && <div className="w-2 h-2 bg-primary rounded-full"></div>}
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-600 truncate">
-                    {conversationState.isBlocked
-                      ? "User blocked"
-                      : selectedConversation.participant.isOnline
-                        ? "Online"
-                        : `Last seen ${selectedConversation.participant.lastSeen}`}
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-center space-x-1 sm:space-x-2 flex-shrink-0">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors bg-transparent h-9 w-9 sm:h-10 sm:w-10 p-0"
-                >
-                  <Phone className="h-4 w-4 sm:h-4 sm:w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors bg-transparent h-9 w-9 sm:h-10 sm:w-10 p-0"
-                >
-                  <Video className="h-4 w-4 sm:h-4 sm:w-4" />
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors bg-transparent h-9 w-9 sm:h-10 sm:w-10 p-0"
-                    >
-                      <MoreVertical className="h-4 w-4 sm:h-4 sm:w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem
-                      onClick={handleMarkAsUnread}
-                      className="hover:bg-primary/10 hover:text-primary transition-colors"
-                    >
-                      <MarkAsUnread className="h-4 w-4 mr-2" />
-                      {conversationState.isUnread ? "Mark as Read" : "Mark as Unread"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleMuteConversation}
-                      className="hover:bg-primary/10 hover:text-primary transition-colors"
-                    >
-                      <VolumeX className="h-4 w-4 mr-2" />
-                      {conversationState.isMuted ? "Unmute Conversation" : "Mute Conversation"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleArchiveConversation}
-                      className="hover:bg-primary/10 hover:text-primary transition-colors"
-                    >
-                      <Archive className="h-4 w-4 mr-2" />
-                      {conversationState.isArchived ? "Unarchive" : "Archive"}
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleBlockUser}
-                      className="hover:bg-primary/10 hover:text-primary transition-colors"
-                      disabled={conversationState.isBlocked}
-                    >
-                      <Shield className="h-4 w-4 mr-2" />
-                      {conversationState.isBlocked ? "User Blocked" : "Block User"}
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      onClick={handleReportUser}
-                      className="hover:bg-primary/10 hover:text-primary transition-colors"
-                    >
-                      <Flag className="h-4 w-4 mr-2" />
-                      Report User
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      onClick={handleDeleteConversation}
-                      className="hover:bg-primary/10 hover:text-primary transition-colors"
-                    >
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Delete Conversation
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
-            </div>
-            {/* Job Context */}
-            <div className="bg-primary/5 rounded-lg p-2 sm:p-3 mt-2 sm:mt-3">
-              <div className="flex items-center justify-between">
-                <div className="min-w-0 flex-1">
-                  <p className="text-xs sm:text-sm font-medium text-primary truncate">
-                    {selectedConversation.jobTitle}
-                  </p>
-                  <p className="text-xs text-primary/70">Budget: {selectedConversation.jobBudget}</p>
-                </div>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="bg-white text-xs sm:text-sm h-8 sm:h-9 px-2 sm:px-3 flex-shrink-0 ml-2 hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
-                >
-                  <span className="hidden sm:inline">View Job Details</span>
-                  <span className="sm:hidden">Details</span>
-                </Button>
-              </div>
-            </div>
-          </CardHeader>
-
-          {/* Messages */}
-          <CardContent className="flex-1 p-0">
-            <ScrollArea className="h-[calc(100vh-18rem)] sm:h-[calc(100vh-22rem)] lg:h-[calc(100vh-28rem)] p-3 sm:p-4 lg:p-6">
-              <div className="space-y-3 sm:space-y-4">
-                {messages.map((message) => (
-                  <div key={message.id} className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
-                    <div
-                      className={`max-w-[90%] sm:max-w-[85%] md:max-w-[75%] lg:max-w-md ${message.sender === "me" ? "order-2" : "order-1"}`}
-                    >
-                      <div
-                        className={`rounded-2xl px-3 py-2.5 sm:px-4 sm:py-3 ${
-                          message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
-                        }`}
-                      >
-                        <p className="text-sm sm:text-base leading-relaxed break-words">{message.text}</p>
-                        {message.attachments && (
-                          <div className="mt-2 space-y-2">
-                            {message.attachments.map((attachment, index) => (
-                              <div key={index} className="bg-white/20 rounded p-2">
-                                <div className="flex items-center space-x-2">
-                                  <ImageIcon className="h-4 w-4 flex-shrink-0" />
-                                  <span className="text-xs sm:text-sm truncate">{attachment.name}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
+              <div className="space-y-1 sm:space-y-2 p-2 sm:p-3">
+                {filteredConversations.map((conversation) => (
+                  <div
+                    key={conversation.id}
+                    onClick={() => {
+                      setSelectedConversation(conversation)
+                      setShowConversationList(false)
+                    }}
+                    className={`cursor-pointer rounded-xl p-3 transition-all ${
+                      selectedConversation.id === conversation.id
+                        ? "bg-primary/10 border-2 border-primary/30"
+                        : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent"
+                    }`}
+                  >
+                    <div className="flex items-start space-x-3">
+                      <div className="relative flex-shrink-0">
+                        <Avatar className="h-12 w-12">
+                          <AvatarImage
+                            src={conversation.participant.avatar || "/placeholder.svg"}
+                            alt={conversation.participant.name}
+                          />
+                          <AvatarFallback>
+                            {conversation.participant.name
+                              .split(" ")
+                              .map((n) => n[0])
+                              .join("")}
+                          </AvatarFallback>
+                        </Avatar>
+                        {conversation.participant.isOnline && (
+                          <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full"></div>
                         )}
                       </div>
-                      <div
-                        className={`flex items-center mt-1.5 space-x-1 ${
-                          message.sender === "me" ? "justify-end" : "justify-start"
-                        }`}
-                      >
-                        <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
-                        {message.sender === "me" && getMessageStatus(message.status)}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-semibold text-sm truncate">{conversation.participant.name}</h3>
+                          <span className="text-xs text-gray-500">
+                            {formatTime(conversation.lastMessage.timestamp)}
+                          </span>
+                        </div>
+                        <div className="flex items-center space-x-2 mb-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {conversation.participant.service}
+                          </Badge>
+                          {conversation.hasActiveContract && (
+                            <Badge className="text-xs bg-green-100 text-green-800">
+                              <FileText className="h-3 w-3 mr-1" />
+                              Active
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-600 line-clamp-1">{conversation.lastMessage.text}</p>
+                        {conversation.unreadCount > 0 && (
+                          <Badge className="mt-1 bg-primary text-white text-xs">{conversation.unreadCount} new</Badge>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -697,231 +697,402 @@ export function MessagingInterface() {
               </div>
             </ScrollArea>
           </CardContent>
+        </Card>
 
-          {/* Message Input */}
-          <div className="border-t p-3 sm:p-4">
-            <div className="flex items-center space-x-2 sm:space-x-3">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 w-10 sm:h-11 sm:w-11 p-0 flex-shrink-0 bg-transparent"
-              >
-                <Paperclip className="h-4 w-4 sm:h-5 sm:w-5" />
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 w-10 sm:h-11 sm:w-11 p-0 flex-shrink-0 bg-transparent"
-              >
-                <ImageIcon className="h-4 w-4 sm:h-5 sm:w-5" />
-              </Button>
-              <div className="flex-1 min-w-0">
-                <Input
-                  placeholder="Type your message..."
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-                  className="h-10 sm:h-11 text-sm sm:text-base"
-                />
+        {/* Chat Interface - Middle Panel */}
+        <Card
+          className={`lg:col-span-6 flex flex-col py-0 ${showConversationList ? "hidden" : "block"} lg:block ${!showJobSummary ? "lg:col-span-9" : ""}`}
+        >
+          <CardHeader className="pb-2 sm:pb-3 border-b px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="lg:hidden h-9 w-9 p-0 flex-shrink-0"
+                  onClick={() => setShowConversationList(true)}
+                >
+                  ←
+                </Button>
+                <div className="relative flex-shrink-0">
+                  <Avatar className="h-10 w-10 lg:h-12 lg:w-12">
+                    <AvatarImage
+                      src={selectedConversation.participant.avatar || "/placeholder.svg"}
+                      alt={selectedConversation.participant.name}
+                    />
+                    <AvatarFallback>
+                      {selectedConversation.participant.name
+                        .split(" ")
+                        .map((n) => n[0])
+                        .join("")}
+                    </AvatarFallback>
+                  </Avatar>
+                  {selectedConversation.participant.isOnline && (
+                    <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-white rounded-full"></div>
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="font-semibold text-sm lg:text-base truncate">
+                    {selectedConversation.participant.name}
+                  </h3>
+                  <p className="text-xs text-gray-600 truncate">
+                    {selectedConversation.participant.isOnline
+                      ? "Online"
+                      : `Last seen ${selectedConversation.participant.lastSeen}`}
+                  </p>
+                </div>
               </div>
+              <div className="flex items-center space-x-2 flex-shrink-0">
+                <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
+                  <Phone className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-9 w-9 p-0 lg:hidden bg-transparent"
+                  onClick={() => setShowJobSummary(!showJobSummary)}
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-9 w-9 p-0 bg-transparent hover:text-red-600 transition-colors duration-200"
+                    >
+                      <MoreVertical className="h-4 w-4" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem>
+                      <User className="h-4 w-4 mr-2" />
+                      View Profile
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <BellOff className="h-4 w-4 mr-2" />
+                      Mute Notifications
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Archive className="h-4 w-4 mr-2" />
+                      Archive Conversation
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem>
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Clear Chat
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem className="text-red-600">
+                      <Flag className="h-4 w-4 mr-2" />
+                      Report Issue
+                    </DropdownMenuItem>
+                    <DropdownMenuItem className="text-red-600">
+                      <Ban className="h-4 w-4 mr-2" />
+                      Block User
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
+            </div>
+          </CardHeader>
+
+          <CardContent className="flex-1 p-0">
+            <ScrollArea className="h-[calc(100vh-18rem)] sm:h-[calc(100vh-22rem)] lg:h-[calc(100vh-28rem)] p-3 sm:p-4 lg:p-6">
+              <div className="space-y-4">
+                {messages.map((message) => (
+                  <div key={message.id} className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
+                    {message.type === "text" && (
+                      <div className={`max-w-[85%] ${message.sender === "me" ? "order-2" : "order-1"}`}>
+                        <div
+                          className={`rounded-2xl px-4 py-3 ${
+                            message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
+                          }`}
+                        >
+                          <p className="text-sm leading-relaxed">{message.text}</p>
+                        </div>
+                        <div
+                          className={`flex items-center mt-1 space-x-1 ${
+                            message.sender === "me" ? "justify-end" : "justify-start"
+                          }`}
+                        >
+                          <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
+                          {message.sender === "me" && getMessageStatus(message.status)}
+                        </div>
+                      </div>
+                    )}
+
+                    {message.type === "file" && message.attachments && (
+                      <div className={`max-w-[85%] ${message.sender === "me" ? "order-2" : "order-1"}`}>
+                        <div
+                          className={`rounded-2xl px-4 py-3 ${
+                            message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
+                          }`}
+                        >
+                          {message.text && <p className="text-sm leading-relaxed mb-2">{message.text}</p>}
+                          <div className="space-y-2">
+                            {message.attachments.map((attachment, index) => (
+                              <div
+                                key={index}
+                                className={`rounded p-2 ${message.sender === "me" ? "bg-white/20" : "bg-white"}`}
+                              >
+                                <div className="flex items-center space-x-2">
+                                  <ImageIcon className="h-4 w-4 flex-shrink-0" />
+                                  <span className="text-xs truncate">{attachment.name}</span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div
+                          className={`flex items-center mt-1 space-x-1 ${
+                            message.sender === "me" ? "justify-end" : "justify-start"
+                          }`}
+                        >
+                          <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
+                          {message.sender === "me" && getMessageStatus(message.status)}
+                        </div>
+                      </div>
+                    )}
+
+                    {message.type === "contract" && message.contract && (
+                      <div className="w-full">
+                        <ContractCard contract={message.contract} sender={message.sender} />
+                        <div className="flex justify-start mt-1">
+                          <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {message.type === "phase-update" && message.phaseUpdate && (
+                      <div className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"} w-full`}>
+                        <div>
+                          <PhaseUpdateCard phaseUpdate={message.phaseUpdate} sender={message.sender} />
+                          <div className={`flex mt-1 ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
+                            <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {message.type === "payment-prompt" && message.paymentPrompt && (
+                      <div className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"} w-full`}>
+                        <div>
+                          <PaymentPromptCard paymentPrompt={message.paymentPrompt} />
+                          <div className={`flex mt-1 ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
+                            <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          </CardContent>
+
+          <div className="border-t p-3 sm:p-4">
+            <div className="flex items-center space-x-2">
               <Button
+                variant="outline"
                 size="sm"
-                onClick={sendMessage}
-                disabled={!newMessage.trim()}
-                className="h-10 w-10 sm:h-11 sm:w-11 p-0 flex-shrink-0"
+                className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
+                onClick={() => setShowContractModal(true)}
+                title="Send Contract"
               >
-                <Send className="h-4 w-4 sm:h-5 sm:w-5" />
+                <FileText className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" className="h-10 w-10 p-0 flex-shrink-0 bg-transparent">
+                <Paperclip className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" className="h-10 w-10 p-0 flex-shrink-0 bg-transparent">
+                <ImageIcon className="h-4 w-4" />
+              </Button>
+              <Input
+                placeholder="Type your message..."
+                value={newMessage}
+                onChange={(e) => setNewMessage(e.target.value)}
+                onKeyPress={(e) => e.key === "Enter" && sendMessage()}
+                className="h-10 text-sm"
+              />
+              <Button size="sm" onClick={sendMessage} disabled={!newMessage.trim()} className="h-10 w-10 p-0">
+                <Send className="h-4 w-4" />
               </Button>
             </div>
           </div>
         </Card>
-      </div>
 
-      <Dialog open={modals.blockUser} onOpenChange={() => closeModal("blockUser")}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <Shield className="h-5 w-5 text-orange-500" />
-              <span>Block User</span>
-            </DialogTitle>
-            <DialogDescription className="text-left">
-              Are you sure you want to block <strong>{selectedConversation.participant.name}</strong>? They will no
-              longer be able to contact you or see your profile.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={() => closeModal("blockUser")}
-              className="hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmBlockUser} className="bg-orange-500 hover:bg-orange-600">
-              Block User
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={modals.reportUser} onOpenChange={() => closeModal("reportUser")}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <Flag className="h-5 w-5 text-red-500" />
-              <span>Report User</span>
-            </DialogTitle>
-            <DialogDescription className="text-left">
-              Report <strong>{selectedConversation.participant.name}</strong> for inappropriate behavior. Please select
-              a reason and provide additional details.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="text-sm font-medium text-gray-700 mb-3 block">Reason for reporting</Label>
-              <RadioGroup
-                value={reportForm.reason}
-                onValueChange={(value) => setReportForm((prev) => ({ ...prev, reason: value }))}
-                className="space-y-3"
+        {/* Job Summary Panel - Right Panel */}
+        <Card
+          className={`lg:col-span-3 ${showJobSummary ? "block" : "hidden"} lg:block absolute lg:relative inset-0 lg:inset-auto z-50 lg:z-auto`}
+        >
+          <CardHeader className="pb-3 border-b">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base lg:text-lg">Job Summary</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="lg:hidden h-8 w-8 p-0"
+                onClick={() => setShowJobSummary(false)}
               >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="harassment" id="harassment" />
-                  <Label htmlFor="harassment" className="text-sm">
-                    Harassment or bullying
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="inappropriate" id="inappropriate" />
-                  <Label htmlFor="inappropriate" className="text-sm">
-                    Inappropriate content or behavior
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="spam" id="spam" />
-                  <Label htmlFor="spam" className="text-sm">
-                    Spam or unwanted messages
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="fraud" id="fraud" />
-                  <Label htmlFor="fraud" className="text-sm">
-                    Fraud or scam
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="fake" id="fake" />
-                  <Label htmlFor="fake" className="text-sm">
-                    Fake profile or impersonation
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="other" id="other" />
-                  <Label htmlFor="other" className="text-sm">
-                    Other
-                  </Label>
-                </div>
-              </RadioGroup>
+                ×
+              </Button>
             </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[calc(100vh-10rem)] lg:h-[calc(100vh-16rem)]">
+              <div className="p-4 space-y-4">
+                {/* Contract Status */}
+                <div>
+                  <h3 className="font-semibold text-sm mb-2">Contract Status</h3>
+                  <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">Overall Progress</span>
+                      <span className="text-sm font-bold text-primary">{Math.round(calculateProgress())}%</span>
+                    </div>
+                    <Progress value={calculateProgress()} className="h-2 mb-2" />
+                    <div className="flex items-center justify-between text-xs text-gray-600">
+                      <span>
+                        {activeContract.phases.filter((p) => p.status === "paid").length} of{" "}
+                        {activeContract.phases.length} phases completed
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-            <div>
-              <Label htmlFor="description" className="text-sm font-medium text-gray-700 mb-2 block">
-                Additional details (optional)
-              </Label>
-              <Textarea
-                id="description"
-                placeholder="Please provide any additional context that might help our team review this report..."
-                value={reportForm.description}
-                onChange={(e) => setReportForm((prev) => ({ ...prev, description: e.target.value }))}
-                className="min-h-[80px] resize-none"
-              />
-            </div>
-          </div>
+                <Separator />
 
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={() => closeModal("reportUser")}
-              className="hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
-            >
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={confirmReportUser}
-              className="bg-red-500 hover:bg-red-600"
-              disabled={!reportForm.reason}
-            >
-              Submit Report
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                {/* Payment Summary */}
+                <div>
+                  <h3 className="font-semibold text-sm mb-3">Payment Summary</h3>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Total Contract</span>
+                      <span className="font-semibold">₦{activeContract.totalAmount.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Deposit Paid</span>
+                      <div className="flex items-center space-x-2">
+                        <span className="font-semibold">₦{activeContract.depositAmount.toLocaleString()}</span>
+                        {activeContract.depositPaid && <CheckCircle className="h-4 w-4 text-green-600" />}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-gray-600">Total Paid</span>
+                      <span className="font-semibold text-green-600">₦{calculateTotalPaid().toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm pt-2 border-t">
+                      <span className="text-gray-600">Remaining</span>
+                      <span className="font-bold text-primary">
+                        ₦{(activeContract.totalAmount - calculateTotalPaid()).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+                </div>
 
-      <Dialog open={modals.reportSuccess} onOpenChange={() => closeModal("reportSuccess")}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <div className="h-8 w-8 bg-green-100 rounded-full flex items-center justify-center">
-                <Check className="h-5 w-5 text-green-600" />
+                <Separator />
+
+                {/* Phases */}
+                <div>
+                  <h3 className="font-semibold text-sm mb-3">Project Phases</h3>
+                  <div className="space-y-3">
+                    {activeContract.phases.map((phase, index) => (
+                      <div key={phase.id} className="border rounded-lg p-3">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <span className="text-xs font-medium text-gray-500">Phase {index + 1}</span>
+                              <Badge className={`${getPhaseStatusColor(phase.status)} text-xs`}>{phase.status}</Badge>
+                            </div>
+                            <p className="text-sm font-medium">{phase.name}</p>
+                          </div>
+                          {getPhaseStatusIcon(phase.status)}
+                        </div>
+                        <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+                          <span>Amount:</span>
+                          <span className="font-semibold text-primary">₦{phase.amount.toLocaleString()}</span>
+                        </div>
+                        {phase.dueDate && (
+                          <div className="flex items-center text-xs text-gray-600">
+                            <Clock className="h-3 w-3 mr-1" />
+                            Due: {new Date(phase.dueDate).toLocaleDateString()}
+                          </div>
+                        )}
+                        {phase.status === "delivered" && (
+                          <Button
+                            onClick={() => handleReleasePayment(phase.id)}
+                            size="sm"
+                            className="w-full mt-2 bg-green-600 hover:bg-green-700"
+                          >
+                            <CheckCircle className="h-3 w-3 mr-2" />
+                            Release Payment
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Materials */}
+                <div>
+                  <h3 className="font-semibold text-sm mb-3 flex items-center">
+                    <Wrench className="h-4 w-4 mr-2 text-primary" />
+                    Materials & Tools
+                  </h3>
+                  <div className="space-y-2">
+                    {activeContract.materials.map((material) => (
+                      <div key={material.id}>
+                        <div className="bg-gray-50 rounded p-2">
+                          <div className="flex items-start justify-between mb-1">
+                            <p className="text-xs font-medium flex-1">{material.name}</p>
+                            <Badge variant="secondary" className="text-xs ml-2">
+                              {material.coveredBy === "client" ? "You" : "Artisan"}
+                            </Badge>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-xs text-gray-600">₦{material.cost.toLocaleString()}</span>
+                          </div>
+                        </div>
+                        {material.receipt && (
+                          <div className="mt-2 flex justify-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-3 bg-transparent hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                              title="Download Receipt"
+                            >
+                              <Download className="h-3 w-3 mr-1.5" />
+                              <span className="text-xs">Download Receipt</span>
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <Separator />
+
+                {/* Escrow Protection */}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                  <div className="flex items-start space-x-2">
+                    <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div>
+                      <h5 className="text-xs font-medium text-blue-900 mb-1">Escrow Protection Active</h5>
+                      <p className="text-xs text-blue-800 leading-relaxed">
+                        Your funds are held securely. Release payments only after reviewing and approving each phase.
+                      </p>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <span>Report Submitted</span>
-            </DialogTitle>
-            <DialogDescription className="text-left space-y-3">
-              <p>
-                Thank you for reporting <strong>{selectedConversation.participant.name}</strong>. Your report has been
-                submitted successfully.
-              </p>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                <h4 className="font-medium text-blue-900 text-sm mb-1">What happens next?</h4>
-                <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• Our team will review your report within 24 hours</li>
-                  <li>• We may contact you if we need additional information</li>
-                  <li>• Appropriate action will be taken if violations are found</li>
-                  <li>• You'll receive an update on the outcome</li>
-                </ul>
-              </div>
-              <p className="text-sm text-gray-600">
-                Report ID:{" "}
-                <code className="bg-gray-100 px-1 rounded text-xs">RPT-{Date.now().toString().slice(-6)}</code>
-              </p>
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button onClick={() => closeModal("reportSuccess")} className="w-full">
-              Got it
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={modals.deleteConversation} onOpenChange={() => closeModal("deleteConversation")}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <AlertTriangle className="h-5 w-5 text-red-500" />
-              <span>Delete Conversation</span>
-            </DialogTitle>
-            <DialogDescription className="text-left">
-              Are you sure you want to delete this conversation with{" "}
-              <strong>{selectedConversation.participant.name}</strong>? This action cannot be undone and all messages
-              will be permanently removed.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter className="flex-col sm:flex-row gap-2">
-            <Button
-              variant="outline"
-              onClick={() => closeModal("deleteConversation")}
-              className="hover:bg-primary/10 hover:text-primary hover:border-primary/30 transition-colors"
-            >
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDeleteConversation}>
-              Delete Conversation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   )
 }
