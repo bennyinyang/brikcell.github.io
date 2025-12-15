@@ -9,187 +9,228 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
-import { ContractCreationModal } from "@/components/modals/contract-creation-modal"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import {
   Search,
   Send,
   Paperclip,
   ImageIcon,
   Phone,
+  Video,
   MoreVertical,
   CheckCheck,
   Check,
   Clock,
-  FileText,
   DollarSign,
-  Package,
-  Wrench,
+  FileText,
+  Calendar,
+  MapPin,
+  Star,
+  AlertCircle,
   CheckCircle,
   XCircle,
-  AlertCircle,
-  Download,
   Shield,
-  User,
-  BellOff,
-  Ban,
-  Flag,
-  Trash2,
-  Archive,
+  CreditCard,
+  Download,
+  Eye,
 } from "lucide-react"
 
-interface Phase {
-  id: number
-  name: string
-  description: string
-  deliverables: string[]
-  amount: number
-  status: "pending" | "in-progress" | "delivered" | "approved" | "paid"
-  dueDate?: string
-  completedDate?: string
-}
-
-interface Material {
-  id: number
-  name: string
-  cost: number
-  coveredBy: "client" | "artisan"
-  receipt?: string
-}
-
-interface Contract {
-  id: number
-  title: string
-  description: string
-  totalAmount: number
-  depositAmount: number
-  depositPaid: boolean
-  phases: Phase[]
-  materials: Material[]
-  status: "draft" | "proposed" | "accepted" | "active" | "completed"
-  createdAt: string
-  acceptedAt?: string
-}
-
-interface Message {
-  id: number
-  text?: string
-  timestamp: string
-  sender: "me" | "them"
-  status: "sent" | "delivered" | "read"
-  type: "text" | "contract" | "phase-update" | "payment-prompt" | "file"
-  attachments?: { type: string; url: string; name: string }[]
-  contract?: Contract
-  phaseUpdate?: { phaseId: number; status: string; message: string }
-  paymentPrompt?: { phaseId: number; amount: number }
-}
-
-const mockContract: Contract = {
-  id: 1,
-  title: "Kitchen Plumbing Repair & Faucet Replacement",
-  description:
-    "Complete kitchen plumbing repair including fixing the leaking sink, replacing the old faucet with a new modern fixture, and ensuring all connections are properly sealed.",
-  totalAmount: 75000,
-  depositAmount: 22500,
-  depositPaid: true,
-  status: "active",
-  createdAt: "2024-01-15T10:00:00Z",
-  acceptedAt: "2024-01-15T14:00:00Z",
-  phases: [
-    {
-      id: 1,
-      name: "Initial Assessment & Preparation",
-      description: "Inspect the plumbing system, identify issues, and prepare materials",
-      deliverables: ["Detailed assessment report", "List of required materials", "Work timeline"],
-      amount: 15000,
-      status: "paid",
-      dueDate: "2024-01-16",
-      completedDate: "2024-01-16",
-    },
-    {
-      id: 2,
-      name: "Leak Repair & Old Faucet Removal",
-      description: "Fix the leaking sink and safely remove the old faucet",
-      deliverables: ["Leak completely fixed", "Old faucet removed", "Area cleaned"],
-      amount: 30000,
-      status: "delivered",
-      dueDate: "2024-01-17",
-      completedDate: "2024-01-17",
-    },
-    {
-      id: 3,
-      name: "New Faucet Installation & Testing",
-      description: "Install the new faucet and test all connections",
-      deliverables: ["New faucet installed", "All connections tested", "Final inspection"],
-      amount: 30000,
-      status: "in-progress",
-      dueDate: "2024-01-18",
-    },
-  ],
-  materials: [
-    { id: 1, name: "Modern Kitchen Faucet (Chrome)", cost: 12500, coveredBy: "client" },
-    { id: 2, name: "Plumbing Sealant & Tape", cost: 2500, coveredBy: "artisan" },
-    { id: 3, name: "Pipe Fittings & Connectors", cost: 3500, coveredBy: "artisan" },
-    { id: 4, name: "Replacement Gaskets", cost: 1500, coveredBy: "client", receipt: "/receipts/gaskets.pdf" },
-  ],
-}
-
+// Mock data for conversations with contract information
 const conversations = [
   {
     id: 1,
     participant: {
-      name: "Mike Rodriguez",
-      avatar: "/professional-plumber.png",
-      service: "Plumbing",
-      isOnline: true,
-    },
-    lastMessage: {
-      text: "Phase 2 has been completed! Please review and approve the payment.",
-      timestamp: "2024-01-17T16:30:00Z",
-      isRead: false,
-      sender: "them",
-    },
-    unreadCount: 2,
-    jobTitle: "Kitchen Plumbing Repair",
-    jobBudget: "₦75,000",
-    hasActiveContract: true,
-  },
-  {
-    id: 2,
-    participant: {
       name: "Sarah Johnson",
       avatar: "/professional-hairstylist-woman.png",
       service: "Hair Styling",
-      isOnline: false,
-      lastSeen: "1 hour ago",
+      rating: 4.9,
+      reviewCount: 127,
+      isOnline: true,
     },
     lastMessage: {
-      text: "I've sent you a contract proposal for the wedding hair styling.",
+      text: "Perfect! I'll see you tomorrow at 2 PM for the hair styling session.",
       timestamp: "2024-01-15T14:30:00Z",
       isRead: true,
       sender: "them",
     },
     unreadCount: 0,
-    jobTitle: "Wedding Hair Styling",
-    jobBudget: "₦42,500",
-    hasActiveContract: false,
+    contract: {
+      id: "CNT-001",
+      jobTitle: "Wedding Hair Styling",
+      status: "in-progress",
+      totalAmount: 350,
+      paidAmount: 175,
+      location: "123 Main St, New York, NY",
+      scheduledDate: "2024-01-20",
+      scheduledTime: "2:00 PM",
+      phases: [
+        {
+          id: 1,
+          name: "Initial Consultation & Design",
+          amount: 175,
+          status: "completed",
+          dueDate: "2024-01-15",
+          description: "Hair consultation and wedding style planning",
+          completedDate: "2024-01-15",
+        },
+        {
+          id: 2,
+          name: "Wedding Day Styling",
+          amount: 175,
+          status: "pending",
+          dueDate: "2024-01-20",
+          description: "Complete hair styling on wedding day",
+        },
+      ],
+      milestones: [
+        { name: "Consultation Complete", completed: true, date: "2024-01-15" },
+        { name: "Trial Session", completed: false, date: "2024-01-18" },
+        { name: "Wedding Day Service", completed: false, date: "2024-01-20" },
+      ],
+    },
+  },
+  {
+    id: 2,
+    participant: {
+      name: "Mike Rodriguez",
+      avatar: "/professional-plumber.png",
+      service: "Plumbing",
+      rating: 4.8,
+      reviewCount: 89,
+      isOnline: false,
+      lastSeen: "2 hours ago",
+    },
+    lastMessage: {
+      text: "I can start the kitchen plumbing repair this Thursday. Does that work for you?",
+      timestamp: "2024-01-15T12:15:00Z",
+      isRead: false,
+      sender: "them",
+    },
+    unreadCount: 2,
+    contract: {
+      id: "CNT-002",
+      jobTitle: "Kitchen Plumbing Repair",
+      status: "negotiating",
+      totalAmount: 450,
+      paidAmount: 0,
+      location: "456 Oak Ave, Brooklyn, NY",
+      scheduledDate: "2024-01-18",
+      scheduledTime: "10:00 AM",
+      phases: [
+        {
+          id: 1,
+          name: "Initial Assessment",
+          amount: 100,
+          status: "pending",
+          dueDate: "2024-01-18",
+          description: "Inspection and diagnosis of plumbing issues",
+        },
+        {
+          id: 2,
+          name: "Parts & Materials",
+          amount: 150,
+          status: "pending",
+          dueDate: "2024-01-18",
+          description: "Purchase necessary parts and materials",
+        },
+        {
+          id: 3,
+          name: "Repair Work",
+          amount: 200,
+          status: "pending",
+          dueDate: "2024-01-19",
+          description: "Complete plumbing repairs",
+        },
+      ],
+      milestones: [
+        { name: "Contract Signed", completed: false, date: "2024-01-16" },
+        { name: "Initial Payment", completed: false, date: "2024-01-16" },
+        { name: "Work Completed", completed: false, date: "2024-01-19" },
+      ],
+    },
+  },
+  {
+    id: 3,
+    participant: {
+      name: "David Chen",
+      avatar: "/professional-carpenter.png",
+      service: "Carpentry",
+      rating: 5.0,
+      reviewCount: 203,
+      isOnline: true,
+    },
+    lastMessage: {
+      text: "Thanks for the great review! It was a pleasure working on your bookshelf project.",
+      timestamp: "2024-01-14T16:45:00Z",
+      isRead: true,
+      sender: "them",
+    },
+    unreadCount: 0,
+    contract: {
+      id: "CNT-003",
+      jobTitle: "Custom Bookshelf Installation",
+      status: "completed",
+      totalAmount: 800,
+      paidAmount: 800,
+      location: "789 Pine Rd, Manhattan, NY",
+      scheduledDate: "2024-01-10",
+      scheduledTime: "9:00 AM",
+      phases: [
+        {
+          id: 1,
+          name: "Design & Planning",
+          amount: 200,
+          status: "completed",
+          dueDate: "2024-01-08",
+          description: "Custom design consultation",
+          completedDate: "2024-01-08",
+        },
+        {
+          id: 2,
+          name: "Materials Purchase",
+          amount: 300,
+          status: "completed",
+          dueDate: "2024-01-09",
+          description: "Wood and hardware procurement",
+          completedDate: "2024-01-09",
+        },
+        {
+          id: 3,
+          name: "Installation",
+          amount: 300,
+          status: "completed",
+          dueDate: "2024-01-10",
+          description: "Complete bookshelf installation",
+          completedDate: "2024-01-10",
+        },
+      ],
+      milestones: [
+        { name: "Design Approved", completed: true, date: "2024-01-08" },
+        { name: "Materials Delivered", completed: true, date: "2024-01-09" },
+        { name: "Installation Complete", completed: true, date: "2024-01-10" },
+        { name: "Final Review", completed: true, date: "2024-01-12" },
+      ],
+    },
   },
 ]
 
-const messages: Message[] = [
+// Mock messages
+const messages = [
   {
     id: 1,
     text: "Hi Mike! I saw your profile and I'm interested in hiring you for a kitchen plumbing repair.",
     timestamp: "2024-01-15T10:00:00Z",
     sender: "me",
     status: "read",
-    type: "text",
   },
   {
     id: 2,
@@ -197,99 +238,50 @@ const messages: Message[] = [
     timestamp: "2024-01-15T10:05:00Z",
     sender: "them",
     status: "read",
-    type: "text",
   },
   {
     id: 3,
-    text: "The kitchen sink has been leaking for a few days, and I think the faucet needs to be replaced too. Here are some photos.",
+    text: "The kitchen sink has been leaking for a few days, and I think the faucet needs to be replaced too.",
     timestamp: "2024-01-15T10:10:00Z",
     sender: "me",
     status: "read",
-    type: "file",
-    attachments: [
-      { type: "image", url: "/kitchen-sink-leak.jpg", name: "kitchen-sink-leak.jpg" },
-      { type: "image", url: "/old-faucet.jpg", name: "old-faucet.jpg" },
-    ],
   },
   {
     id: 4,
-    text: "Thanks for the photos! I can see the issue clearly. I've prepared a detailed contract for this project with 3 phases. Please review it.",
-    timestamp: "2024-01-15T11:00:00Z",
+    text: "I can definitely help with that. Based on your description, I estimate this will cost around $450 including parts and labor. I've sent you a detailed contract with payment phases.",
+    timestamp: "2024-01-15T10:20:00Z",
     sender: "them",
     status: "read",
-    type: "text",
   },
   {
     id: 5,
-    timestamp: "2024-01-15T11:05:00Z",
-    sender: "them",
+    text: "That sounds reasonable. When would you be available to start?",
+    timestamp: "2024-01-15T10:25:00Z",
+    sender: "me",
     status: "read",
-    type: "contract",
-    contract: mockContract,
   },
   {
     id: 6,
-    text: "This looks great! I've accepted the contract and paid the deposit. When can you start?",
-    timestamp: "2024-01-15T14:00:00Z",
-    sender: "me",
-    status: "read",
-    type: "text",
-  },
-  {
-    id: 7,
-    timestamp: "2024-01-16T16:00:00Z",
-    sender: "them",
-    status: "read",
-    type: "phase-update",
-    phaseUpdate: { phaseId: 1, status: "completed", message: "Assessment complete, ready for phase 2" },
-  },
-  {
-    id: 8,
-    timestamp: "2024-01-16T16:05:00Z",
-    sender: "them",
-    status: "read",
-    type: "payment-prompt",
-    paymentPrompt: { phaseId: 1, amount: 15000 },
-  },
-  {
-    id: 9,
-    text: "Great work! I've approved and released the payment for Phase 1.",
-    timestamp: "2024-01-16T17:00:00Z",
-    sender: "me",
-    status: "read",
-    type: "text",
-  },
-  {
-    id: 10,
-    timestamp: "2024-01-17T16:00:00Z",
+    text: "I can start the kitchen plumbing repair this Thursday. Does that work for you?",
+    timestamp: "2024-01-15T12:15:00Z",
     sender: "them",
     status: "delivered",
-    type: "phase-update",
-    phaseUpdate: { phaseId: 2, status: "delivered", message: "Leak fixed and old faucet removed" },
-  },
-  {
-    id: 11,
-    timestamp: "2024-01-17T16:30:00Z",
-    sender: "them",
-    status: "delivered",
-    type: "payment-prompt",
-    paymentPrompt: { phaseId: 2, amount: 30000 },
   },
 ]
 
 export function MessagingInterface() {
-  const [selectedConversation, setSelectedConversation] = useState(conversations[0])
+  const [selectedConversation, setSelectedConversation] = useState(conversations[1])
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
-  const [showConversationList, setShowConversationList] = useState(true)
-  const [showJobSummary, setShowJobSummary] = useState(true)
-  const [activeContract, setActiveContract] = useState<Contract>(mockContract)
-  const [showContractModal, setShowContractModal] = useState(false)
+  const [showReviewModal, setShowReviewModal] = useState(false)
+  const [showDisputeModal, setShowDisputeModal] = useState(false)
+  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: "" })
+  const [disputeForm, setDisputeForm] = useState({ reason: "", description: "" })
 
   const filteredConversations = conversations.filter(
     (conv) =>
       conv.participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.jobTitle.toLowerCase().includes(searchQuery.toLowerCase()),
+      conv.contract.jobTitle.toLowerCase().includes(searchQuery.toLowerCase()),
   )
 
   const formatTime = (timestamp: string) => {
@@ -319,331 +311,131 @@ export function MessagingInterface() {
     }
   }
 
-  const getPhaseStatusColor = (status: string) => {
+  const getContractStatusBadge = (status: string) => {
     switch (status) {
-      case "paid":
-        return "bg-green-100 text-green-800"
-      case "approved":
-        return "bg-blue-100 text-blue-800"
-      case "delivered":
-        return "bg-purple-100 text-purple-800"
+      case "negotiating":
+        return (
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+            <Clock className="h-3 w-3 mr-1" />
+            Negotiating
+          </Badge>
+        )
       case "in-progress":
-        return "bg-yellow-100 text-yellow-800"
-      case "pending":
-        return "bg-gray-100 text-gray-800"
+        return (
+          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+            <AlertCircle className="h-3 w-3 mr-1" />
+            In Progress
+          </Badge>
+        )
+      case "completed":
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Completed
+          </Badge>
+        )
+      case "disputed":
+        return (
+          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
+            <XCircle className="h-3 w-3 mr-1" />
+            Disputed
+          </Badge>
+        )
       default:
-        return "bg-gray-100 text-gray-800"
+        return null
     }
   }
 
-  const getPhaseStatusIcon = (status: string) => {
+  const getPhaseStatusBadge = (status: string) => {
     switch (status) {
-      case "paid":
-        return <CheckCircle className="h-4 w-4 text-green-600" />
-      case "approved":
-        return <CheckCircle className="h-4 w-4 text-blue-600" />
-      case "delivered":
-        return <Package className="h-4 w-4 text-purple-600" />
-      case "in-progress":
-        return <Clock className="h-4 w-4 text-yellow-600" />
       case "pending":
-        return <AlertCircle className="h-4 w-4 text-gray-600" />
+        return (
+          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs">
+            Pending
+          </Badge>
+        )
+      case "in-progress":
+        return (
+          <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-xs">
+            In Progress
+          </Badge>
+        )
+      case "completed":
+        return (
+          <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-xs">
+            Completed
+          </Badge>
+        )
       default:
-        return <AlertCircle className="h-4 w-4 text-gray-600" />
+        return null
     }
   }
 
   const sendMessage = () => {
     if (newMessage.trim()) {
-      console.log("Sending message:", newMessage)
+      console.log("[v0] Sending message:", newMessage)
       setNewMessage("")
     }
   }
 
-  const handleAcceptContract = (contract: Contract) => {
-    console.log("Accepting contract:", contract.id)
-    setActiveContract({ ...contract, status: "accepted" })
-  }
-
-  const handleDeclineContract = (contract: Contract) => {
-    console.log("Declining contract:", contract.id)
-  }
-
-  const handleRequestChanges = (contract: Contract) => {
-    console.log("Requesting changes for contract:", contract.id)
-  }
-
-  const handleApprovePhase = (phaseId: number) => {
-    console.log("Approving phase:", phaseId)
-    const updatedPhases = activeContract.phases.map((phase) =>
-      phase.id === phaseId ? { ...phase, status: "approved" as const } : phase,
-    )
-    setActiveContract({ ...activeContract, phases: updatedPhases })
-  }
-
   const handleReleasePayment = (phaseId: number) => {
-    console.log("Releasing payment for phase:", phaseId)
-    const updatedPhases = activeContract.phases.map((phase) =>
-      phase.id === phaseId ? { ...phase, status: "paid" as const } : phase,
-    )
-    setActiveContract({ ...activeContract, phases: updatedPhases })
+    console.log("[v0] Releasing payment for phase:", phaseId)
   }
 
-  const calculateProgress = () => {
-    const completedPhases = activeContract.phases.filter((p) => p.status === "paid").length
-    return (completedPhases / activeContract.phases.length) * 100
+  const handleAcceptContract = () => {
+    console.log("[v0] Accepting contract:", selectedConversation.contract.id)
   }
 
-  const calculateTotalPaid = () => {
-    return activeContract.phases.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amount, 0)
+  const handleRejectContract = () => {
+    console.log("[v0] Rejecting contract:", selectedConversation.contract.id)
   }
 
-  const ContractCard = ({ contract, sender }: { contract: Contract; sender: "me" | "them" }) => (
-    <div className="max-w-2xl">
-      <Card className="border-2 border-primary/20 shadow-lg">
-        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 pb-4">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-2">
-              <FileText className="h-5 w-5 text-primary" />
-              <CardTitle className="text-lg">Contract Proposal</CardTitle>
-            </div>
-            <Badge className={contract.status === "accepted" ? "bg-green-500" : "bg-yellow-500"}>
-              {contract.status === "accepted" ? "Accepted" : "Pending"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4 pt-4">
-          <div>
-            <h3 className="font-semibold text-lg mb-2">{contract.title}</h3>
-            <p className="text-sm text-gray-600 leading-relaxed">{contract.description}</p>
-          </div>
-
-          <Separator />
-
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Total Amount</p>
-              <p className="text-2xl font-bold text-primary">₦{contract.totalAmount.toLocaleString()}</p>
-            </div>
-            <div>
-              <p className="text-sm text-gray-600 mb-1">Deposit Required</p>
-              <p className="text-2xl font-bold text-gray-900">₦{contract.depositAmount.toLocaleString()}</p>
-            </div>
-          </div>
-
-          <Separator />
-
-          <div>
-            <h4 className="font-semibold mb-3 flex items-center">
-              <Package className="h-4 w-4 mr-2 text-primary" />
-              Project Phases ({contract.phases.length})
-            </h4>
-            <div className="space-y-3">
-              {contract.phases.map((phase, index) => (
-                <div key={phase.id} className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <p className="font-medium text-sm">
-                        Phase {index + 1}: {phase.name}
-                      </p>
-                      <p className="text-xs text-gray-600 mt-1">{phase.description}</p>
-                    </div>
-                    <p className="font-semibold text-primary ml-3">₦{phase.amount.toLocaleString()}</p>
-                  </div>
-                  <div className="mt-2">
-                    <p className="text-xs text-gray-600 mb-1">Deliverables:</p>
-                    <ul className="text-xs text-gray-700 space-y-0.5">
-                      {phase.deliverables.map((deliverable, idx) => (
-                        <li key={idx} className="flex items-start">
-                          <Check className="h-3 w-3 mr-1 mt-0.5 text-green-600 flex-shrink-0" />
-                          {deliverable}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          <div>
-            <h4 className="font-semibold mb-3 flex items-center">
-              <Wrench className="h-4 w-4 mr-2 text-primary" />
-              Materials & Tools
-            </h4>
-            <div className="space-y-2">
-              {contract.materials.map((material) => (
-                <div key={material.id} className="flex items-center justify-between text-sm">
-                  <div className="flex items-center space-x-2">
-                    <div
-                      className={`w-2 h-2 rounded-full ${material.coveredBy === "client" ? "bg-blue-500" : "bg-green-500"}`}
-                    ></div>
-                    <span>{material.name}</span>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="font-medium">₦{material.cost.toLocaleString()}</span>
-                    <Badge variant="secondary" className="text-xs">
-                      {material.coveredBy === "client" ? "You pay" : "Artisan pays"}
-                    </Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-            <div className="flex items-start space-x-2">
-              <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <h5 className="text-sm font-medium text-blue-900">Escrow Protection</h5>
-                <p className="text-xs text-blue-800 mt-1 leading-relaxed">
-                  Your payment is held securely in escrow. Funds are released to the artisan only after you approve each
-                  phase.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {sender === "them" && contract.status !== "accepted" && (
-            <div className="flex space-x-2 pt-2">
-              <Button onClick={() => handleAcceptContract(contract)} className="flex-1 bg-primary hover:bg-primary/90">
-                <CheckCircle className="h-4 w-4 mr-2" />
-                Accept Contract
-              </Button>
-              <Button
-                onClick={() => handleRequestChanges(contract)}
-                variant="outline"
-                className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
-              >
-                Request Changes
-              </Button>
-              <Button
-                onClick={() => handleDeclineContract(contract)}
-                variant="outline"
-                className="hover:bg-red-50 hover:text-red-600 hover:border-red-300"
-              >
-                <XCircle className="h-4 w-4" />
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  )
-
-  const PhaseUpdateCard = ({
-    phaseUpdate,
-    sender,
-  }: { phaseUpdate: { phaseId: number; status: string; message: string }; sender: "me" | "them" }) => {
-    const phase = activeContract.phases.find((p) => p.id === phaseUpdate.phaseId)
-    if (!phase) return null
-
-    return (
-      <div className="max-w-md">
-        <Card className="border-2 border-purple-200 bg-purple-50">
-          <CardContent className="p-4">
-            <div className="flex items-start space-x-3">
-              <div className="flex-shrink-0">{getPhaseStatusIcon(phaseUpdate.status)}</div>
-              <div className="flex-1">
-                <h4 className="font-semibold text-sm mb-1">Phase Update: {phase.name}</h4>
-                <p className="text-sm text-gray-700 mb-2">{phaseUpdate.message}</p>
-                <Badge className={getPhaseStatusColor(phaseUpdate.status)}>{phaseUpdate.status}</Badge>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  const handleCompleteJob = () => {
+    console.log("[v0] Marking job as complete:", selectedConversation.contract.id)
   }
 
-  const PaymentPromptCard = ({ paymentPrompt }: { paymentPrompt: { phaseId: number; amount: number } }) => {
-    const phase = activeContract.phases.find((p) => p.id === paymentPrompt.phaseId)
-    if (!phase) return null
-
-    return (
-      <div className="max-w-md">
-        <Card className="border-2 border-green-200 bg-green-50">
-          <CardContent className="p-4">
-            <div className="flex items-start space-x-3">
-              <DollarSign className="h-5 w-5 text-green-600 flex-shrink-0" />
-              <div className="flex-1">
-                <h4 className="font-semibold text-sm mb-1">Payment Request</h4>
-                <p className="text-sm text-gray-700 mb-3">
-                  {phase.name} has been completed. Please review and approve the payment.
-                </p>
-                <div className="flex items-center justify-between mb-3">
-                  <span className="text-sm text-gray-600">Amount:</span>
-                  <span className="text-lg font-bold text-green-600">₦{paymentPrompt.amount.toLocaleString()}</span>
-                </div>
-                {phase.status === "delivered" && (
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={() => handleReleasePayment(paymentPrompt.phaseId)}
-                      size="sm"
-                      className="flex-1 bg-green-600 hover:bg-green-700"
-                    >
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Approve & Release
-                    </Button>
-                    <Button size="sm" variant="outline" className="hover:bg-red-50 hover:text-red-600 bg-transparent">
-                      <XCircle className="h-4 w-4" />
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
+  const handleSubmitReview = () => {
+    console.log("[v0] Submitting review:", reviewForm)
+    setShowReviewModal(false)
+    setReviewForm({ rating: 5, comment: "" })
   }
 
-  const handleSendContract = (contract: any) => {
-    console.log("Sending contract:", contract)
+  const handleSubmitDispute = () => {
+    console.log("[v0] Submitting dispute:", disputeForm)
+    setShowDisputeModal(false)
+    setDisputeForm({ reason: "", description: "" })
   }
+
+  const progressPercentage =
+    (selectedConversation.contract.paidAmount / selectedConversation.contract.totalAmount) * 100
 
   return (
-    <div className="max-w-[1800px] mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4 lg:py-8">
-      <ContractCreationModal
-        open={showContractModal}
-        onOpenChange={setShowContractModal}
-        onSendContract={handleSendContract}
-      />
-
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-4 lg:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
-        {/* Conversations List - Left Panel */}
-        <Card className={`lg:col-span-3 py-0 ${showConversationList ? "block" : "hidden"} lg:block`}>
-          <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
+    <div className="max-w-[1920px] mx-auto px-4 py-6">
+      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-8rem)]">
+        {/* Left Panel - Conversations List */}
+        <Card className="col-span-12 lg:col-span-3 flex flex-col">
+          <CardHeader className="pb-3">
             <CardTitle className="flex items-center justify-between">
-              <span className="text-base sm:text-lg lg:text-xl">Messages</span>
-              <Badge variant="secondary" className="text-xs sm:text-sm">
-                {conversations.length}
-              </Badge>
+              <span>Conversations</span>
+              <Badge variant="secondary">{conversations.length}</Badge>
             </CardTitle>
-            <div className="relative">
+            <div className="relative mt-2">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search..."
+                placeholder="Search conversations..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-10 sm:h-11 text-sm sm:text-base"
+                className="pl-10"
               />
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-16rem)] sm:h-[calc(100vh-18rem)] lg:h-[calc(100vh-20rem)]">
-              <div className="space-y-1 sm:space-y-2 p-2 sm:p-3">
+          <CardContent className="flex-1 p-0">
+            <ScrollArea className="h-[calc(100vh-16rem)]">
+              <div className="space-y-2 p-3">
                 {filteredConversations.map((conversation) => (
                   <div
                     key={conversation.id}
-                    onClick={() => {
-                      setSelectedConversation(conversation)
-                      setShowConversationList(false)
-                    }}
+                    onClick={() => setSelectedConversation(conversation)}
                     className={`cursor-pointer rounded-xl p-3 transition-all ${
                       selectedConversation.id === conversation.id
                         ? "bg-primary/10 border-2 border-primary/30"
@@ -653,10 +445,7 @@ export function MessagingInterface() {
                     <div className="flex items-start space-x-3">
                       <div className="relative flex-shrink-0">
                         <Avatar className="h-12 w-12">
-                          <AvatarImage
-                            src={conversation.participant.avatar || "/placeholder.svg"}
-                            alt={conversation.participant.name}
-                          />
+                          <AvatarImage src={conversation.participant.avatar || "/placeholder.svg"} />
                           <AvatarFallback>
                             {conversation.participant.name
                               .split(" ")
@@ -675,21 +464,22 @@ export function MessagingInterface() {
                             {formatTime(conversation.lastMessage.timestamp)}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-2 mb-1">
+                        <div className="flex items-center space-x-1 mb-1">
+                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                          <span className="text-xs font-medium">{conversation.participant.rating}</span>
+                          <span className="text-xs text-gray-500">({conversation.participant.reviewCount})</span>
+                        </div>
+                        <p className="text-xs text-gray-600 truncate mb-2">{conversation.lastMessage.text}</p>
+                        <div className="flex items-center justify-between">
                           <Badge variant="secondary" className="text-xs">
                             {conversation.participant.service}
                           </Badge>
-                          {conversation.hasActiveContract && (
-                            <Badge className="text-xs bg-green-100 text-green-800">
-                              <FileText className="h-3 w-3 mr-1" />
-                              Active
+                          {conversation.unreadCount > 0 && (
+                            <Badge className="bg-primary text-white text-xs h-5 w-5 rounded-full flex items-center justify-center p-0">
+                              {conversation.unreadCount}
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs text-gray-600 line-clamp-1">{conversation.lastMessage.text}</p>
-                        {conversation.unreadCount > 0 && (
-                          <Badge className="mt-1 bg-primary text-white text-xs">{conversation.unreadCount} new</Badge>
-                        )}
                       </div>
                     </div>
                   </div>
@@ -699,27 +489,15 @@ export function MessagingInterface() {
           </CardContent>
         </Card>
 
-        {/* Chat Interface - Middle Panel */}
-        <Card
-          className={`lg:col-span-6 flex flex-col py-0 ${showConversationList ? "hidden" : "block"} lg:block ${!showJobSummary ? "lg:col-span-9" : ""}`}
-        >
-          <CardHeader className="pb-2 sm:pb-3 border-b px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
+        {/* Middle Panel - Chat Interface */}
+        <Card className="col-span-12 lg:col-span-5 flex flex-col">
+          {/* Chat Header */}
+          <CardHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="lg:hidden h-9 w-9 p-0 flex-shrink-0"
-                  onClick={() => setShowConversationList(true)}
-                >
-                  ←
-                </Button>
-                <div className="relative flex-shrink-0">
-                  <Avatar className="h-10 w-10 lg:h-12 lg:w-12">
-                    <AvatarImage
-                      src={selectedConversation.participant.avatar || "/placeholder.svg"}
-                      alt={selectedConversation.participant.name}
-                    />
+              <div className="flex items-center space-x-3">
+                <div className="relative">
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={selectedConversation.participant.avatar || "/placeholder.svg"} />
                     <AvatarFallback>
                       {selectedConversation.participant.name
                         .split(" ")
@@ -731,182 +509,63 @@ export function MessagingInterface() {
                     <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-white rounded-full"></div>
                   )}
                 </div>
-                <div className="min-w-0 flex-1">
-                  <h3 className="font-semibold text-sm lg:text-base truncate">
-                    {selectedConversation.participant.name}
-                  </h3>
-                  <p className="text-xs text-gray-600 truncate">
+                <div>
+                  <h3 className="font-semibold text-sm">{selectedConversation.participant.name}</h3>
+                  <p className="text-xs text-gray-600">
                     {selectedConversation.participant.isOnline
                       ? "Online"
                       : `Last seen ${selectedConversation.participant.lastSeen}`}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2 flex-shrink-0">
-                <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
+              <div className="flex items-center space-x-2">
+                <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
                   <Phone className="h-4 w-4" />
                 </Button>
-
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="h-9 w-9 p-0 lg:hidden bg-transparent"
-                  onClick={() => setShowJobSummary(!showJobSummary)}
-                >
-                  <FileText className="h-4 w-4" />
+                <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
+                  <Video className="h-4 w-4" />
                 </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="h-9 w-9 p-0 bg-transparent hover:text-red-600 transition-colors duration-200"
-                    >
-                      <MoreVertical className="h-4 w-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem>
-                      <User className="h-4 w-4 mr-2" />
-                      View Profile
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <BellOff className="h-4 w-4 mr-2" />
-                      Mute Notifications
-                    </DropdownMenuItem>
-                    <DropdownMenuItem>
-                      <Archive className="h-4 w-4 mr-2" />
-                      Archive Conversation
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem>
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Clear Chat
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="text-red-600">
-                      <Flag className="h-4 w-4 mr-2" />
-                      Report Issue
-                    </DropdownMenuItem>
-                    <DropdownMenuItem className="text-red-600">
-                      <Ban className="h-4 w-4 mr-2" />
-                      Block User
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
               </div>
             </div>
           </CardHeader>
 
-          <CardContent className="flex-1 p-0">
-            <ScrollArea className="h-[calc(100vh-18rem)] sm:h-[calc(100vh-22rem)] lg:h-[calc(100vh-28rem)] p-3 sm:p-4 lg:p-6">
+          {/* Messages */}
+          <CardContent className="flex-1 p-4">
+            <ScrollArea className="h-[calc(100vh-24rem)]">
               <div className="space-y-4">
                 {messages.map((message) => (
                   <div key={message.id} className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
-                    {message.type === "text" && (
-                      <div className={`max-w-[85%] ${message.sender === "me" ? "order-2" : "order-1"}`}>
-                        <div
-                          className={`rounded-2xl px-4 py-3 ${
-                            message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
-                          }`}
-                        >
-                          <p className="text-sm leading-relaxed">{message.text}</p>
-                        </div>
-                        <div
-                          className={`flex items-center mt-1 space-x-1 ${
-                            message.sender === "me" ? "justify-end" : "justify-start"
-                          }`}
-                        >
-                          <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
-                          {message.sender === "me" && getMessageStatus(message.status)}
-                        </div>
+                    <div className={`max-w-[75%] ${message.sender === "me" ? "order-2" : "order-1"}`}>
+                      <div
+                        className={`rounded-2xl px-4 py-3 ${
+                          message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
+                        }`}
+                      >
+                        <p className="text-sm leading-relaxed">{message.text}</p>
                       </div>
-                    )}
-
-                    {message.type === "file" && message.attachments && (
-                      <div className={`max-w-[85%] ${message.sender === "me" ? "order-2" : "order-1"}`}>
-                        <div
-                          className={`rounded-2xl px-4 py-3 ${
-                            message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
-                          }`}
-                        >
-                          {message.text && <p className="text-sm leading-relaxed mb-2">{message.text}</p>}
-                          <div className="space-y-2">
-                            {message.attachments.map((attachment, index) => (
-                              <div
-                                key={index}
-                                className={`rounded p-2 ${message.sender === "me" ? "bg-white/20" : "bg-white"}`}
-                              >
-                                <div className="flex items-center space-x-2">
-                                  <ImageIcon className="h-4 w-4 flex-shrink-0" />
-                                  <span className="text-xs truncate">{attachment.name}</span>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                        <div
-                          className={`flex items-center mt-1 space-x-1 ${
-                            message.sender === "me" ? "justify-end" : "justify-start"
-                          }`}
-                        >
-                          <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
-                          {message.sender === "me" && getMessageStatus(message.status)}
-                        </div>
+                      <div
+                        className={`flex items-center mt-1 space-x-1 ${message.sender === "me" ? "justify-end" : "justify-start"}`}
+                      >
+                        <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
+                        {message.sender === "me" && getMessageStatus(message.status)}
                       </div>
-                    )}
-
-                    {message.type === "contract" && message.contract && (
-                      <div className="w-full">
-                        <ContractCard contract={message.contract} sender={message.sender} />
-                        <div className="flex justify-start mt-1">
-                          <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {message.type === "phase-update" && message.phaseUpdate && (
-                      <div className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"} w-full`}>
-                        <div>
-                          <PhaseUpdateCard phaseUpdate={message.phaseUpdate} sender={message.sender} />
-                          <div className={`flex mt-1 ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
-                            <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {message.type === "payment-prompt" && message.paymentPrompt && (
-                      <div className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"} w-full`}>
-                        <div>
-                          <PaymentPromptCard paymentPrompt={message.paymentPrompt} />
-                          <div className={`flex mt-1 ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
-                            <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
-                          </div>
-                        </div>
-                      </div>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>
             </ScrollArea>
           </CardContent>
 
-          <div className="border-t p-3 sm:p-4">
+          {/* Message Input */}
+          <div className="border-t p-4">
             <div className="flex items-center space-x-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
-                onClick={() => setShowContractModal(true)}
-                title="Send Contract"
-              >
-                <FileText className="h-4 w-4" />
-              </Button>
-              <Button variant="outline" size="sm" className="h-10 w-10 p-0 flex-shrink-0 bg-transparent">
+              <Button variant="outline" size="sm" className="h-10 w-10 p-0 bg-transparent">
                 <Paperclip className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" className="h-10 w-10 p-0 flex-shrink-0 bg-transparent">
+              <Button variant="outline" size="sm" className="h-10 w-10 p-0 bg-transparent">
                 <ImageIcon className="h-4 w-4" />
               </Button>
               <Input
@@ -914,7 +573,7 @@ export function MessagingInterface() {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-                className="h-10 text-sm"
+                className="flex-1"
               />
               <Button size="sm" onClick={sendMessage} disabled={!newMessage.trim()} className="h-10 w-10 p-0">
                 <Send className="h-4 w-4" />
@@ -923,176 +582,310 @@ export function MessagingInterface() {
           </div>
         </Card>
 
-        {/* Job Summary Panel - Right Panel */}
-        <Card
-          className={`lg:col-span-3 ${showJobSummary ? "block" : "hidden"} lg:block absolute lg:relative inset-0 lg:inset-auto z-50 lg:z-auto`}
-        >
+        {/* Right Panel - Contract & Job Details */}
+        <Card className="col-span-12 lg:col-span-4 flex flex-col">
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base lg:text-lg">Job Summary</CardTitle>
-              <Button
-                variant="ghost"
-                size="sm"
-                className="lg:hidden h-8 w-8 p-0"
-                onClick={() => setShowJobSummary(false)}
-              >
-                ×
-              </Button>
+              <CardTitle className="text-lg">Contract Details</CardTitle>
+              {getContractStatusBadge(selectedConversation.contract.status)}
             </div>
           </CardHeader>
-          <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-10rem)] lg:h-[calc(100vh-16rem)]">
-              <div className="p-4 space-y-4">
-                {/* Contract Status */}
+          <CardContent className="flex-1 p-0">
+            <ScrollArea className="h-[calc(100vh-16rem)]">
+              <div className="p-4 space-y-6">
+                {/* Job Information */}
                 <div>
-                  <h3 className="font-semibold text-sm mb-2">Contract Status</h3>
-                  <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-sm font-medium">Overall Progress</span>
-                      <span className="text-sm font-bold text-primary">{Math.round(calculateProgress())}%</span>
+                  <h3 className="font-semibold mb-3 flex items-center">
+                    <FileText className="h-4 w-4 mr-2 text-primary" />
+                    Job Information
+                  </h3>
+                  <div className="space-y-2 bg-gray-50 rounded-lg p-3">
+                    <div className="flex items-start justify-between">
+                      <span className="text-sm text-gray-600">Job Title:</span>
+                      <span className="text-sm font-medium text-right">{selectedConversation.contract.jobTitle}</span>
                     </div>
-                    <Progress value={calculateProgress()} className="h-2 mb-2" />
-                    <div className="flex items-center justify-between text-xs text-gray-600">
-                      <span>
-                        {activeContract.phases.filter((p) => p.status === "paid").length} of{" "}
-                        {activeContract.phases.length} phases completed
+                    <div className="flex items-start justify-between">
+                      <span className="text-sm text-gray-600">Contract ID:</span>
+                      <span className="text-sm font-mono">{selectedConversation.contract.id}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex items-start space-x-2">
+                      <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
+                      <span className="text-sm">{selectedConversation.contract.location}</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Calendar className="h-4 w-4 text-gray-400" />
+                      <span className="text-sm">
+                        {selectedConversation.contract.scheduledDate} at {selectedConversation.contract.scheduledTime}
                       </span>
                     </div>
                   </div>
                 </div>
-
-                <Separator />
 
                 {/* Payment Summary */}
                 <div>
-                  <h3 className="font-semibold text-sm mb-3">Payment Summary</h3>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Total Contract</span>
-                      <span className="font-semibold">₦{activeContract.totalAmount.toLocaleString()}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Deposit Paid</span>
-                      <div className="flex items-center space-x-2">
-                        <span className="font-semibold">₦{activeContract.depositAmount.toLocaleString()}</span>
-                        {activeContract.depositPaid && <CheckCircle className="h-4 w-4 text-green-600" />}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between text-sm">
-                      <span className="text-gray-600">Total Paid</span>
-                      <span className="font-semibold text-green-600">₦{calculateTotalPaid().toLocaleString()}</span>
-                    </div>
-                    <div className="flex items-center justify-between text-sm pt-2 border-t">
-                      <span className="text-gray-600">Remaining</span>
-                      <span className="font-bold text-primary">
-                        ₦{(activeContract.totalAmount - calculateTotalPaid()).toLocaleString()}
+                  <h3 className="font-semibold mb-3 flex items-center">
+                    <DollarSign className="h-4 w-4 mr-2 text-primary" />
+                    Payment Summary
+                  </h3>
+                  <div className="space-y-3 bg-gray-50 rounded-lg p-3">
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Total Amount:</span>
+                      <span className="text-lg font-bold text-primary">
+                        ${selectedConversation.contract.totalAmount}
                       </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Paid:</span>
+                      <span className="text-sm font-semibold text-green-600">
+                        ${selectedConversation.contract.paidAmount}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-sm text-gray-600">Remaining:</span>
+                      <span className="text-sm font-semibold text-gray-900">
+                        ${selectedConversation.contract.totalAmount - selectedConversation.contract.paidAmount}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-xs">
+                        <span className="text-gray-600">Progress</span>
+                        <span className="font-medium">{progressPercentage.toFixed(0)}%</span>
+                      </div>
+                      <Progress value={progressPercentage} className="h-2" />
                     </div>
                   </div>
                 </div>
 
-                <Separator />
-
-                {/* Phases */}
+                {/* Payment Phases */}
                 <div>
-                  <h3 className="font-semibold text-sm mb-3">Project Phases</h3>
+                  <h3 className="font-semibold mb-3 flex items-center">
+                    <CreditCard className="h-4 w-4 mr-2 text-primary" />
+                    Payment Phases
+                  </h3>
                   <div className="space-y-3">
-                    {activeContract.phases.map((phase, index) => (
-                      <div key={phase.id} className="border rounded-lg p-3">
+                    {selectedConversation.contract.phases.map((phase, index) => (
+                      <div key={phase.id} className="border rounded-lg p-3 bg-white">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex-1">
                             <div className="flex items-center space-x-2 mb-1">
-                              <span className="text-xs font-medium text-gray-500">Phase {index + 1}</span>
-                              <Badge className={`${getPhaseStatusColor(phase.status)} text-xs`}>{phase.status}</Badge>
+                              <span className="text-sm font-semibold">Phase {index + 1}</span>
+                              {getPhaseStatusBadge(phase.status)}
                             </div>
-                            <p className="text-sm font-medium">{phase.name}</p>
+                            <p className="text-sm font-medium text-gray-900">{phase.name}</p>
+                            <p className="text-xs text-gray-600 mt-1">{phase.description}</p>
                           </div>
-                          {getPhaseStatusIcon(phase.status)}
                         </div>
-                        <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
-                          <span>Amount:</span>
-                          <span className="font-semibold text-primary">₦{phase.amount.toLocaleString()}</span>
-                        </div>
-                        {phase.dueDate && (
-                          <div className="flex items-center text-xs text-gray-600">
-                            <Clock className="h-3 w-3 mr-1" />
+                        <div className="flex items-center justify-between mt-3">
+                          <span className="text-lg font-bold text-primary">${phase.amount}</span>
+                          <div className="text-xs text-gray-500">
                             Due: {new Date(phase.dueDate).toLocaleDateString()}
                           </div>
-                        )}
-                        {phase.status === "delivered" && (
-                          <Button
-                            onClick={() => handleReleasePayment(phase.id)}
-                            size="sm"
-                            className="w-full mt-2 bg-green-600 hover:bg-green-700"
-                          >
-                            <CheckCircle className="h-3 w-3 mr-2" />
-                            Release Payment
-                          </Button>
+                        </div>
+                        {phase.status === "pending" &&
+                          selectedConversation.contract.status === "in-progress" &&
+                          index === 1 && (
+                            <Button size="sm" className="w-full mt-3" onClick={() => handleReleasePayment(phase.id)}>
+                              <Shield className="h-3 w-3 mr-2" />
+                              Release Payment from Escrow
+                            </Button>
+                          )}
+                        {phase.status === "completed" && (
+                          <div className="mt-3 flex items-center justify-between bg-green-50 rounded px-2 py-1.5">
+                            <span className="text-xs text-green-700 font-medium">Paid on {phase.completedDate}</span>
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                          </div>
                         )}
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <Separator />
-
-                {/* Materials */}
+                {/* Milestones */}
                 <div>
-                  <h3 className="font-semibold text-sm mb-3 flex items-center">
-                    <Wrench className="h-4 w-4 mr-2 text-primary" />
-                    Materials & Tools
+                  <h3 className="font-semibold mb-3 flex items-center">
+                    <CheckCircle className="h-4 w-4 mr-2 text-primary" />
+                    Milestones
                   </h3>
                   <div className="space-y-2">
-                    {activeContract.materials.map((material) => (
-                      <div key={material.id}>
-                        <div className="bg-gray-50 rounded p-2">
-                          <div className="flex items-start justify-between mb-1">
-                            <p className="text-xs font-medium flex-1">{material.name}</p>
-                            <Badge variant="secondary" className="text-xs ml-2">
-                              {material.coveredBy === "client" ? "You" : "Artisan"}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center justify-between">
-                            <span className="text-xs text-gray-600">₦{material.cost.toLocaleString()}</span>
-                          </div>
+                    {selectedConversation.contract.milestones.map((milestone, index) => (
+                      <div key={index} className="flex items-center space-x-3">
+                        <div
+                          className={`h-6 w-6 rounded-full flex items-center justify-center ${
+                            milestone.completed ? "bg-green-500" : "bg-gray-200"
+                          }`}
+                        >
+                          {milestone.completed && <Check className="h-4 w-4 text-white" />}
                         </div>
-                        {material.receipt && (
-                          <div className="mt-2 flex justify-end">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="h-7 px-3 bg-transparent hover:bg-primary/10 hover:text-primary hover:border-primary/30"
-                              title="Download Receipt"
-                            >
-                              <Download className="h-3 w-3 mr-1.5" />
-                              <span className="text-xs">Download Receipt</span>
-                            </Button>
-                          </div>
-                        )}
+                        <div className="flex-1">
+                          <p
+                            className={`text-sm ${milestone.completed ? "line-through text-gray-500" : "font-medium"}`}
+                          >
+                            {milestone.name}
+                          </p>
+                          <p className="text-xs text-gray-500">{new Date(milestone.date).toLocaleDateString()}</p>
+                        </div>
                       </div>
                     ))}
                   </div>
                 </div>
 
-                <Separator />
-
-                {/* Escrow Protection */}
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                  <div className="flex items-start space-x-2">
-                    <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <div>
-                      <h5 className="text-xs font-medium text-blue-900 mb-1">Escrow Protection Active</h5>
-                      <p className="text-xs text-blue-800 leading-relaxed">
-                        Your funds are held securely. Release payments only after reviewing and approving each phase.
-                      </p>
-                    </div>
-                  </div>
+                {/* Contract Actions */}
+                <div className="space-y-2">
+                  {selectedConversation.contract.status === "negotiating" && (
+                    <>
+                      <Button className="w-full" onClick={handleAcceptContract}>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Accept Contract
+                      </Button>
+                      <Button variant="outline" className="w-full bg-transparent" onClick={handleRejectContract}>
+                        <XCircle className="h-4 w-4 mr-2" />
+                        Reject Contract
+                      </Button>
+                    </>
+                  )}
+                  {selectedConversation.contract.status === "in-progress" && (
+                    <>
+                      <Button className="w-full" onClick={handleCompleteJob}>
+                        <CheckCircle className="h-4 w-4 mr-2" />
+                        Mark as Complete
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 bg-transparent"
+                        onClick={() => setShowDisputeModal(true)}
+                      >
+                        <AlertCircle className="h-4 w-4 mr-2" />
+                        Open Dispute
+                      </Button>
+                    </>
+                  )}
+                  {selectedConversation.contract.status === "completed" && (
+                    <>
+                      <Button className="w-full" onClick={() => setShowReviewModal(true)}>
+                        <Star className="h-4 w-4 mr-2" />
+                        Leave Review
+                      </Button>
+                      <Button variant="outline" className="w-full bg-transparent">
+                        <Download className="h-4 w-4 mr-2" />
+                        Download Invoice
+                      </Button>
+                      <Button variant="outline" className="w-full bg-transparent">
+                        <Eye className="h-4 w-4 mr-2" />
+                        View Receipt
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             </ScrollArea>
           </CardContent>
         </Card>
       </div>
+
+      {/* Review Modal */}
+      <Dialog open={showReviewModal} onOpenChange={setShowReviewModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Leave a Review</DialogTitle>
+            <DialogDescription>Share your experience with {selectedConversation.participant.name}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label className="text-sm font-medium mb-2 block">Rating</Label>
+              <div className="flex items-center space-x-2">
+                {[1, 2, 3, 4, 5].map((star) => (
+                  <button
+                    key={star}
+                    onClick={() => setReviewForm({ ...reviewForm, rating: star })}
+                    className="focus:outline-none"
+                  >
+                    <Star
+                      className={`h-8 w-8 ${
+                        star <= reviewForm.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
+                      }`}
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="review-comment" className="text-sm font-medium mb-2 block">
+                Your Review
+              </Label>
+              <Textarea
+                id="review-comment"
+                placeholder="Share your experience..."
+                value={reviewForm.comment}
+                onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowReviewModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSubmitReview}>Submit Review</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dispute Modal */}
+      <Dialog open={showDisputeModal} onOpenChange={setShowDisputeModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center space-x-2">
+              <AlertCircle className="h-5 w-5 text-red-500" />
+              <span>Open a Dispute</span>
+            </DialogTitle>
+            <DialogDescription>Describe the issue you're experiencing with this contract</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div>
+              <Label htmlFor="dispute-reason" className="text-sm font-medium mb-2 block">
+                Reason for Dispute
+              </Label>
+              <Input
+                id="dispute-reason"
+                placeholder="e.g., Work not completed as agreed"
+                value={disputeForm.reason}
+                onChange={(e) => setDisputeForm({ ...disputeForm, reason: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label htmlFor="dispute-description" className="text-sm font-medium mb-2 block">
+                Detailed Description
+              </Label>
+              <Textarea
+                id="dispute-description"
+                placeholder="Provide details about the issue..."
+                value={disputeForm.description}
+                onChange={(e) => setDisputeForm({ ...disputeForm, description: e.target.value })}
+                className="min-h-[120px]"
+              />
+            </div>
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+              <p className="text-sm text-yellow-800">
+                Opening a dispute will pause all payments and notify our support team. We'll work with both parties to
+                resolve the issue.
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDisputeModal(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleSubmitDispute}
+              disabled={!disputeForm.reason || !disputeForm.description}
+            >
+              Open Dispute
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
