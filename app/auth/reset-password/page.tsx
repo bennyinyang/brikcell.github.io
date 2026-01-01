@@ -10,8 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Eye, EyeOff, ArrowLeft, Lock, Check } from "lucide-react"
+import { AuthAPI } from "@/lib/api"
 
 export default function ResetPasswordPage() {
+  const [otp, setOtp] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
@@ -19,12 +21,17 @@ export default function ResetPasswordPage() {
   const [isLoading, setIsLoading] = useState(false)
   const [isSuccess, setIsSuccess] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
+  const [serverError, setServerError] = useState("")
   const searchParams = useSearchParams()
   const router = useRouter()
-  const email = searchParams.get("email") || ""
+  const email = (searchParams.get("email") || "").trim().toLowerCase()
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
+
+    if (!otp || otp.trim().length !== 6) {
+      newErrors.otp = "Enter the 6-digit code sent to your email"
+    }
 
     if (!password) {
       newErrors.password = "Password is required"
@@ -49,24 +56,34 @@ export default function ResetPasswordPage() {
 
     setIsLoading(true)
     setErrors({})
+    setServerError("")
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsSuccess(true)
-      setIsLoading(false)
-
-      // Redirect to success page after showing confirmation
+    try {
+      if (!email) {
+        throw new Error("Missing email. Please restart the reset process.")
+      }
+      await AuthAPI.resetPassword({
+        email,
+        otp: otp.trim(),
+        newPassword: password
+      })
       setTimeout(() => {
         router.push("/auth/password-changed")
       }, 2000)
-    }, 1000)
+    } catch (err: any) {
+      setServerError(err?.message || "Failed to update password. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   const handleInputChange = (field: string, value: string) => {
     if (field === "password") {
       setPassword(value)
-    } else {
+    } else if (field === "confirmPassword") {
       setConfirmPassword(value)
+    } else if (field === "otp") {
+      setOtp(value.replace(/\D/g, "").slice(0, 6)) // digits only, max 6
     }
 
     if (errors[field]) {
@@ -160,42 +177,20 @@ export default function ResetPasswordPage() {
             <CardContent className="space-y-6 px-0">
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
-                  <Label htmlFor="password" className="text-sm font-medium text-foreground">
-                    New Password
+                  <Label htmlFor="otp" className="text-sm font-medium text-foreground">
+                    6-digit Code
                   </Label>
-                  <div className="relative">
-                    <Input
-                      id="password"
-                      type={showPassword ? "text" : "password"}
-                      placeholder="Enter new password"
-                      value={password}
-                      onChange={(e) => handleInputChange("password", e.target.value)}
-                      className={`h-12 pr-12 bg-card border-border focus:border-primary focus:ring-primary/20 ${errors.password ? "border-destructive" : ""}`}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowPassword(!showPassword)}
-                    >
-                      {showPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                  {errors.password && <p className="text-sm text-destructive">{errors.password}</p>}
-                  <div className="text-xs text-muted-foreground space-y-1 mt-2">
-                    <p className="font-medium">Password must contain:</p>
-                    <ul className="list-disc list-inside space-y-1 ml-2">
-                      <li>At least 8 characters</li>
-                      <li>One uppercase letter</li>
-                      <li>One lowercase letter</li>
-                      <li>One number</li>
-                    </ul>
-                  </div>
+                  <Input
+                    id="otp"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    placeholder="Enter the code sent to your email"
+                    value={otp}
+                    onChange={(e) => handleInputChange("otp", e.target.value)}
+                    className={`h-12 bg-card border-border focus:border-primary focus:ring-primary/20 ${errors.otp ? "border-destructive" : ""}`}
+                  />
+                  {errors.otp && <p className="text-sm text-destructive">{errors.otp}</p>}
                 </div>
 
                 <div className="space-y-2">
@@ -227,6 +222,13 @@ export default function ResetPasswordPage() {
                   </div>
                   {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
                 </div>
+
+                {/* Server error (e.g., invalid/expired OTP) */}
+                {serverError && (
+                  <div className="p-4 text-sm text-destructive-foreground bg-destructive/10 border border-destructive/20 rounded-lg">
+                    {serverError}
+                  </div>
+                )}
 
                 <Button
                   type="submit"

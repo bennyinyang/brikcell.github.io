@@ -9,17 +9,24 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { ArrowLeft, Shield, Check } from "lucide-react"
+import { AuthAPI } from "@/lib/api";
 
 export default function VerifyOTPPage() {
-  const [otp, setOtp] = useState(["", "", "", "", "", ""])
-  const [isLoading, setIsLoading] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
-  const [error, setError] = useState("")
-  const [resendCooldown, setResendCooldown] = useState(0)
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const email = searchParams.get("email") || ""
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const email = (searchParams.get("email") || "").trim().toLowerCase();
+
+  // Prefill OTP from query (?otp=123456) if present
+  const initialOtpStr = (searchParams.get("otp") || "").replace(/\D/g, "").slice(0, 6);
+  const initialOtpArray = Array.from({ length: 6 }, (_, i) => initialOtpStr[i] ?? "");
+
+  // Initialize OTP input boxes with the prefilled values
+  const [otp, setOtp] = useState<string[]>(initialOtpArray);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState("");
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   useEffect(() => {
     // Focus first input on mount
@@ -35,9 +42,10 @@ export default function VerifyOTPPage() {
 
   const handleInputChange = (index: number, value: string) => {
     if (value.length > 1) return // Prevent multiple characters
+    const v = value.replace(/\D/g, "");
 
     const newOtp = [...otp]
-    newOtp[index] = value
+    newOtp[index] = v
     setOtp(newOtp)
     setError("")
 
@@ -59,40 +67,66 @@ export default function VerifyOTPPage() {
 
     if (otpString.length !== 6) {
       setError("Please enter the complete 6-digit code")
-      return
+      return;
     }
 
     setIsLoading(true)
     setError("")
 
-    // Simulate API call
-    setTimeout(() => {
-      if (otpString === "123456") {
-        setIsSuccess(true)
-        setIsLoading(false)
+    try {
+    const normalizedEmail = (email || "").trim().toLowerCase();
+    const mode = (searchParams.get("mode") || "").toLowerCase();
 
-        // Redirect to reset password after showing success
-        setTimeout(() => {
-          router.push(`/auth/reset-password?email=${encodeURIComponent(email)}&token=verified`)
-        }, 2000)
-      } else {
-        setError("Invalid verification code. Please try again.")
-        setIsLoading(false)
-        // Clear OTP inputs
-        setOtp(["", "", "", "", "", ""])
-        inputRefs.current[0]?.focus()
-      }
-    }, 1000)
-  }
+    console.log("[FE verify-otp] API_BASE", process.env.NEXT_PUBLIC_API_BASE_URL);
+    console.log("[FE verify-otp] payload", { email: normalizedEmail, otp: otpString });
+
+    if (mode === "reset") {
+      // 🚫 Skip hitting /auth/verify-otp (email already verified).
+      // ✅ Carry the code to the reset page.
+      setIsSuccess(true);
+      setIsLoading(false);
+      setTimeout(() => {
+        router.push(
+          `/auth/reset-password?email=${encodeURIComponent(normalizedEmail)}&otp=${encodeURIComponent(otpString)}`
+        );
+      }, 800);
+      return;
+    }
+
+    // ✅ Normal signup verification flow
+    await AuthAPI.verifyOtp({ email: normalizedEmail, otp: otpString });
+
+    setIsSuccess(true);
+    setIsLoading(false);
+
+    setTimeout(() => {
+    router.push("/auth/login");
+          }, 800);
+        } catch (err: any) {
+        setError(err?.message || "Invalid verification code. Please try again.");
+        setIsLoading(false);
+        setOtp(["", "", "", "", "", ""]);
+        // @ts-ignore
+        inputRefs.current[0]?.focus();
+    }
+  };
+  
 
   const handleResendCode = async () => {
-    setResendCooldown(60)
-    setError("")
 
-    // Simulate API call
-    setTimeout(() => {
-      // Show success message or handle resend logic
-    }, 1000)
+    if (!email) {
+      setError("Missing email address.");
+      return;
+    }
+
+    setResendCooldown(60);
+    setError("");
+        try {
+      await AuthAPI.sendOtp({ email: (email || "").trim().toLowerCase() });
+    } catch (err: any) {
+      setResendCooldown(0);
+      setError(err?.message || "Failed to resend code. Please try again.");
+    }
   }
 
   if (isSuccess) {
@@ -170,7 +204,7 @@ export default function VerifyOTPPage() {
                     {otp.map((digit, index) => (
                       <Input
                         key={index}
-                        ref={(el) => (inputRefs.current[index] = el)}
+                        ref={(el) => { inputRefs.current[index] = el; }} 
                         type="text"
                         inputMode="numeric"
                         maxLength={1}

@@ -1,6 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -9,6 +10,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
+import { ContractCreationModal } from "@/components/modals/contract-creation-modal"
+import { type Socket } from "socket.io-client"
+import { sendContract } from "@/lib/chatSenders"
+import { listChatRooms, listChatMessages, API_BASE, getAuth } from "@/lib/api"
+import { getSocket } from "@/lib/socket-client"
+
 import {
   Dialog,
   DialogContent,
@@ -44,258 +51,144 @@ import {
   Eye,
 } from "lucide-react"
 
-// Mock data for conversations with contract information
-const conversations = [
-  {
-    id: 1,
-    participant: {
-      name: "Sarah Johnson",
-      avatar: "/professional-hairstylist-woman.png",
-      service: "Hair Styling",
-      rating: 4.9,
-      reviewCount: 127,
-      isOnline: true,
-    },
-    lastMessage: {
-      text: "Perfect! I'll see you tomorrow at 2 PM for the hair styling session.",
-      timestamp: "2024-01-15T14:30:00Z",
-      isRead: true,
-      sender: "them",
-    },
-    unreadCount: 0,
-    contract: {
-      id: "CNT-001",
-      jobTitle: "Wedding Hair Styling",
-      status: "in-progress",
-      totalAmount: 350,
-      paidAmount: 175,
-      location: "123 Main St, New York, NY",
-      scheduledDate: "2024-01-20",
-      scheduledTime: "2:00 PM",
-      phases: [
-        {
-          id: 1,
-          name: "Initial Consultation & Design",
-          amount: 175,
-          status: "completed",
-          dueDate: "2024-01-15",
-          description: "Hair consultation and wedding style planning",
-          completedDate: "2024-01-15",
-        },
-        {
-          id: 2,
-          name: "Wedding Day Styling",
-          amount: 175,
-          status: "pending",
-          dueDate: "2024-01-20",
-          description: "Complete hair styling on wedding day",
-        },
-      ],
-      milestones: [
-        { name: "Consultation Complete", completed: true, date: "2024-01-15" },
-        { name: "Trial Session", completed: false, date: "2024-01-18" },
-        { name: "Wedding Day Service", completed: false, date: "2024-01-20" },
-      ],
-    },
-  },
-  {
-    id: 2,
-    participant: {
-      name: "Mike Rodriguez",
-      avatar: "/professional-plumber.png",
-      service: "Plumbing",
-      rating: 4.8,
-      reviewCount: 89,
-      isOnline: false,
-      lastSeen: "2 hours ago",
-    },
-    lastMessage: {
-      text: "I can start the kitchen plumbing repair this Thursday. Does that work for you?",
-      timestamp: "2024-01-15T12:15:00Z",
-      isRead: false,
-      sender: "them",
-    },
-    unreadCount: 2,
-    contract: {
-      id: "CNT-002",
-      jobTitle: "Kitchen Plumbing Repair",
-      status: "negotiating",
-      totalAmount: 450,
-      paidAmount: 0,
-      location: "456 Oak Ave, Brooklyn, NY",
-      scheduledDate: "2024-01-18",
-      scheduledTime: "10:00 AM",
-      phases: [
-        {
-          id: 1,
-          name: "Initial Assessment",
-          amount: 100,
-          status: "pending",
-          dueDate: "2024-01-18",
-          description: "Inspection and diagnosis of plumbing issues",
-        },
-        {
-          id: 2,
-          name: "Parts & Materials",
-          amount: 150,
-          status: "pending",
-          dueDate: "2024-01-18",
-          description: "Purchase necessary parts and materials",
-        },
-        {
-          id: 3,
-          name: "Repair Work",
-          amount: 200,
-          status: "pending",
-          dueDate: "2024-01-19",
-          description: "Complete plumbing repairs",
-        },
-      ],
-      milestones: [
-        { name: "Contract Signed", completed: false, date: "2024-01-16" },
-        { name: "Initial Payment", completed: false, date: "2024-01-16" },
-        { name: "Work Completed", completed: false, date: "2024-01-19" },
-      ],
-    },
-  },
-  {
-    id: 3,
-    participant: {
-      name: "David Chen",
-      avatar: "/professional-carpenter.png",
-      service: "Carpentry",
-      rating: 5.0,
-      reviewCount: 203,
-      isOnline: true,
-    },
-    lastMessage: {
-      text: "Thanks for the great review! It was a pleasure working on your bookshelf project.",
-      timestamp: "2024-01-14T16:45:00Z",
-      isRead: true,
-      sender: "them",
-    },
-    unreadCount: 0,
-    contract: {
-      id: "CNT-003",
-      jobTitle: "Custom Bookshelf Installation",
-      status: "completed",
-      totalAmount: 800,
-      paidAmount: 800,
-      location: "789 Pine Rd, Manhattan, NY",
-      scheduledDate: "2024-01-10",
-      scheduledTime: "9:00 AM",
-      phases: [
-        {
-          id: 1,
-          name: "Design & Planning",
-          amount: 200,
-          status: "completed",
-          dueDate: "2024-01-08",
-          description: "Custom design consultation",
-          completedDate: "2024-01-08",
-        },
-        {
-          id: 2,
-          name: "Materials Purchase",
-          amount: 300,
-          status: "completed",
-          dueDate: "2024-01-09",
-          description: "Wood and hardware procurement",
-          completedDate: "2024-01-09",
-        },
-        {
-          id: 3,
-          name: "Installation",
-          amount: 300,
-          status: "completed",
-          dueDate: "2024-01-10",
-          description: "Complete bookshelf installation",
-          completedDate: "2024-01-10",
-        },
-      ],
-      milestones: [
-        { name: "Design Approved", completed: true, date: "2024-01-08" },
-        { name: "Materials Delivered", completed: true, date: "2024-01-09" },
-        { name: "Installation Complete", completed: true, date: "2024-01-10" },
-        { name: "Final Review", completed: true, date: "2024-01-12" },
-      ],
-    },
-  },
-]
+interface Phase {
+  id: number
+  name: string
+  description: string
+  deliverables: string[]
+  amount: number
+  status: "pending" | "in-progress" | "delivered" | "approved" | "paid"
+  dueDate?: string
+  completedDate?: string
+}
 
-// Mock messages
-const messages = [
-  {
-    id: 1,
-    text: "Hi Mike! I saw your profile and I'm interested in hiring you for a kitchen plumbing repair.",
-    timestamp: "2024-01-15T10:00:00Z",
-    sender: "me",
-    status: "read",
-  },
-  {
-    id: 2,
-    text: "Hello! Thanks for reaching out. I'd be happy to help with your kitchen plumbing. Can you tell me more about the issue?",
-    timestamp: "2024-01-15T10:05:00Z",
-    sender: "them",
-    status: "read",
-  },
-  {
-    id: 3,
-    text: "The kitchen sink has been leaking for a few days, and I think the faucet needs to be replaced too.",
-    timestamp: "2024-01-15T10:10:00Z",
-    sender: "me",
-    status: "read",
-  },
-  {
-    id: 4,
-    text: "I can definitely help with that. Based on your description, I estimate this will cost around $450 including parts and labor. I've sent you a detailed contract with payment phases.",
-    timestamp: "2024-01-15T10:20:00Z",
-    sender: "them",
-    status: "read",
-  },
-  {
-    id: 5,
-    text: "That sounds reasonable. When would you be available to start?",
-    timestamp: "2024-01-15T10:25:00Z",
-    sender: "me",
-    status: "read",
-  },
-  {
-    id: 6,
-    text: "I can start the kitchen plumbing repair this Thursday. Does that work for you?",
-    timestamp: "2024-01-15T12:15:00Z",
-    sender: "them",
-    status: "delivered",
-  },
-]
+interface Material {
+  id: number
+  name: string
+  cost: number
+  coveredBy: "client" | "artisan"
+  receipt?: string
+}
+
+interface Contract {
+  id: number
+  title: string
+  description: string
+  totalAmount: number
+  depositAmount: number
+  depositPaid: boolean
+  phases: Phase[]
+  materials: Material[]
+  status: "draft" | "proposed" | "accepted" | "active" | "completed"
+  createdAt: string
+  acceptedAt?: string
+}
+
+type MessageStatus = "sent" | "delivered" | "read"
+
+interface Message {
+  id: string | number
+  text?: string
+  timestamp: string
+  sender: "me" | "them"
+  status: MessageStatus
+  type: "text" | "contract" | "phase-update" | "payment-prompt" | "file"
+  attachments?: { type: string; url: string; name: string }[]
+  contract?: Contract
+  phaseUpdate?: { phaseId: number; status: string; message: string }
+  paymentPrompt?: { phaseId: number; amount: number }
+}
+
+interface ConversationParticipant {
+  id: string
+  name: string
+  email: string
+  avatar?: string | null
+  service?: string | null
+  isOnline?: boolean
+  lastSeen?: string
+}
+
+interface ConversationLastMessage {
+  text: string
+  timestamp: string
+  isRead: boolean
+  sender: "me" | "them"
+  type?: string
+}
+
+interface Conversation {
+  id: string
+  participant: ConversationParticipant
+  lastMessage: ConversationLastMessage | null
+  unreadCount: number
+  jobTitle?: string
+  jobBudget?: string
+  hasActiveContract?: boolean
+}
 
 export function MessagingInterface() {
-  const [selectedConversation, setSelectedConversation] = useState(conversations[1])
+  const [conversations, setConversations] = useState<Conversation[]>([])
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null)
+  const [messages, setMessages] = useState<Message[]>([])
   const [newMessage, setNewMessage] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
-  const [showReviewModal, setShowReviewModal] = useState(false)
-  const [showDisputeModal, setShowDisputeModal] = useState(false)
-  const [reviewForm, setReviewForm] = useState({ rating: 5, comment: "" })
-  const [disputeForm, setDisputeForm] = useState({ reason: "", description: "" })
+  const [showConversationList, setShowConversationList] = useState(true)
+  const [showJobSummary, setShowJobSummary] = useState(true)
+  const [activeContract, setActiveContract] = useState<Contract | null>(null)
+  const [showContractModal, setShowContractModal] = useState(false)
+  const [roomsLoaded, setRoomsLoaded] = useState(false)
 
-  const filteredConversations = conversations.filter(
-    (conv) =>
-      conv.participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      conv.contract.jobTitle.toLowerCase().includes(searchQuery.toLowerCase()),
-  )
+  const socketRef = useRef<Socket | null>(null)
+  const selectedRoomIdRef = useRef<string | null>(null)
+  const scrollAreaRef = useRef<HTMLDivElement | null>(null)
+
+  const searchParams = useSearchParams()
+  const incomingArtisanId = searchParams.get("artisanId")
+  const incomingArtisanEmail = searchParams.get("artisanEmail")
+  const incomingArtisanName = searchParams.get("artisanName")
+
+  const auth = getAuth()
+  console.log("[Messaging] auth.user.id =", auth?.user?.id)
+  console.log("[Messaging] auth.user.role =", auth?.user?.role)
+  console.log("[Messaging] tokenExists =", Boolean(auth?.token))
+  const currentUserRole = auth?.user?.role
+  const currentUserId = auth?.user?.id as string | undefined
+
+  const canStartFromUrl = Boolean(incomingArtisanId || incomingArtisanEmail)
+  const canType = Boolean(selectedConversation?.id || canStartFromUrl)
+
+  const filteredConversations = useMemo(() => {
+    return conversations.filter(
+      (conv) =>
+        conv.participant.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (conv.jobTitle || "").toLowerCase().includes(searchQuery.toLowerCase()),
+    )
+  }, [conversations, searchQuery])
+
+  const scrollToBottom = () => {
+    try {
+      const el = scrollAreaRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null
+      if (el) el.scrollTop = el.scrollHeight
+    } catch (_) {}
+  }
+
+  const getConversationPreview = (msg: ConversationLastMessage | null) => {
+    if (!msg) return "No messages yet"
+    if (msg.type === "contract") return "Contract Proposal"
+    if (msg.type === "phase-update") return "Phase Update"
+    if (msg.type === "payment-prompt") return "Payment Request"
+    return msg.text || "No message content"
+  }
 
   const formatTime = (timestamp: string) => {
     const date = new Date(timestamp)
     const now = new Date()
     const diffInHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60)
 
-    if (diffInHours < 24) {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-    } else if (diffInHours < 48) {
-      return "Yesterday"
-    } else {
-      return date.toLocaleDateString([], { month: "short", day: "numeric" })
-    }
+    if (diffInHours < 24) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    if (diffInHours < 48) return "Yesterday"
+    return date.toLocaleDateString([], { month: "short", day: "numeric" })
   }
 
   const getMessageStatus = (status: string) => {
@@ -371,43 +264,729 @@ export function MessagingInterface() {
     }
   }
 
-  const sendMessage = () => {
-    if (newMessage.trim()) {
-      console.log("[v0] Sending message:", newMessage)
-      setNewMessage("")
+
+  // ✅ Normalize participant objects that might be:
+  // - a User
+  // - a ChatParticipant row containing participantUser/user/User
+  // - a ChatParticipant row containing user_id/userId
+  function normalizeUser(p: any): { id: string; name: string; email: string } | null {
+    if (!p) return null
+
+    // try common nested shapes first
+    const u = p.participantUser || p.user || p.User || p
+
+    const id = u?.id ?? p?.user_id ?? p?.userId ?? p?.id
+    if (!id) return null
+
+    return {
+      id: String(id),
+      name: u?.name || u?.userName || u?.username || "User",
+      email: u?.email || "",
+    }
+  }
+    
+
+  // ✅ PATCH 1: robust "other participant" selection
+  function getOtherParticipant(participants: any[], meId: string) {
+    if (!Array.isArray(participants)) return null
+
+    const me = String(meId)
+
+    const unique = participants.filter(
+      (p, idx, arr) => p && arr.findIndex((x: any) => String(x.id) === String(p.id)) === idx
+    )
+
+    const others = unique.filter((p: any) => String(p.id) !== me)
+
+    return others.length ? others[0] : null
+  }
+
+  // ✅ PATCH 3: guard null other participant and filter out bad rooms
+  function mapRoomsToConversations(rooms: any[]): Conversation[] {
+    if (!currentUserId) return []
+
+    return (rooms || [])
+      .map((room) => {
+        // IMPORTANT: artisan may receive participantLinks instead of participants
+        const rawParticipants =
+          room.participants ||
+          room.participantLinks ||
+          room.participant_links ||
+          room.ChatParticipants ||
+          []
+
+        const normalizedParticipants = rawParticipants.map(normalizeUser).filter(Boolean) as any[]
+
+        console.log("[Messaging] room", room.id, {
+          me: String(currentUserId),
+          rawParticipants: rawParticipants,
+          normalizedParticipants,
+        })
+            
+        const other = getOtherParticipant(normalizedParticipants, String(currentUserId))
+        if (!other) {
+          console.warn("[Messaging] Room missing other participant; skipping:", room?.id)
+          return null
+        }
+
+        const lastMessageRaw = room.lastMessage || null
+
+        const lastMessage: ConversationLastMessage | null = lastMessageRaw
+          ? {
+              text: lastMessageRaw.message,
+              timestamp: lastMessageRaw.createdAt || lastMessageRaw.created_at,
+              isRead: true,
+              sender:
+                String(lastMessageRaw.senderId ?? lastMessageRaw.sender_id) === String(currentUserId) ? "me" : "them",
+              type: lastMessageRaw.type,
+            }
+          : null
+
+        return {
+          id: String(room.id),
+          participant: {
+            id: String(other.id),
+            name: other.name,
+            email: other.email,
+            avatar: null,
+            service: null,
+            isOnline: false,
+            lastSeen: "",
+          },
+          lastMessage,
+          unreadCount: room.unreadCount || 0,
+          hasActiveContract: false,
+        } as Conversation
+      })
+      .filter(Boolean) as Conversation[]
+  }
+
+  function mapMessages(apiMessages: any[]): Message[] {
+    if (!currentUserId) return []
+    const me = String(currentUserId)
+
+    return (apiMessages || []).map((m) => ({
+      id: m.id,
+      text: m.message,
+      timestamp: m.createdAt || m.created_at,
+      sender: String(m.sender_id) === me ? "me" : "them",
+      status: "read",
+      type: (m.type as any) || "text",
+      contract: m.type === "contract" ? (m.contract_data as Contract) : undefined,
+      phaseUpdate: m.type === "phase-update" ? m.phase_update_data : undefined,
+      paymentPrompt: m.type === "payment-prompt" ? m.payment_prompt_data : undefined,
+      attachments: m.type === "file" ? m.attachments : undefined,
+    }))
+  }
+
+  // Helper to initiate / reuse a 1-to-1 chat with a user
+  const initiateChatWith = async (opts: {
+    targetUserId?: string | null
+    targetEmail?: string | null
+    displayName?: string | null
+  }): Promise<string | null> => {
+    const { targetUserId, targetEmail, displayName } = opts
+
+    if (!auth?.token || !currentUserId) {
+      console.warn("[Messaging] initiateChatWith: missing auth/currentUserId, aborting")
+      return null
+    }
+
+    if (!targetUserId && !targetEmail) {
+      console.warn("[Messaging] initiateChatWith: no target userId/email, aborting")
+      return null
+    }
+
+    try {
+      const res = await fetch(`${API_BASE}/chat/initiate`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${auth.token}`,
+        },
+        body: JSON.stringify({
+          userId: targetUserId ?? undefined,
+          email: targetEmail ?? undefined,
+        }),
+      })
+
+      if (!res.ok) {
+        console.error("[Messaging] initiateChatWith failed. Status:", res.status)
+        return null
+      }
+
+      const room = await res.json()
+      if (!room?.id) {
+        console.error("[Messaging] initiateChatWith: backend returned no room.id, aborting")
+        return null
+      }
+
+      const roomId = room.id as string
+
+      // ✅ IMPORTANT: update ref immediately so socket handlers know the active room
+      selectedRoomIdRef.current = roomId
+
+      // ✅ Normalize participants before selecting "other"
+      const rawParts = room.participants || room.participantLinks || room.participant_links || []
+      const normalizedParts = (rawParts as any[])
+        .map(normalizeUser)
+        .filter(Boolean) as { id: string; name: string; email: string }[]
+
+      const otherRaw =
+        normalizedParts.find((p) => p?.id && String(p.id) !== String(currentUserId)) || null
+
+      const participant: ConversationParticipant = {
+        id: otherRaw?.id || targetUserId || "",
+        name: otherRaw?.name || displayName || "User",
+        email: otherRaw?.email || targetEmail || "",
+        avatar: null,
+        service: null,
+        isOnline: false,
+        lastSeen: "",
+      }
+
+      const newConv: Conversation = {
+        id: roomId,
+        participant,
+        lastMessage: null,
+        unreadCount: 0,
+      }
+
+      let conversationToSelect: Conversation = newConv
+
+      setConversations((prev) => {
+        const existing = prev.find((c) => c.id === roomId)
+        if (existing) {
+          conversationToSelect = existing
+          return prev
+        }
+        return [newConv, ...prev]
+      })
+
+      setSelectedConversation(conversationToSelect)
+      setShowConversationList(false)
+
+      const msgs = await listChatMessages(roomId)
+      setMessages(mapMessages(msgs as any[]))
+
+      // join room for realtime
+      socketRef.current?.emit("chat:leave-all")
+      socketRef.current?.emit("chat:join", { roomId })
+
+      return roomId
+    } catch (err) {
+      console.error("[Messaging] initiateChatWith error:", err)
+      return null
     }
   }
 
+  // Load chat rooms on mount
+  useEffect(() => {
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const rooms = await listChatRooms()
+        if (cancelled) return
+        const mapped = mapRoomsToConversations(rooms as any[])
+        setConversations(mapped)
+        setRoomsLoaded(true)
+        if (mapped.length && !selectedConversation) setSelectedConversation(mapped[0])
+
+        // ✅ FIX: removed the line that hid conversation list when empty
+        // if (mapped.length === 0) setShowConversationList(false)
+      } catch (err) {
+        console.error("Failed to load chat rooms", err)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Track current room id in a ref for socket listener
+  useEffect(() => {
+    selectedRoomIdRef.current = selectedConversation?.id || null
+  }, [selectedConversation?.id])
+
+  // Connect socket.io once using singleton
+  useEffect(() => {
+    if (!auth?.token || !currentUserId) return
+    if (socketRef.current) return
+
+    const socket = getSocket(auth.token)
+    socketRef.current = socket
+
+    socket.on("connect", () => console.log("Socket connected", socket.id))
+    socket.on("disconnect", () => console.log("Socket disconnected"))
+
+    socket.on(
+      "chat:new-message",
+      (payload: {
+        id: string
+        room_id: string
+        sender_id: string
+        message: string
+        created_at: string
+        type?: string
+        contract?: Contract
+      }) => {
+        const currentRoomId = selectedRoomIdRef.current
+        const msgType = (payload.type as Message["type"]) || "text"
+
+        if (currentRoomId && payload.room_id === currentRoomId) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === payload.id)) return prev
+
+            const normalized = prev.map((m) =>
+              m.id.toString().startsWith("temp-") && m.text === payload.message && m.sender === "me"
+                ? { ...m, status: "delivered" as const }
+                : m,
+            )
+
+            const mapped: Message = {
+              id: payload.id,
+              text: payload.message,
+              timestamp: payload.created_at,
+              sender: payload.sender_id === currentUserId ? "me" : "them",
+              status: "delivered",
+              type: msgType,
+              contract: msgType === "contract" ? payload.contract : undefined,
+            }
+
+            return [...normalized, mapped]
+          })
+        }
+
+        setConversations((prev) => {
+          const updated: Conversation[] = prev.map((conv) => {
+            if (conv.id !== payload.room_id) return conv
+
+            const isMe = payload.sender_id === currentUserId
+            const isActive = currentRoomId === conv.id
+
+            const previewText =
+              msgType === "contract"
+                ? "Contract Proposal"
+                : msgType === "payment-prompt"
+                ? "Payment Request"
+                : msgType === "phase-update"
+                ? "Phase Update"
+                : payload.message
+
+            return {
+              ...conv,
+              lastMessage: {
+                text: previewText,
+                timestamp: payload.created_at,
+                isRead: isMe || isActive,
+                sender: (isMe ? "me" : "them") as "me" | "them",
+                type: msgType,
+              },
+              unreadCount: !isMe && !isActive ? (conv.unreadCount || 0) + 1 : conv.unreadCount,
+            }
+          })
+
+          return updated
+        })
+      },
+    )
+
+    socket.on("chat:read", ({ roomId }: { roomId: string; readerId?: string }) => {
+      const currentRoomId = selectedRoomIdRef.current
+      if (roomId !== currentRoomId) return
+
+      setMessages((prev) => prev.map((m) => (m.sender === "me" ? { ...m, status: "read" } : m)))
+    })
+
+    return () => {
+      socket.off("chat:new-message")
+      socket.off("chat:read")
+    }
+  }, [auth?.token, currentUserId])
+
+  // ✅ PATCH 2: prevent re-creating chat rooms on refresh (only initiate if no existing conversation with that user)
+  useEffect(() => {
+    if (!incomingArtisanId || !currentUserId) return
+    if (incomingArtisanId === currentUserId) return
+    if (!roomsLoaded) return
+
+    const alreadyExists = conversations.some((c) => c.participant.id === incomingArtisanId)
+    if (alreadyExists) return
+
+    initiateChatWith({
+      targetUserId: incomingArtisanId,
+      targetEmail: incomingArtisanEmail,
+      displayName: incomingArtisanName || "User",
+    })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [incomingArtisanId, conversations.length, currentUserId])
+
+  // Load messages whenever selected conversation changes
+  useEffect(() => {
+    if (!selectedConversation?.id) return
+    if (!currentUserId) return
+
+    let cancelled = false
+
+    ;(async () => {
+      try {
+        const msgs = await listChatMessages(selectedConversation.id)
+        if (cancelled) return
+        setMessages(mapMessages(msgs as any[]))
+
+        if (socketRef.current) {
+          socketRef.current.emit("chat:leave-all")
+          socketRef.current.emit("chat:join", { roomId: selectedConversation.id })
+        }
+
+        setConversations((prev) =>
+          prev.map((conv) =>
+            conv.id === selectedConversation.id
+              ? {
+                  ...conv,
+                  unreadCount: 0,
+                  lastMessage: conv.lastMessage ? { ...conv.lastMessage, isRead: true } : conv.lastMessage,
+                }
+              : conv,
+          ),
+        )
+
+        socketRef.current?.emit("chat:read", { roomId: selectedConversation.id })
+        setTimeout(() => scrollToBottom(), 50)
+      } catch (err) {
+        console.error("Failed to load messages for room", selectedConversation.id, err)
+      }
+    })()
+
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedConversation?.id])
+
+  const sendMessageHandler = async () => {
+    const text = newMessage.trim()
+    if (!text) return
+
+    if (!socketRef.current) {
+      console.warn("[Messaging] No socket, cannot send via socket")
+      return
+    }
+
+    setNewMessage("")
+
+    try {
+      let roomId: string | undefined = selectedConversation?.id
+
+      if (!roomId) {
+        const initiatedRoomId = await initiateChatWith({
+          targetUserId: incomingArtisanId,
+          targetEmail: incomingArtisanEmail,
+          displayName: incomingArtisanName || "User",
+        })
+
+        if (!initiatedRoomId) {
+          console.warn("[Messaging] Could not initiate chat room from URL params")
+          setNewMessage(text)
+          return
+        }
+
+        roomId = initiatedRoomId
+      }
+
+      socketRef.current.emit("chatMessage", {
+        roomId,
+        message: text,
+      })
+
+      const tempMessage: Message = {
+        id: `temp-${Date.now()}`,
+        text,
+        timestamp: new Date().toISOString(),
+        sender: "me",
+        status: "sent",
+        type: "text",
+      }
+
+      setMessages((prev) => [...prev, tempMessage])
+      setTimeout(() => scrollToBottom(), 50)
+    } catch (err) {
+      console.error("Failed to send message", err)
+      setNewMessage(text)
+    }
+  }
+
+  const handleAcceptContract = (contract: Contract) => {
+    console.log("Accepting contract:", contract.id)
+    setActiveContract({ ...contract, status: "accepted" })
+  }
+
+  const handleDeclineContract = (contract: Contract) => {
+    console.log("Declining contract:", contract.id)
+  }
+
+  const handleRequestChanges = (contract: Contract) => {
+    console.log("Requesting changes for contract:", contract.id)
+  }
+
   const handleReleasePayment = (phaseId: number) => {
-    console.log("[v0] Releasing payment for phase:", phaseId)
+    if (!activeContract) return
+    console.log("Releasing payment for phase:", phaseId)
+    const updatedPhases = activeContract.phases.map((phase): Phase =>
+      phase.id === phaseId ? { ...phase, status: "paid" } : phase,
+    )
+    setActiveContract({ ...activeContract, phases: updatedPhases })
   }
 
-  const handleAcceptContract = () => {
-    console.log("[v0] Accepting contract:", selectedConversation.contract.id)
+  const calculateProgress = () => {
+    if (!activeContract || !activeContract.phases.length) return 0
+    const completedPhases = activeContract.phases.filter((p) => p.status === "paid").length
+    return (completedPhases / activeContract.phases.length) * 100
   }
 
-  const handleRejectContract = () => {
-    console.log("[v0] Rejecting contract:", selectedConversation.contract.id)
+  const calculateTotalPaid = () => {
+    if (!activeContract) return 0
+    return activeContract.phases.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amount, 0)
   }
 
-  const handleCompleteJob = () => {
-    console.log("[v0] Marking job as complete:", selectedConversation.contract.id)
+  const ContractCard = ({ contract, sender }: { contract: Contract; sender: "me" | "them" }) => (
+    <div className="max-w-2xl">
+      <Card className="border-2 border-primary/20 shadow-lg">
+        <CardHeader className="bg-gradient-to-r from-primary/10 to-primary/5 pb-4">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center space-x-2">
+              <FileText className="h-5 w-5 text-primary" />
+              <CardTitle className="text-lg">Contract Proposal</CardTitle>
+            </div>
+            <Badge className={contract.status === "accepted" ? "bg-green-500" : "bg-yellow-500"}>
+              {contract.status === "accepted" ? "Accepted" : "Pending"}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4 pt-4">
+          <div>
+            <h3 className="font-semibold text-lg mb-2">{contract.title}</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">{contract.description}</p>
+          </div>
+
+          <Separator />
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Total Amount</p>
+              <p className="text-2xl font-bold text-primary">₦{contract.totalAmount.toLocaleString()}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600 mb-1">Deposit Required</p>
+              <p className="text-2xl font-bold text-gray-900">₦{contract.depositAmount.toLocaleString()}</p>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h4 className="font-semibold mb-3 flex items-center">
+              <Package className="h-4 w-4 mr-2 text-primary" />
+              Project Phases ({contract.phases.length})
+            </h4>
+            <div className="space-y-3">
+              {contract.phases.map((phase, index) => (
+                <div key={phase.id} className="bg-gray-50 rounded-lg p-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1">
+                      <p className="font-medium text-sm">
+                        Phase {index + 1}: {phase.name}
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">{phase.description}</p>
+                    </div>
+                    <p className="font-semibold text-primary ml-3">₦{phase.amount.toLocaleString()}</p>
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-xs text-gray-600 mb-1">Deliverables:</p>
+                    <ul className="text-xs text-gray-700 space-y-0.5">
+                      {phase.deliverables.map((deliverable, idx) => (
+                        <li key={idx} className="flex items-start">
+                          <Check className="h-3 w-3 mr-1 mt-0.5 text-green-600 flex-shrink-0" />
+                          {deliverable}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div>
+            <h4 className="font-semibold mb-3 flex items-center">
+              <Wrench className="h-4 w-4 mr-2 text-primary" />
+              Materials & Tools
+            </h4>
+            <div className="space-y-2">
+              {contract.materials.map((material) => (
+                <div key={material.id} className="flex items-center justify-between text-sm">
+                  <div className="flex items-center space-x-2">
+                    <div
+                      className={`w-2 h-2 rounded-full ${material.coveredBy === "client" ? "bg-blue-500" : "bg-green-500"}`}
+                    />
+                    <span>{material.name}</span>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">₦{material.cost.toLocaleString()}</span>
+                    <Badge variant="secondary" className="text-xs">
+                      {material.coveredBy === "client" ? "You pay" : "Artisan pays"}
+                    </Badge>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-start space-x-2">
+              <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <h5 className="text-sm font-medium text-blue-900">Escrow Protection</h5>
+                <p className="text-xs text-blue-800 mt-1 leading-relaxed">
+                  Your payment is held securely in escrow. Funds are released to the artisan only after you approve each
+                  phase.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {sender === "them" && contract.status !== "accepted" && (
+            <div className="flex space-x-2 pt-2">
+              <Button onClick={() => handleAcceptContract(contract)} className="flex-1 bg-primary hover:bg-primary/90">
+                <CheckCircle className="h-4 w-4 mr-2" />
+                Accept Contract
+              </Button>
+              <Button
+                onClick={() => handleRequestChanges(contract)}
+                variant="outline"
+                className="flex-1 hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+              >
+                Request Changes
+              </Button>
+              <Button
+                onClick={() => handleDeclineContract(contract)}
+                variant="outline"
+                className="hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+              >
+                <XCircle className="h-4 w-4" />
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+
+  const PhaseUpdateCard = ({
+    phaseUpdate,
+  }: {
+    phaseUpdate: { phaseId: number; status: string; message: string }
+    sender: "me" | "them"
+  }) => {
+    if (!activeContract) return null
+    const phase = activeContract.phases.find((p) => p.id === phaseUpdate.phaseId)
+    if (!phase) return null
+
+    return (
+      <div className="max-w-md">
+        <Card className="border-2 border-purple-200 bg-purple-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <div className="flex-shrink-0">{getPhaseStatusIcon(phaseUpdate.status)}</div>
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm mb-1">Phase Update: {phase.name}</h4>
+                <p className="text-sm text-gray-700 mb-2">{phaseUpdate.message}</p>
+                <Badge className={getPhaseStatusColor(phaseUpdate.status)}>{phaseUpdate.status}</Badge>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
-  const handleSubmitReview = () => {
-    console.log("[v0] Submitting review:", reviewForm)
-    setShowReviewModal(false)
-    setReviewForm({ rating: 5, comment: "" })
+  const PaymentPromptCard = ({ paymentPrompt }: { paymentPrompt: { phaseId: number; amount: number } }) => {
+    if (!activeContract) return null
+    const phase = activeContract.phases.find((p) => p.id === paymentPrompt.phaseId)
+    if (!phase) return null
+
+    return (
+      <div className="max-w-md">
+        <Card className="border-2 border-green-200 bg-green-50">
+          <CardContent className="p-4">
+            <div className="flex items-start space-x-3">
+              <DollarSign className="h-5 w-5 text-green-600 flex-shrink-0" />
+              <div className="flex-1">
+                <h4 className="font-semibold text-sm mb-1">Payment Request</h4>
+                <p className="text-sm text-gray-700 mb-3">
+                  {phase.name} has been completed. Please review and approve the payment.
+                </p>
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm text-gray-600">Amount:</span>
+                  <span className="text-lg font-bold text-green-600">₦{paymentPrompt.amount.toLocaleString()}</span>
+                </div>
+                {phase.status === "delivered" && (
+                  <div className="flex space-x-2">
+                    <Button
+                      onClick={() => handleReleasePayment(paymentPrompt.phaseId)}
+                      size="sm"
+                      className="flex-1 bg-green-600 hover:bg-green-700"
+                    >
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approve & Release
+                    </Button>
+                    <Button size="sm" variant="outline" className="hover:bg-red-50 hover:text-red-600 bg-transparent">
+                      <XCircle className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
   }
 
-  const handleSubmitDispute = () => {
-    console.log("[v0] Submitting dispute:", disputeForm)
-    setShowDisputeModal(false)
-    setDisputeForm({ reason: "", description: "" })
-  }
+  const handleSendContract = async (contract: any) => {
+    const roomId = selectedConversation?.id
+    if (!roomId) {
+      console.error("No roomId found, cannot send contract.")
+      return
+    }
 
-  const progressPercentage =
-    (selectedConversation.contract.paidAmount / selectedConversation.contract.totalAmount) * 100
+    try {
+      const res = await sendContract(roomId, contract)
+
+      const message: Message = {
+        id: res.message?.id ?? Date.now().toString(),
+        text: "",
+        timestamp: new Date().toISOString(),
+        sender: "me",
+        status: "sent",
+        type: "contract",
+        contract,
+      }
+
+      setMessages((prev) => [...prev, message])
+      setTimeout(() => scrollToBottom(), 50)
+      console.log("Contract sent:", res)
+    } catch (err) {
+      console.error("Failed to send contract:", err)
+    }
+  }
 
   return (
     <div className="max-w-[1920px] mx-auto px-4 py-6">
@@ -429,15 +1008,18 @@ export function MessagingInterface() {
               />
             </div>
           </CardHeader>
-          <CardContent className="flex-1 p-0">
-            <ScrollArea className="h-[calc(100vh-16rem)]">
-              <div className="space-y-2 p-3">
+          <CardContent className="p-0">
+            <ScrollArea
+              ref={scrollAreaRef}
+              className="h-[calc(100vh-16rem)] sm:h-[calc(100vh-18rem)] lg:h-[calc(100vh-20rem)]"
+            >
+              <div className="space-y-1 sm:space-y-2 p-2 sm:p-3">
                 {filteredConversations.map((conversation) => (
                   <div
                     key={conversation.id}
                     onClick={() => setSelectedConversation(conversation)}
                     className={`cursor-pointer rounded-xl p-3 transition-all ${
-                      selectedConversation.id === conversation.id
+                      selectedConversation?.id === conversation.id
                         ? "bg-primary/10 border-2 border-primary/30"
                         : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent"
                     }`}
@@ -454,128 +1036,310 @@ export function MessagingInterface() {
                           </AvatarFallback>
                         </Avatar>
                         {conversation.participant.isOnline && (
-                          <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full"></div>
+                          <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
                           <h3 className="font-semibold text-sm truncate">{conversation.participant.name}</h3>
                           <span className="text-xs text-gray-500">
-                            {formatTime(conversation.lastMessage.timestamp)}
+                            {conversation.lastMessage ? formatTime(conversation.lastMessage.timestamp) : ""}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-1 mb-1">
-                          <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
-                          <span className="text-xs font-medium">{conversation.participant.rating}</span>
-                          <span className="text-xs text-gray-500">({conversation.participant.reviewCount})</span>
-                        </div>
-                        <p className="text-xs text-gray-600 truncate mb-2">{conversation.lastMessage.text}</p>
-                        <div className="flex items-center justify-between">
-                          <Badge variant="secondary" className="text-xs">
-                            {conversation.participant.service}
-                          </Badge>
-                          {conversation.unreadCount > 0 && (
-                            <Badge className="bg-primary text-white text-xs h-5 w-5 rounded-full flex items-center justify-center p-0">
-                              {conversation.unreadCount}
+                        <div className="flex items-center space-x-2 mb-1">
+                          {conversation.participant.service && (
+                            <Badge variant="secondary" className="text-xs">
+                              {conversation.participant.service}
+                            </Badge>
+                          )}
+                          {conversation.hasActiveContract && (
+                            <Badge className="text-xs bg-green-100 text-green-800">
+                              <FileText className="h-3 w-3 mr-1" />
+                              Active
                             </Badge>
                           )}
                         </div>
+                        <p className="text-xs text-gray-600 line-clamp-1">
+                          {getConversationPreview(conversation.lastMessage)}
+                        </p>
+                        {conversation.unreadCount > 0 && (
+                          <Badge className="mt-1 bg-primary text-white text-xs">{conversation.unreadCount} new</Badge>
+                        )}
                       </div>
                     </div>
                   </div>
                 ))}
+
+                {filteredConversations.length === 0 && (
+                  <div className="text-xs text-gray-500 px-2 py-4">No conversations yet.</div>
+                )}
               </div>
             </ScrollArea>
           </CardContent>
         </Card>
 
-        {/* Middle Panel - Chat Interface */}
-        <Card className="col-span-12 lg:col-span-5 flex flex-col">
-          {/* Chat Header */}
-          <CardHeader className="pb-3 border-b">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="relative">
-                  <Avatar className="h-10 w-10">
-                    <AvatarImage src={selectedConversation.participant.avatar || "/placeholder.svg"} />
-                    <AvatarFallback>
-                      {selectedConversation.participant.name
-                        .split(" ")
-                        .map((n) => n[0])
-                        .join("")}
-                    </AvatarFallback>
-                  </Avatar>
-                  {selectedConversation.participant.isOnline && (
-                    <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-white rounded-full"></div>
-                  )}
+        {/* ✅ FIX: Chat Interface panel is ALWAYS rendered (no outer selectedConversation conditional) */}
+        <Card
+          className={`lg:col-span-6 flex flex-col py-0 ${
+            showConversationList && conversations.length > 0 ? "hidden" : "block"
+          } lg:block ${!showJobSummary ? "lg:col-span-9" : ""}`}
+        >
+          <CardHeader className="pb-2 sm:pb-3 border-b px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
+            {selectedConversation ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="lg:hidden h-9 w-9 p-0 flex-shrink-0"
+                    onClick={() => setShowConversationList(true)}
+                  >
+                    ←
+                  </Button>
+
+                  <div className="relative flex-shrink-0">
+                    <Avatar className="h-10 w-10 lg:h-12 lg:w-12">
+                      <AvatarImage
+                        src={selectedConversation.participant.avatar || "/placeholder.svg"}
+                        alt={selectedConversation.participant.name}
+                      />
+                      <AvatarFallback>
+                        {selectedConversation.participant.name
+                          .split(" ")
+                          .map((n) => n[0])
+                          .join("")}
+                      </AvatarFallback>
+                    </Avatar>
+                    {selectedConversation.participant.isOnline && (
+                      <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-white rounded-full" />
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <h3 className="font-semibold text-sm lg:text-base truncate">{selectedConversation.participant.name}</h3>
+                    <p className="text-xs text-gray-600 truncate">
+                      {selectedConversation.participant.isOnline
+                        ? "Online"
+                        : selectedConversation.participant.lastSeen
+                        ? `Last seen ${selectedConversation.participant.lastSeen}`
+                        : ""}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="font-semibold text-sm">{selectedConversation.participant.name}</h3>
+
+                <div className="flex items-center space-x-2 flex-shrink-0">
+                  <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
+                    <Phone className="h-4 w-4" />
+                  </Button>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-9 w-9 p-0 lg:hidden bg-transparent"
+                    onClick={() => setShowJobSummary(!showJobSummary)}
+                  >
+                    <FileText className="h-4 w-4" />
+                  </Button>
+
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
+                        <MoreVertical className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem>
+                        <User className="h-4 w-4 mr-2" />
+                        View Profile
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <BellOff className="h-4 w-4 mr-2" />
+                        Mute Notifications
+                      </DropdownMenuItem>
+                      <DropdownMenuItem>
+                        <Archive className="h-4 w-4 mr-2" />
+                        Archive Conversation
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem>
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Clear Chat
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem className="text-red-600">
+                        <Flag className="h-4 w-4 mr-2" />
+                        Report Issue
+                      </DropdownMenuItem>
+                      <DropdownMenuItem className="text-red-600">
+                        <Ban className="h-4 w-4 mr-2" />
+                        Block User
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between">
+                <div className="min-w-0">
+                  <h3 className="font-semibold text-sm lg:text-base">Messages</h3>
                   <p className="text-xs text-gray-600">
-                    {selectedConversation.participant.isOnline
-                      ? "Online"
-                      : `Last seen ${selectedConversation.participant.lastSeen}`}
+                    {incomingArtisanName ? `Start a new chat with ${incomingArtisanName}` : "Start a new chat"}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center space-x-2">
-                <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
-                  <Phone className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
-                  <Video className="h-4 w-4" />
-                </Button>
-                <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
+            )}
           </CardHeader>
 
           {/* Messages */}
           <CardContent className="flex-1 p-4">
             <ScrollArea className="h-[calc(100vh-24rem)]">
               <div className="space-y-4">
-                {messages.map((message) => (
-                  <div key={message.id} className={`flex ${message.sender === "me" ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[75%] ${message.sender === "me" ? "order-2" : "order-1"}`}>
-                      <div
-                        className={`rounded-2xl px-4 py-3 ${
-                          message.sender === "me" ? "bg-primary text-white" : "bg-gray-100 text-gray-900"
-                        }`}
-                      >
-                        <p className="text-sm leading-relaxed">{message.text}</p>
-                      </div>
-                      <div
-                        className={`flex items-center mt-1 space-x-1 ${message.sender === "me" ? "justify-end" : "justify-start"}`}
-                      >
-                        <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
-                        {message.sender === "me" && getMessageStatus(message.status)}
-                      </div>
-                    </div>
+                {selectedConversation ? (
+                  <>
+                    {/* ✅ FIX: restored message rendering logic */}
+                    {messages.map((message) => {
+                      const isMine = message.sender === "me"
+                      const alignLeft = !isMine
+
+                      return (
+                        <div key={message.id} className={`flex ${alignLeft ? "justify-start" : "justify-end"}`}>
+                          {/* TEXT */}
+                          {message.type === "text" && (
+                            <div
+                              className={`max-w-[80%] rounded-2xl px-4 py-3 border ${
+                                alignLeft ? "bg-white" : "bg-primary/10"
+                              }`}
+                            >
+                              <div className="text-sm text-gray-900 whitespace-pre-wrap">{message.text || ""}</div>
+                              <div className="mt-1 flex items-center justify-end space-x-2 text-[11px] text-gray-500">
+                                <span>{formatTime(message.timestamp)}</span>
+                                {message.sender === "me" ? getMessageStatus(message.status) : null}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* FILE */}
+                          {message.type === "file" && (
+                            <div
+                              className={`max-w-[80%] rounded-2xl px-4 py-3 border ${
+                                alignLeft ? "bg-white" : "bg-primary/10"
+                              }`}
+                            >
+                              <div className="text-sm font-medium text-gray-900 mb-2">Attachment</div>
+                              <div className="space-y-2">
+                                {(message.attachments || []).map((a, idx) => (
+                                  <div key={idx} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg p-2">
+                                    <div className="min-w-0">
+                                      <div className="text-xs font-medium text-gray-900 truncate">{a.name}</div>
+                                      <div className="text-[11px] text-gray-500 truncate">{a.type}</div>
+                                    </div>
+                                    <a
+                                      href={a.url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                                    >
+                                      <Download className="h-3 w-3 mr-1" />
+                                      Download
+                                    </a>
+                                  </div>
+                                ))}
+                                {(message.attachments || []).length === 0 && (
+                                  <div className="text-xs text-gray-500">No attachment data.</div>
+                                )}
+                              </div>
+                              <div className="mt-2 flex items-center justify-end space-x-2 text-[11px] text-gray-500">
+                                <span>{formatTime(message.timestamp)}</span>
+                                {message.sender === "me" ? getMessageStatus(message.status) : null}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* CONTRACT */}
+                          {message.type === "contract" && message.contract && (
+                            <ContractCard contract={message.contract} sender={message.sender} />
+                          )}
+
+                          {/* PHASE UPDATE */}
+                          {message.type === "phase-update" && message.phaseUpdate && (
+                            <PhaseUpdateCard phaseUpdate={message.phaseUpdate} sender={message.sender} />
+                          )}
+
+                          {/* PAYMENT PROMPT */}
+                          {message.type === "payment-prompt" && message.paymentPrompt && (
+                            <PaymentPromptCard paymentPrompt={message.paymentPrompt} />
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {messages.length === 0 && (
+                      <div className="text-xs text-gray-500 text-center py-4">No messages yet.</div>
+                    )}
+                  </>
+                ) : (
+                  <div className="text-xs text-gray-500 text-center py-10">
+                    No conversations yet. Use the box below to start messaging.
                   </div>
-                ))}
+                )}
               </div>
             </ScrollArea>
           </CardContent>
 
-          {/* Message Input */}
-          <div className="border-t p-4">
+          {/* ✅ Composer ALWAYS visible */}
+          <div className="border-t p-3 sm:p-4">
             <div className="flex items-center space-x-2">
-              <Button variant="outline" size="sm" className="h-10 w-10 p-0 bg-transparent">
+              {auth?.user?.role === "artisan" && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
+                  onClick={() => setShowContractModal(true)}
+                  title="Send Contract"
+                  disabled={!selectedConversation?.id}
+                >
+                  <FileText className="h-4 w-4" />
+                </Button>
+              )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
+                disabled={!selectedConversation?.id}
+              >
                 <Paperclip className="h-4 w-4" />
               </Button>
-              <Button variant="outline" size="sm" className="h-10 w-10 p-0 bg-transparent">
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
+                disabled={!selectedConversation?.id}
+              >
                 <ImageIcon className="h-4 w-4" />
               </Button>
+
               <Input
-                placeholder="Type your message..."
+                placeholder={
+                  selectedConversation?.id
+                    ? "Type your message..."
+                    : canStartFromUrl
+                    ? "Type your message to start chat..."
+                    : "Select a conversation to start messaging..."
+                }
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={(e) => e.key === "Enter" && sendMessage()}
-                className="flex-1"
+                onKeyDown={(e) => e.key === "Enter" && canType && sendMessageHandler()}
+                className="h-10 text-sm"
+                disabled={!canType}
               />
-              <Button size="sm" onClick={sendMessage} disabled={!newMessage.trim()} className="h-10 w-10 p-0">
+
+              <Button
+                size="sm"
+                onClick={sendMessageHandler}
+                disabled={!canType || !newMessage.trim()}
+                className="h-10 w-10 p-0"
+              >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
@@ -590,302 +1354,160 @@ export function MessagingInterface() {
               {getContractStatusBadge(selectedConversation.contract.status)}
             </div>
           </CardHeader>
-          <CardContent className="flex-1 p-0">
-            <ScrollArea className="h-[calc(100vh-16rem)]">
-              <div className="p-4 space-y-6">
-                {/* Job Information */}
-                <div>
-                  <h3 className="font-semibold mb-3 flex items-center">
-                    <FileText className="h-4 w-4 mr-2 text-primary" />
-                    Job Information
-                  </h3>
-                  <div className="space-y-2 bg-gray-50 rounded-lg p-3">
-                    <div className="flex items-start justify-between">
-                      <span className="text-sm text-gray-600">Job Title:</span>
-                      <span className="text-sm font-medium text-right">{selectedConversation.contract.jobTitle}</span>
+          <CardContent className="p-0">
+            <ScrollArea className="h-[calc(100vh-10rem)] lg:h-[calc(100vh-16rem)]">
+              <div className="p-4 space-y-4">
+                {!activeContract ? (
+                  <div className="text-sm text-gray-600">No contract details are available for this conversation yet.</div>
+                ) : (
+                  <>
+                    <div>
+                      <h3 className="font-semibold text-sm mb-2">Contract Status</h3>
+                      <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-3">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-sm font-medium">Overall Progress</span>
+                          <span className="text-sm font-bold text-primary">{Math.round(calculateProgress())}%</span>
+                        </div>
+                        <Progress value={calculateProgress()} className="h-2 mb-2" />
+                        <div className="flex items-center justify-between text-xs text-gray-600">
+                          <span>
+                            {activeContract.phases.filter((p) => p.status === "paid").length} of {activeContract.phases.length}{" "}
+                            phases completed
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-start justify-between">
-                      <span className="text-sm text-gray-600">Contract ID:</span>
-                      <span className="text-sm font-mono">{selectedConversation.contract.id}</span>
-                    </div>
+
                     <Separator />
-                    <div className="flex items-start space-x-2">
-                      <MapPin className="h-4 w-4 text-gray-400 mt-0.5 flex-shrink-0" />
-                      <span className="text-sm">{selectedConversation.contract.location}</span>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Calendar className="h-4 w-4 text-gray-400" />
-                      <span className="text-sm">
-                        {selectedConversation.contract.scheduledDate} at {selectedConversation.contract.scheduledTime}
-                      </span>
-                    </div>
-                  </div>
-                </div>
 
-                {/* Payment Summary */}
-                <div>
-                  <h3 className="font-semibold mb-3 flex items-center">
-                    <DollarSign className="h-4 w-4 mr-2 text-primary" />
-                    Payment Summary
-                  </h3>
-                  <div className="space-y-3 bg-gray-50 rounded-lg p-3">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Total Amount:</span>
-                      <span className="text-lg font-bold text-primary">
-                        ${selectedConversation.contract.totalAmount}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Paid:</span>
-                      <span className="text-sm font-semibold text-green-600">
-                        ${selectedConversation.contract.paidAmount}
-                      </span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-gray-600">Remaining:</span>
-                      <span className="text-sm font-semibold text-gray-900">
-                        ${selectedConversation.contract.totalAmount - selectedConversation.contract.paidAmount}
-                      </span>
-                    </div>
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="font-medium">{progressPercentage.toFixed(0)}%</span>
+                    <div>
+                      <h3 className="font-semibold text-sm mb-3">Payment Summary</h3>
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Total Contract</span>
+                          <span className="font-semibold">₦{activeContract.totalAmount.toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Deposit Paid</span>
+                          <div className="flex items-center space-x-2">
+                            <span className="font-semibold">₦{activeContract.depositAmount.toLocaleString()}</span>
+                            {activeContract.depositPaid && <CheckCircle className="h-4 w-4 text-green-600" />}
+                          </div>
+                        </div>
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="text-gray-600">Total Paid</span>
+                          <span className="font-semibold text-green-600">₦{calculateTotalPaid().toLocaleString()}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-sm pt-2 border-t">
+                          <span className="text-gray-600">Remaining</span>
+                          <span className="font-bold text-primary">
+                            ₦{(activeContract.totalAmount - calculateTotalPaid()).toLocaleString()}
+                          </span>
+                        </div>
                       </div>
-                      <Progress value={progressPercentage} className="h-2" />
                     </div>
-                  </div>
-                </div>
 
-                {/* Payment Phases */}
-                <div>
-                  <h3 className="font-semibold mb-3 flex items-center">
-                    <CreditCard className="h-4 w-4 mr-2 text-primary" />
-                    Payment Phases
-                  </h3>
-                  <div className="space-y-3">
-                    {selectedConversation.contract.phases.map((phase, index) => (
-                      <div key={phase.id} className="border rounded-lg p-3 bg-white">
-                        <div className="flex items-start justify-between mb-2">
-                          <div className="flex-1">
-                            <div className="flex items-center space-x-2 mb-1">
-                              <span className="text-sm font-semibold">Phase {index + 1}</span>
-                              {getPhaseStatusBadge(phase.status)}
+                    <Separator />
+
+                    <div>
+                      <h3 className="font-semibold text-sm mb-3">Project Phases</h3>
+                      <div className="space-y-3">
+                        {activeContract.phases.map((phase, index) => (
+                          <div key={phase.id} className="border rounded-lg p-3">
+                            <div className="flex items-start justify-between mb-2">
+                              <div className="flex-1">
+                                <div className="flex items-center space-x-2 mb-1">
+                                  <span className="text-xs font-medium text-gray-500">Phase {index + 1}</span>
+                                  <Badge className={`${getPhaseStatusColor(phase.status)} text-xs`}>{phase.status}</Badge>
+                                </div>
+                                <p className="text-sm font-medium">{phase.name}</p>
+                              </div>
+                              {getPhaseStatusIcon(phase.status)}
                             </div>
-                            <p className="text-sm font-medium text-gray-900">{phase.name}</p>
-                            <p className="text-xs text-gray-600 mt-1">{phase.description}</p>
+                            <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
+                              <span>Amount:</span>
+                              <span className="font-semibold text-primary">₦{phase.amount.toLocaleString()}</span>
+                            </div>
+                            {phase.dueDate && (
+                              <div className="flex items-center text-xs text-gray-600">
+                                <Clock className="h-3 w-3 mr-1" />
+                                Due: {new Date(phase.dueDate).toLocaleDateString()}
+                              </div>
+                            )}
+                            {phase.status === "delivered" && (
+                              <Button
+                                onClick={() => handleReleasePayment(phase.id)}
+                                size="sm"
+                                className="w-full mt-2 bg-green-600 hover:bg-green-700"
+                              >
+                                <CheckCircle className="h-3 w-3 mr-2" />
+                                Release Payment
+                              </Button>
+                            )}
                           </div>
-                        </div>
-                        <div className="flex items-center justify-between mt-3">
-                          <span className="text-lg font-bold text-primary">${phase.amount}</span>
-                          <div className="text-xs text-gray-500">
-                            Due: {new Date(phase.dueDate).toLocaleDateString()}
-                          </div>
-                        </div>
-                        {phase.status === "pending" &&
-                          selectedConversation.contract.status === "in-progress" &&
-                          index === 1 && (
-                            <Button size="sm" className="w-full mt-3" onClick={() => handleReleasePayment(phase.id)}>
-                              <Shield className="h-3 w-3 mr-2" />
-                              Release Payment from Escrow
-                            </Button>
-                          )}
-                        {phase.status === "completed" && (
-                          <div className="mt-3 flex items-center justify-between bg-green-50 rounded px-2 py-1.5">
-                            <span className="text-xs text-green-700 font-medium">Paid on {phase.completedDate}</span>
-                            <CheckCircle className="h-4 w-4 text-green-600" />
-                          </div>
-                        )}
+                        ))}
                       </div>
-                    ))}
-                  </div>
-                </div>
+                    </div>
 
-                {/* Milestones */}
-                <div>
-                  <h3 className="font-semibold mb-3 flex items-center">
-                    <CheckCircle className="h-4 w-4 mr-2 text-primary" />
-                    Milestones
-                  </h3>
-                  <div className="space-y-2">
-                    {selectedConversation.contract.milestones.map((milestone, index) => (
-                      <div key={index} className="flex items-center space-x-3">
-                        <div
-                          className={`h-6 w-6 rounded-full flex items-center justify-center ${
-                            milestone.completed ? "bg-green-500" : "bg-gray-200"
-                          }`}
-                        >
-                          {milestone.completed && <Check className="h-4 w-4 text-white" />}
-                        </div>
-                        <div className="flex-1">
-                          <p
-                            className={`text-sm ${milestone.completed ? "line-through text-gray-500" : "font-medium"}`}
-                          >
-                            {milestone.name}
+                    <Separator />
+
+                    <div>
+                      <h3 className="font-semibold text-sm mb-3 flex items-center">
+                        <Wrench className="h-4 w-4 mr-2 text-primary" />
+                        Materials & Tools
+                      </h3>
+                      <div className="space-y-2">
+                        {activeContract.materials.map((material) => (
+                          <div key={material.id}>
+                            <div className="bg-gray-50 rounded p-2">
+                              <div className="flex items-start justify-between mb-1">
+                                <p className="text-xs font-medium flex-1">{material.name}</p>
+                                <Badge variant="secondary" className="text-xs ml-2">
+                                  {material.coveredBy === "client" ? "You" : "Artisan"}
+                                </Badge>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs text-gray-600">₦{material.cost.toLocaleString()}</span>
+                              </div>
+                            </div>
+                            {material.receipt && (
+                              <div className="mt-2 flex justify-end">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-7 px-3 bg-transparent hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                                  title="Download Receipt"
+                                >
+                                  <Download className="h-3 w-3 mr-1.5" />
+                                  <span className="text-xs">Download Receipt</span>
+                                </Button>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                      <div className="flex items-start space-x-2">
+                        <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <div>
+                          <h5 className="text-xs font-medium text-blue-900 mb-1">Escrow Protection Active</h5>
+                          <p className="text-xs text-blue-800 leading-relaxed">
+                            Your funds are held securely. Release payments only after reviewing and approving each phase.
                           </p>
-                          <p className="text-xs text-gray-500">{new Date(milestone.date).toLocaleDateString()}</p>
                         </div>
                       </div>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Contract Actions */}
-                <div className="space-y-2">
-                  {selectedConversation.contract.status === "negotiating" && (
-                    <>
-                      <Button className="w-full" onClick={handleAcceptContract}>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Accept Contract
-                      </Button>
-                      <Button variant="outline" className="w-full bg-transparent" onClick={handleRejectContract}>
-                        <XCircle className="h-4 w-4 mr-2" />
-                        Reject Contract
-                      </Button>
-                    </>
-                  )}
-                  {selectedConversation.contract.status === "in-progress" && (
-                    <>
-                      <Button className="w-full" onClick={handleCompleteJob}>
-                        <CheckCircle className="h-4 w-4 mr-2" />
-                        Mark as Complete
-                      </Button>
-                      <Button
-                        variant="outline"
-                        className="w-full text-red-600 hover:text-red-700 hover:bg-red-50 bg-transparent"
-                        onClick={() => setShowDisputeModal(true)}
-                      >
-                        <AlertCircle className="h-4 w-4 mr-2" />
-                        Open Dispute
-                      </Button>
-                    </>
-                  )}
-                  {selectedConversation.contract.status === "completed" && (
-                    <>
-                      <Button className="w-full" onClick={() => setShowReviewModal(true)}>
-                        <Star className="h-4 w-4 mr-2" />
-                        Leave Review
-                      </Button>
-                      <Button variant="outline" className="w-full bg-transparent">
-                        <Download className="h-4 w-4 mr-2" />
-                        Download Invoice
-                      </Button>
-                      <Button variant="outline" className="w-full bg-transparent">
-                        <Eye className="h-4 w-4 mr-2" />
-                        View Receipt
-                      </Button>
-                    </>
-                  )}
-                </div>
+                    </div>
+                  </>
+                )}
               </div>
             </ScrollArea>
           </CardContent>
         </Card>
       </div>
-
-      {/* Review Modal */}
-      <Dialog open={showReviewModal} onOpenChange={setShowReviewModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Leave a Review</DialogTitle>
-            <DialogDescription>Share your experience with {selectedConversation.participant.name}</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label className="text-sm font-medium mb-2 block">Rating</Label>
-              <div className="flex items-center space-x-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setReviewForm({ ...reviewForm, rating: star })}
-                    className="focus:outline-none"
-                  >
-                    <Star
-                      className={`h-8 w-8 ${
-                        star <= reviewForm.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"
-                      }`}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="review-comment" className="text-sm font-medium mb-2 block">
-                Your Review
-              </Label>
-              <Textarea
-                id="review-comment"
-                placeholder="Share your experience..."
-                value={reviewForm.comment}
-                onChange={(e) => setReviewForm({ ...reviewForm, comment: e.target.value })}
-                className="min-h-[100px]"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowReviewModal(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSubmitReview}>Submit Review</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Dispute Modal */}
-      <Dialog open={showDisputeModal} onOpenChange={setShowDisputeModal}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center space-x-2">
-              <AlertCircle className="h-5 w-5 text-red-500" />
-              <span>Open a Dispute</span>
-            </DialogTitle>
-            <DialogDescription>Describe the issue you're experiencing with this contract</DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="dispute-reason" className="text-sm font-medium mb-2 block">
-                Reason for Dispute
-              </Label>
-              <Input
-                id="dispute-reason"
-                placeholder="e.g., Work not completed as agreed"
-                value={disputeForm.reason}
-                onChange={(e) => setDisputeForm({ ...disputeForm, reason: e.target.value })}
-              />
-            </div>
-            <div>
-              <Label htmlFor="dispute-description" className="text-sm font-medium mb-2 block">
-                Detailed Description
-              </Label>
-              <Textarea
-                id="dispute-description"
-                placeholder="Provide details about the issue..."
-                value={disputeForm.description}
-                onChange={(e) => setDisputeForm({ ...disputeForm, description: e.target.value })}
-                className="min-h-[120px]"
-              />
-            </div>
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
-              <p className="text-sm text-yellow-800">
-                Opening a dispute will pause all payments and notify our support team. We'll work with both parties to
-                resolve the issue.
-              </p>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowDisputeModal(false)}>
-              Cancel
-            </Button>
-            <Button
-              variant="destructive"
-              onClick={handleSubmitDispute}
-              disabled={!disputeForm.reason || !disputeForm.description}
-            >
-              Open Dispute
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   )
 }

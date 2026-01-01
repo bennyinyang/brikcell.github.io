@@ -11,6 +11,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox"
 import { Eye, EyeOff, ArrowLeft } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { AuthAPI, saveAuth, type UserDTO } from "@/lib/api"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -26,15 +27,28 @@ export default function LoginPage() {
     setIsLoading(true)
     setError("")
 
-    // Simulate API call
-    setTimeout(() => {
-      if (email === "user@example.com" && password === "password") {
-        router.push("/dashboard")
-      } else {
-        setError("Invalid email or password. Please try again.")
+    try {
+      const normalizedEmail = (email || "").trim().toLowerCase()
+      const { token, user } = await AuthAPI.login({ email: normalizedEmail, password })
+
+      // Persist session
+      saveAuth(token, user as UserDTO)
+
+      // Redirect by role
+      if (user.role === "artisan") {
+        router.push("/dashboard/artisan")
+      } else if (user.role === "employer") {
+        router.push("/dashboard/customer")
+
+       } else { 
+        router.push("/")
+       }
+      } catch (err: any) {
+        // Show backend message if available (handles 401/403/etc.)
+        setError(err?.message || "Invalid email or password. Please try again.")
+      } finally {
+        setIsLoading(false)
       }
-      setIsLoading(false)
-    }, 1000)
   }
 
   return (
@@ -131,7 +145,7 @@ export default function LoginPage() {
                     <Checkbox
                       id="remember"
                       checked={rememberMe}
-                      onCheckedChange={setRememberMe}
+                      onCheckedChange={(checked) => setRememberMe(checked === true)}
                       className="border-border data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                     />
                     <Label htmlFor="remember" className="text-sm text-muted-foreground">
