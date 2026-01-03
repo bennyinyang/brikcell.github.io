@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useMemo, useRef, useState } from "react"
@@ -17,38 +18,38 @@ import { listChatRooms, listChatMessages, API_BASE, getAuth } from "@/lib/api"
 import { getSocket } from "@/lib/socket-client"
 
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Textarea } from "@/components/ui/textarea"
-import { Label } from "@/components/ui/label"
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
+
 import {
   Search,
   Send,
   Paperclip,
   ImageIcon,
   Phone,
-  Video,
   MoreVertical,
   CheckCheck,
   Check,
   Clock,
-  DollarSign,
   FileText,
-  Calendar,
-  MapPin,
-  Star,
-  AlertCircle,
+  DollarSign,
+  Package,
+  Wrench,
   CheckCircle,
   XCircle,
-  Shield,
-  CreditCard,
+  AlertCircle,
   Download,
-  Eye,
+  Shield,
+  User,
+  BellOff,
+  Ban,
+  Flag,
+  Trash2,
+  Archive,
 } from "lucide-react"
 
 interface Phase {
@@ -204,63 +205,37 @@ export function MessagingInterface() {
     }
   }
 
-  const getContractStatusBadge = (status: string) => {
+  const getPhaseStatusColor = (status: string) => {
     switch (status) {
-      case "negotiating":
-        return (
-          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
-            <Clock className="h-3 w-3 mr-1" />
-            Negotiating
-          </Badge>
-        )
+      case "paid":
+        return "bg-green-100 text-green-800"
+      case "approved":
+        return "bg-blue-100 text-blue-800"
+      case "delivered":
+        return "bg-purple-100 text-purple-800"
       case "in-progress":
-        return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
-            <AlertCircle className="h-3 w-3 mr-1" />
-            In Progress
-          </Badge>
-        )
-      case "completed":
-        return (
-          <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">
-            <CheckCircle className="h-3 w-3 mr-1" />
-            Completed
-          </Badge>
-        )
-      case "disputed":
-        return (
-          <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">
-            <XCircle className="h-3 w-3 mr-1" />
-            Disputed
-          </Badge>
-        )
+        return "bg-yellow-100 text-yellow-800"
+      case "pending":
+        return "bg-gray-100 text-gray-800"
       default:
-        return null
+        return "bg-gray-100 text-gray-800"
     }
   }
 
-  const getPhaseStatusBadge = (status: string) => {
+  const getPhaseStatusIcon = (status: string) => {
     switch (status) {
-      case "pending":
-        return (
-          <Badge variant="outline" className="bg-gray-50 text-gray-600 border-gray-200 text-xs">
-            Pending
-          </Badge>
-        )
+      case "paid":
+        return <CheckCircle className="h-4 w-4 text-green-600" />
+      case "approved":
+        return <CheckCircle className="h-4 w-4 text-blue-600" />
+      case "delivered":
+        return <Package className="h-4 w-4 text-purple-600" />
       case "in-progress":
-        return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-xs">
-            In Progress
-          </Badge>
-        )
-      case "completed":
-        return (
-          <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-xs">
-            Completed
-          </Badge>
-        )
+        return <Clock className="h-4 w-4 text-yellow-600" />
+      case "pending":
+        return <AlertCircle className="h-4 w-4 text-gray-600" />
       default:
-        return null
+        return <AlertCircle className="h-4 w-4 text-gray-600" />
     }
   }
 
@@ -322,7 +297,7 @@ export function MessagingInterface() {
           rawParticipants: rawParticipants,
           normalizedParticipants,
         })
-            
+
         const other = getOtherParticipant(normalizedParticipants, String(currentUserId))
         if (!other) {
           console.warn("[Messaging] Room missing other participant; skipping:", room?.id)
@@ -989,22 +964,30 @@ export function MessagingInterface() {
   }
 
   return (
-    <div className="max-w-[1920px] mx-auto px-4 py-6">
-      <div className="grid grid-cols-12 gap-4 h-[calc(100vh-8rem)]">
-        {/* Left Panel - Conversations List */}
-        <Card className="col-span-12 lg:col-span-3 flex flex-col">
-          <CardHeader className="pb-3">
+    <div className="max-w-[1800px] mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4 lg:py-8">
+      <ContractCreationModal
+        open={showContractModal}
+        onOpenChange={setShowContractModal}
+        onSendContract={handleSendContract}
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-4 lg:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
+        {/* Conversations List - Left Panel */}
+        <Card className={`lg:col-span-3 py-0 ${showConversationList ? "block" : "hidden"} lg:block`}>
+          <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
             <CardTitle className="flex items-center justify-between">
-              <span>Conversations</span>
-              <Badge variant="secondary">{conversations.length}</Badge>
+              <span className="text-base sm:text-lg lg:text-xl">Messages</span>
+              <Badge variant="secondary" className="text-xs sm:text-sm">
+                {conversations.length}
+              </Badge>
             </CardTitle>
-            <div className="relative mt-2">
+            <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input
-                placeholder="Search conversations..."
+                placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
+                className="pl-10 h-10 sm:h-11 text-sm sm:text-base"
               />
             </div>
           </CardHeader>
@@ -1017,7 +1000,10 @@ export function MessagingInterface() {
                 {filteredConversations.map((conversation) => (
                   <div
                     key={conversation.id}
-                    onClick={() => setSelectedConversation(conversation)}
+                    onClick={() => {
+                      setSelectedConversation(conversation)
+                      setShowConversationList(false)
+                    }}
                     className={`cursor-pointer rounded-xl p-3 transition-all ${
                       selectedConversation?.id === conversation.id
                         ? "bg-primary/10 border-2 border-primary/30"
@@ -1027,7 +1013,10 @@ export function MessagingInterface() {
                     <div className="flex items-start space-x-3">
                       <div className="relative flex-shrink-0">
                         <Avatar className="h-12 w-12">
-                          <AvatarImage src={conversation.participant.avatar || "/placeholder.svg"} />
+                          <AvatarImage
+                            src={conversation.participant.avatar || "/placeholder.svg"}
+                            alt={conversation.participant.name}
+                          />
                           <AvatarFallback>
                             {conversation.participant.name
                               .split(" ")
@@ -1190,9 +1179,8 @@ export function MessagingInterface() {
             )}
           </CardHeader>
 
-          {/* Messages */}
-          <CardContent className="flex-1 p-4">
-            <ScrollArea className="h-[calc(100vh-24rem)]">
+          <CardContent className="flex-1 p-0">
+            <ScrollArea className="h-[calc(100vh-18rem)] sm:h-[calc(100vh-22rem)] lg:h-[calc(100vh-28rem)] p-3 sm:p-4 lg:p-6">
               <div className="space-y-4">
                 {selectedConversation ? (
                   <>
@@ -1346,12 +1334,21 @@ export function MessagingInterface() {
           </div>
         </Card>
 
-        {/* Right Panel - Contract & Job Details */}
-        <Card className="col-span-12 lg:col-span-4 flex flex-col">
+        {/* Job Summary Panel - Right Panel */}
+        <Card
+          className={`lg:col-span-3 ${showJobSummary ? "block" : "hidden"} lg:block absolute lg:relative inset-0 lg:inset-auto z-50 lg:z-auto`}
+        >
           <CardHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Contract Details</CardTitle>
-              {getContractStatusBadge(selectedConversation.contract.status)}
+              <CardTitle className="text-base lg:text-lg">Job Summary</CardTitle>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="lg:hidden h-8 w-8 p-0"
+                onClick={() => setShowJobSummary(false)}
+              >
+                ×
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="p-0">
@@ -1511,3 +1508,5 @@ export function MessagingInterface() {
     </div>
   )
 }
+
+
