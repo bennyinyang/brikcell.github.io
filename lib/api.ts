@@ -32,6 +32,10 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
 
   const headers: Record<string, string> = {};
 
+  if (API_BASE.includes("ngrok-free.app")) {
+    headers["ngrok-skip-browser-warning"] = "true";
+  }
+
   // Auto-load token from localStorage unless explicitly passed
   let token = opts.token;
   if (!token && typeof window !== "undefined") {
@@ -55,7 +59,7 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
       : opts.json
       ? JSON.stringify(opts.json)
       : undefined,
-    credentials: "include",
+    //credentials: "omit",
     signal: opts.signal,
   });
 
@@ -352,7 +356,10 @@ export type ChatMessageDTO = {
 };
 
 export function listChatRooms() {
-  return request<ChatRoomSummary[]>('/chat');
+  return request<any>("/chat").then((res) => {
+    console.log("RAW /chat response:", res);
+    return res;
+  });
 }
 
 export function listChatMessages(roomId: string) {
@@ -368,6 +375,197 @@ export function sendChatMessage(roomId: string, message: string) {
 
 export function initiateSupportChat() {
   return request<{ roomId: string }>('/chat/initiate', { method: 'POST' });
+}
+
+/* ============================================================
+   CONTRACT MANAGEMENT
+   ============================================================ 
+*/
+
+export async function acceptContract(contractId: string) {
+  const auth = getAuth()
+  if (!auth?.token) throw new Error("Not authenticated")
+
+  const res = await fetch(`${API_BASE}/contracts/${contractId}/accept`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${auth.token}`,
+    },
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.message || "Failed to accept contract")
+  return data
+}
+
+export async function declineContract(contractId: string) {
+  const auth = getAuth()
+  if (!auth?.token) throw new Error("Not authenticated")
+
+  const res = await fetch(`${API_BASE}/contracts/${contractId}/decline`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${auth.token}`,
+    },
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.message || "Failed to decline contract")
+  return data
+}
+
+export async function requestContractChanges(contractId: string, payload?: { message?: string }) {
+  const auth = getAuth()
+  if (!auth?.token) throw new Error("Not authenticated")
+
+  const res = await fetch(`${API_BASE}/contracts/${contractId}/request-changes`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${auth.token}`,
+    },
+    body: JSON.stringify(payload || {}),
+  })
+
+  const data = await res.json().catch(() => ({}))
+  if (!res.ok) throw new Error(data?.message || "Failed to request changes")
+  return data
+}
+
+export type ContractTransaction = {
+  id: string | number
+  contractId: string | number
+  amount: number
+  status: string // "success" | "failed" | ...
+  type?: string  // optional: "deposit" | "milestone" | "full"
+  createdAt?: string
+}
+
+export async function listContractTransactions(contractId: string) {
+  const auth = getAuth()
+  const res = await fetch(`${API_BASE}/transactions?contractId=${encodeURIComponent(contractId)}`, {
+    headers: auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined,
+    cache: "no-store",
+  })
+
+  const data = await res.json().catch(() => ({}))
+
+  if (!res.ok) {
+    const msg = data?.message || data?.error?.message || `Failed to load transactions (HTTP ${res.status})`
+    throw new Error(msg)
+  }
+
+  if (!Array.isArray(data)) {
+    throw new Error("Transactions response is not an array")
+  }
+
+  return data as ContractTransaction[]
+}
+
+/* ============================================================
+   PAYMENTS (PAYSTACK)
+   ============================================================ */
+
+export type InitDepositResponse = {
+  reference: string;
+  access_code: string;
+  authorization_url: string;
+};
+
+export function initDeposit(amount: number, contractId?: string) {
+  // amount is in NAIRA (backend converts to Kobo)
+  return request<InitDepositResponse>("/payments/deposit/init", {
+    method: "POST",
+    json: { amount, contractId },
+  });
+}
+
+export function verifyPaystack(reference: string) {
+  return request<{ status: string; amount: number; metadata: any }>(
+    `/payments/verify/${encodeURIComponent(reference)}`
+  );
+}
+
+export type MilestoneActionResponse = {
+  milestone?: {
+    id: string
+    status: string
+    submitted_at?: string
+    approved_at?: string
+    review_deadline_at?: string
+  }
+  artisanNet?: number
+  fee?: number
+  refund?: number
+  refundAmount?: number
+}
+
+// export async function submitMilestone(milestoneId: string) {
+//   return request<MilestoneActionResponse>(`/escrow/milestones/${milestoneId}/submit`, {
+//     method: "POST",
+//   })
+// }
+export async function submitMilestone(milestoneId: string) {
+  const path = `/escrow/milestones/${milestoneId}/submit`
+  console.log("[frontend] submitMilestone path =", path)
+  return request<MilestoneActionResponse>(path, {
+    method: "POST",
+  })
+}
+
+export async function releaseMilestone(milestoneId: string) {
+  return request<MilestoneActionResponse>(`/milestones/${milestoneId}/release`, {
+    method: "POST",
+  })
+}
+
+export async function partialReleaseMilestone(milestoneId: string, amount: number) {
+  return request<MilestoneActionResponse>(`/milestones/${milestoneId}/partial-release`, {
+    method: "POST",
+    json: { amount },
+  })
+}
+
+export async function refundMilestone(milestoneId: string) {
+  return request<MilestoneActionResponse>(`/milestones/${milestoneId}/refund`, {
+    method: "POST",
+  })
+}
+
+export type ContractStateResponse = {
+  contract: {
+    id: string
+    status: string
+    title: string
+    description: string
+    totalAmount: number
+    depositAmount: number
+    depositPaid: boolean
+    materials: any[]
+    phases: Array<{
+      id: string
+      name: string
+      description: string
+      deliverables: string[]
+      amount: number
+      status: string
+      dueDate?: string | null
+      completedDate?: string | null
+      submitted_at?: string | null
+      approved_at?: string | null
+      review_deadline_at?: string | null
+    }>
+    createdAt: string
+    acceptedAt?: string
+  }
+}
+
+export async function getContractState(contractId: string) {
+  return request<ContractStateResponse>(`/contracts/${contractId}/state`, {
+    method: "GET",
+  })
 }
 
 /* ============================================================

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -33,9 +33,17 @@ interface ContractCreationModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSendContract: (contract: any) => void
+
+  /** ✅ NEW — passed when editing a contract */
+  initialContract?: any | null
 }
 
-export function ContractCreationModal({ open, onOpenChange, onSendContract }: ContractCreationModalProps) {
+export function ContractCreationModal({
+  open,
+  onOpenChange,
+  onSendContract,
+  initialContract = null,
+}: ContractCreationModalProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
   const [phases, setPhases] = useState<Phase[]>([
@@ -51,6 +59,42 @@ export function ContractCreationModal({ open, onOpenChange, onSendContract }: Co
   const [materials, setMaterials] = useState<Material[]>([])
   const [depositPercentage, setDepositPercentage] = useState(30)
   const [currentDeliverable, setCurrentDeliverable] = useState<{ [key: string]: string }>({})
+
+  /* ======================================================
+     ✅ PREFILL WHEN EDITING (SURGICAL ADDITION)
+     ====================================================== */
+  useEffect(() => {
+    if (!initialContract) return
+
+    setTitle(initialContract.title || "")
+    setDescription(initialContract.description || "")
+
+    setPhases(
+      (initialContract.phases || []).map((p: any, idx: number) => ({
+        id: String(p.id ?? idx + 1),
+        name: p.name || "",
+        description: p.description || "",
+        deliverables: p.deliverables?.length ? p.deliverables : [""],
+        amount: p.amount || 0,
+        dueDate: p.dueDate || "",
+      })),
+    )
+
+    setMaterials(
+      (initialContract.materials || []).map((m: any, idx: number) => ({
+        id: String(m.id ?? idx + 1),
+        name: m.name || "",
+        cost: m.cost || 0,
+        coveredBy: m.coveredBy || "client",
+      })),
+    )
+
+    if (initialContract.totalAmount && initialContract.depositAmount) {
+      const pct = Math.round((initialContract.depositAmount / initialContract.totalAmount) * 100)
+      setDepositPercentage(isNaN(pct) ? 30 : pct)
+    }
+  }, [initialContract])
+  /* ====================================================== */
 
   const addPhase = () => {
     const newPhase: Phase = {
@@ -84,10 +128,7 @@ export function ContractCreationModal({ open, onOpenChange, onSendContract }: Co
     setPhases(
       phases.map((phase) =>
         phase.id === phaseId
-          ? {
-              ...phase,
-              deliverables: phase.deliverables.map((d, i) => (i === index ? value : d)),
-            }
+          ? { ...phase, deliverables: phase.deliverables.map((d, i) => (i === index ? value : d)) }
           : phase,
       ),
     )
@@ -97,23 +138,17 @@ export function ContractCreationModal({ open, onOpenChange, onSendContract }: Co
     setPhases(
       phases.map((phase) =>
         phase.id === phaseId
-          ? {
-              ...phase,
-              deliverables: phase.deliverables.filter((_, i) => i !== index),
-            }
+          ? { ...phase, deliverables: phase.deliverables.filter((_, i) => i !== index) }
           : phase,
       ),
     )
   }
 
   const addMaterial = () => {
-    const newMaterial: Material = {
-      id: Date.now().toString(),
-      name: "",
-      cost: 0,
-      coveredBy: "client",
-    }
-    setMaterials([...materials, newMaterial])
+    setMaterials([
+      ...materials,
+      { id: Date.now().toString(), name: "", cost: 0, coveredBy: "client" },
+    ])
   }
 
   const removeMaterial = (id: string) => {
@@ -121,78 +156,48 @@ export function ContractCreationModal({ open, onOpenChange, onSendContract }: Co
   }
 
   const updateMaterial = (id: string, field: keyof Material, value: any) => {
-    setMaterials(materials.map((material) => (material.id === id ? { ...material, [field]: value } : material)))
+    setMaterials(materials.map((m) => (m.id === id ? { ...m, [field]: value } : m)))
   }
 
-  const calculateTotalAmount = () => {
-    return phases.reduce((sum, phase) => sum + (phase.amount || 0), 0)
-  }
-
-  const calculateDepositAmount = () => {
-    return Math.round((calculateTotalAmount() * depositPercentage) / 100)
-  }
-
-  const calculateMaterialsCost = () => {
-    return materials.reduce((sum, material) => sum + (material.cost || 0), 0)
-  }
+  const calculateTotalAmount = () => phases.reduce((sum, p) => sum + (p.amount || 0), 0)
+  const calculateDepositAmount = () => Math.round((calculateTotalAmount() * depositPercentage) / 100)
+  const calculateMaterialsCost = () => materials.reduce((sum, m) => sum + (m.cost || 0), 0)
 
   const handleSendContract = async () => {
     const contract = {
-      id: Date.now(),
       title,
       description,
       totalAmount: calculateTotalAmount(),
       depositAmount: calculateDepositAmount(),
       depositPaid: false,
-      status: "proposed",
+      status: "in_review",
       createdAt: new Date().toISOString(),
-      phases: phases.map((phase, index) => ({
-        id: index + 1,
-        name: phase.name,
-        description: phase.description,
-        deliverables: phase.deliverables.filter((d) => d.trim() !== ""),
-        amount: phase.amount,
+      phases: phases.map((p, i) => ({
+        id: i + 1,
+        name: p.name,
+        description: p.description,
+        deliverables: p.deliverables.filter(Boolean),
+        amount: p.amount,
         status: "pending",
-        dueDate: phase.dueDate,
+        dueDate: p.dueDate,
       })),
-      materials: materials.map((material, index) => ({
-        id: index + 1,
-        name: material.name,
-        cost: material.cost,
-        coveredBy: material.coveredBy,
+      materials: materials.map((m, i) => ({
+        id: i + 1,
+        name: m.name,
+        cost: m.cost,
+        coveredBy: m.coveredBy,
       })),
     }
 
     await onSendContract(contract)
-    resetForm()
     onOpenChange(false)
   }
 
-  const resetForm = () => {
-    setTitle("")
-    setDescription("")
-    setPhases([
-      {
-        id: "1",
-        name: "",
-        description: "",
-        deliverables: [""],
-        amount: 0,
-        dueDate: "",
-      },
-    ])
-    setMaterials([])
-    setDepositPercentage(30)
-  }
-
-  const isFormValid = () => {
-    return (
-      title.trim() !== "" &&
-      description.trim() !== "" &&
-      phases.every((phase) => phase.name.trim() !== "" && phase.amount > 0) &&
-      calculateTotalAmount() > 0
-    )
-  }
+  const isFormValid = () =>
+    title.trim() &&
+    description.trim() &&
+    phases.every((p) => p.name.trim() && p.amount > 0) &&
+    calculateTotalAmount() > 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -200,10 +205,12 @@ export function ContractCreationModal({ open, onOpenChange, onSendContract }: Co
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle className="flex items-center text-xl">
             <FileText className="h-5 w-5 mr-2 text-primary" />
-            Create Contract Proposal
+            {initialContract ? "Edit Contract Proposal" : "Create Contract Proposal"}
           </DialogTitle>
           <DialogDescription>
-            Create a detailed contract with phases, deliverables, and materials for your client to review.
+            {initialContract
+              ? "Update the contract based on requested changes and resend."
+              : "Create a detailed contract with phases, deliverables, and materials."}
           </DialogDescription>
         </DialogHeader>
 

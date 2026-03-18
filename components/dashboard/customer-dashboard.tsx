@@ -27,9 +27,9 @@ export function CustomerDashboard() {
           CustomerDashboardAPI.getRecommendedArtisans(),
         ])
 
-        setActiveJobs(a || [])
-        setCompletedJobs(h || [])
-        setRecommended(r || [])
+        setActiveJobs(Array.isArray(a) ? a : [])
+        setCompletedJobs(Array.isArray(h) ? h : [])
+        setRecommended(Array.isArray(r) ? r : [])
       } catch (err) {
         console.error("Customer dashboard load error:", err)
       } finally {
