@@ -7,19 +7,6 @@ import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-
-import {
   DollarSign,
   Star,
   Clock,
@@ -28,246 +15,314 @@ import {
   MessageSquare,
   Calendar,
   MapPin,
-  TrendingUp,
   Eye,
-  X,
-  Check,
-  CreditCard,
   FileText,
 } from "lucide-react"
-
 import Link from "next/link"
-
-// ==== REQUEST HELPERS FROM /src/lib/api.ts ==== //
 import {
   getArtisanDashboardSummary,
   getArtisanJobRequests,
   getArtisanActiveJobs,
   getArtisanJobHistory,
-  acceptJobRequest,
-  declineJobRequest,
-  updateJobProgress,
-  getAuth, 
+  getAuth,
 } from "@/lib/api"
+import { WithdrawalCard } from "@/components/withdrawal-card"
+
+type DashboardRequestCard = {
+  id: string
+  jobId: string
+  title: string
+  location: string
+  budget: string
+  requestDate: string
+  urgency: string
+  customer: {
+    id: string
+    name: string
+    email: string
+  }
+}
+
+type DashboardActiveJobCard = {
+  id: string
+  jobId: string
+  title: string
+  location: string
+  budget: string
+  status: string
+  deadline: string
+  customer: {
+    id: string
+    name: string
+    email: string
+  }
+}
+
+type DashboardHistoryCard = {
+  id: string
+  jobId: string
+  title: string
+  location: string
+  budget: string
+  completedDate: string
+  customer: {
+    id: string
+    name: string
+    email: string
+  }
+}
+
+function formatDate(value?: string | null) {
+  if (!value) return "—"
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return "—"
+  return d.toLocaleDateString()
+}
+
+function formatCurrencyRange(minValue?: any, maxValue?: any) {
+  const min = Number(minValue || 0)
+  const max = Number(maxValue || 0)
+
+  if (min && max) return `₦${min.toLocaleString()} - ₦${max.toLocaleString()}`
+  if (max) return `₦${max.toLocaleString()}`
+  if (min) return `₦${min.toLocaleString()}`
+  return "Budget not set"
+}
+
+function formatCurrencyFromMilestone(raw: any) {
+  const amount = Number(raw?.amount || 0)
+  if (amount > 0) return `₦${amount.toLocaleString()}`
+  return formatCurrencyRange(
+    raw?.contract?.job?.budget_min ?? raw?.job?.budget_min,
+    raw?.contract?.job?.budget_max ?? raw?.job?.budget_max
+  )
+}
+
+function normalizeMilestoneStatus(status: any) {
+  return String(status || "").toUpperCase()
+}
+
+function mapRequest(raw: any): DashboardRequestCard {
+  const job = raw?.Job || raw?.job || {}
+  const employer = job?.employer || raw?.employer || {}
+
+  return {
+    id: String(raw?.id || ""),
+    jobId: String(job?.id || raw?.job_id || ""),
+    title: job?.title || "Untitled Job",
+    location: job?.location || "No location",
+    budget: formatCurrencyRange(job?.budget_min, job?.budget_max),
+    requestDate: formatDate(raw?.createdAt || raw?.created_at),
+    urgency: "pending",
+    customer: {
+      id: String(employer?.id || ""),
+      name: employer?.name || "Employer",
+      email: employer?.email || "",
+    },
+  }
+}
+
+function mapActiveJob(raw: any): DashboardActiveJobCard {
+  const contract = raw?.contract || {}
+  const job = contract?.job || raw?.job || {}
+  const employer = contract?.employer || raw?.employer || {}
+
+  return {
+    id: String(raw?.id || ""),
+    jobId: String(job?.id || contract?.job_id || raw?.job_id || ""),
+    title: raw?.title || job?.title || "Untitled Job",
+    location: job?.location || "No location",
+    budget: formatCurrencyFromMilestone(raw),
+    status: String(raw?.status || ""),
+    deadline: formatDate(
+      raw?.review_deadline_at ||
+        raw?.approved_at ||
+        raw?.submitted_at ||
+        raw?.updatedAt ||
+        raw?.updated_at
+    ),
+    customer: {
+      id: String(employer?.id || ""),
+      name: employer?.name || "Employer",
+      email: employer?.email || "",
+    },
+  }
+}
+
+function mapHistoryJob(raw: any): DashboardHistoryCard {
+  const contract = raw?.contract || {}
+  const job = contract?.job || raw?.job || {}
+  const employer = contract?.employer || raw?.employer || {}
+
+  return {
+    id: String(raw?.id || ""),
+    jobId: String(job?.id || contract?.job_id || raw?.job_id || ""),
+    title: raw?.title || job?.title || "Untitled Job",
+    location: job?.location || "No location",
+    budget: formatCurrencyFromMilestone(raw),
+    completedDate: formatDate(
+      raw?.updatedAt ||
+        raw?.updated_at ||
+        raw?.approved_at ||
+        raw?.submitted_at
+    ),
+    customer: {
+      id: String(employer?.id || ""),
+      name: employer?.name || "Employer",
+      email: employer?.email || "",
+    },
+  }
+}
 
 export function ArtisanDashboard() {
   const [activeTab, setActiveTab] = useState("overview")
-
-  // === Dashboard Data ===
   const [summary, setSummary] = useState<any>(null)
-  const [jobRequests, setJobRequests] = useState<any[]>([])
-  const [activeJobs, setActiveJobs] = useState<any[]>([])
-  const [completedJobs, setCompletedJobs] = useState<any[]>([])
+  const [jobRequests, setJobRequests] = useState<DashboardRequestCard[]>([])
+  const [activeJobs, setActiveJobs] = useState<DashboardActiveJobCard[]>([])
+  const [completedJobs, setCompletedJobs] = useState<DashboardHistoryCard[]>([])
   const [loading, setLoading] = useState(true)
+  const walletBalance = Number(summary?.walletBalance || 0)
 
-  // === Modals ===
-  const [declineModal, setDeclineModal] = useState({ isOpen: false, job: null })
-  const [acceptModal, setAcceptModal] = useState({ isOpen: false, job: null })
-  const [progressModal, setProgressModal] = useState({ isOpen: false, job: null })
-  const [jobDetailsModal, setJobDetailsModal] = useState({ isOpen: false, job: null })
-  const [successModal, setSuccessModal] = useState({ isOpen: false, title: "", message: "" })
-  const [withdrawModal, setWithdrawModal] = useState(false)
+  const auth = getAuth()
+  const token = auth?.token
 
-  // === Form State ===
-  const [declineReason, setDeclineReason] = useState("")
-  const [newProgress, setNewProgress] = useState("")
-  const [progressNote, setProgressNote] = useState("")
-  const [withdrawAmount, setWithdrawAmount] = useState("")
-
-  // =====================================================
-  // Load Artisan Dashboard
-  // =====================================================
   useEffect(() => {
+    let cancelled = false
+
     async function loadDashboard() {
       try {
         const [s, req, act, hist] = await Promise.all([
-          getArtisanDashboardSummary(),
-          getArtisanJobRequests(),
-          getArtisanActiveJobs(),
-          getArtisanJobHistory(),
+          getArtisanDashboardSummary(token),
+          getArtisanJobRequests(token),
+          getArtisanActiveJobs(token),
+          getArtisanJobHistory(token),
         ])
 
-        setSummary(s)
-        setJobRequests(req || [])
-        setActiveJobs(act || [])
-        setCompletedJobs(hist || [])
+        if (cancelled) return
+
+        setSummary(s || null)
+        setJobRequests(Array.isArray(req) ? req.map(mapRequest) : [])
+        setActiveJobs(Array.isArray(act) ? act.map(mapActiveJob) : [])
+        setCompletedJobs(Array.isArray(hist) ? hist.map(mapHistoryJob) : [])
       } catch (err) {
         console.error("Dashboard load error:", err)
       } finally {
-        setLoading(false)
+        if (!cancelled) setLoading(false)
       }
     }
-    loadDashboard()
-  }, [])
 
-  // =====================================================
-  // Status Helpers
-  // =====================================================
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "pending":
-        return <Clock className="h-4 w-4 text-yellow-500" />
-      case "in-progress":
-        return <AlertCircle className="h-4 w-4 text-primary" />
-      case "completed":
-        return <CheckCircle className="h-4 w-4 text-green-500" />
-      default:
-        return <Clock className="h-4 w-4 text-gray-500" />
+    loadDashboard()
+
+    return () => {
+      cancelled = true
     }
-  }
+  }, [token])
+
+  const artisan = summary?.artisan || {}
+
+  const publicProfileId =
+    artisan.slug ||
+    artisan.artisanId ||
+    artisan.userId ||
+    auth?.user?.id
+
+  const monthlyEarnings = Number(summary?.monthlyEarnings || 0)
+  const pendingRequests = Number(summary?.pendingRequests || 0)
+  const profileViews = Number(summary?.profileViews || 0)
+  const successRate = Number(summary?.successRate || 0)
+
+  const activeJobsCount = Number(summary?.activeJobs || 0)
+  const completedJobsCount = Number(summary?.completedJobs || 0)
+
+  const overviewActiveJobs = activeJobs.slice(0, 3)
+  const overviewRequests = jobRequests.slice(0, 3)
 
   const getStatusColor = (status: string) => {
-    switch (status) {
-      case "pending":
-        return "bg-yellow-100 text-yellow-800"
-      case "in-progress":
-        return "bg-primary/10 text-primary"
-      case "completed":
-        return "bg-green-100 text-green-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
+    const normalized = normalizeMilestoneStatus(status)
 
-  const getUrgencyColor = (u: string) => {
-    switch (u) {
-      case "low":
+    switch (normalized) {
+      case "ACTIVE":
+      case "FUNDED":
+      case "SUBMITTED":
+      case "APPROVAL_PENDING":
+      case "APPROVED":
+        return "bg-primary/10 text-primary"
+      case "RELEASED":
+      case "PARTIAL_RELEASED":
+      case "PAID":
         return "bg-green-100 text-green-800"
-      case "medium":
-        return "bg-yellow-100 text-yellow-800"
-      case "high":
-        return "bg-orange-100 text-orange-800"
-      case "emergency":
+      case "REFUNDED":
+      case "CANCELLED":
         return "bg-red-100 text-red-800"
       default:
         return "bg-gray-100 text-gray-800"
     }
   }
 
-  // =====================================================
-  // Actions
-  // =====================================================
-  const handleDecline = (job) => setDeclineModal({ isOpen: true, job })
-  const handleAccept = (job) => setAcceptModal({ isOpen: true, job })
-  const handleProgress = (job) => {
-    setProgressModal({ isOpen: true, job })
-    setNewProgress(job.progress?.toString() || "0")
-  }
-  const handleJobDetails = (job) => setJobDetailsModal({ isOpen: true, job })
+  const getStatusText = (status: string) => {
+    const normalized = normalizeMilestoneStatus(status)
 
-  const confirmDecline = async () => {
-    try {
-      await declineJobRequest(declineModal.job?.jobId, declineReason)
-      setSuccessModal({
-        isOpen: true,
-        title: "Job Declined",
-        message: "You have declined this job request.",
-      })
-
-      // Refresh list
-      const req = await getArtisanJobRequests()
-      setJobRequests(req || [])
-    } catch (err) {
-      console.error("Decline error:", err)
-    } finally {
-      setDeclineModal({ isOpen: false, job: null })
-      setDeclineReason("")
+    switch (normalized) {
+      case "ACTIVE":
+        return "Active"
+      case "FUNDED":
+        return "Funded"
+      case "SUBMITTED":
+        return "Submitted"
+      case "APPROVAL_PENDING":
+        return "Awaiting Approval"
+      case "APPROVED":
+        return "Approved"
+      case "RELEASED":
+        return "Released"
+      case "PARTIAL_RELEASED":
+        return "Partially Released"
+      case "PAID":
+        return "Paid"
+      case "REFUNDED":
+        return "Refunded"
+      case "CANCELLED":
+        return "Cancelled"
+      default:
+        return status || "Unknown"
     }
   }
 
-  const confirmAccept = async () => {
-    try {
-      await acceptJobRequest(acceptModal.job?.jobId)
-
-      setSuccessModal({
-        isOpen: true,
-        title: "Job Accepted",
-        message: "You have accepted this job request.",
-      })
-
-      const [req, act] = await Promise.all([
-        getArtisanJobRequests(),
-        getArtisanActiveJobs(),
-      ])
-
-      setJobRequests(req || [])
-      setActiveJobs(act || [])
-    } catch (err) {
-      console.error("Accept error:", err)
-    } finally {
-      setAcceptModal({ isOpen: false, job: null })
-    }
-  }
-
-  const confirmUpdateProgress = async () => {
-    try {
-      await updateJobProgress(progressModal.job?.jobId, {
-        progress: Number(newProgress),
-        note: progressNote,
-      })
-
-      setSuccessModal({
-        isOpen: true,
-        title: "Progress Updated",
-        message: "Your job progress has been updated.",
-      })
-
-      const act = await getArtisanActiveJobs()
-      setActiveJobs(act || [])
-    } catch (err) {
-      console.error("Progress update error:", err)
-    } finally {
-      setProgressModal({ isOpen: false, job: null })
-      setNewProgress("")
-      setProgressNote("")
-    }
-  }
-
-  // =====================================================
-  // UI LOADING
-  // =====================================================
   if (loading) {
     return <div className="p-8 text-center text-gray-600">Loading dashboard…</div>
   }
 
-  const artisan = summary?.artisan || {}
-
-  // Try slug first, then fall back to other likely id fields
-  const auth = getAuth()
-  const publicProfileId =
-    artisan.slug ||
-    artisan.artisanId ||
-    artisan.userId ||
-    auth?.user.id 
-
-  // =====================================================
-  // UI STARTS HERE (NO CHANGES TO YOUR ORIGINAL DESIGN)
-  // =====================================================
   return (
     <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-      {/* HEADER */}
       <Card className="mb-6 sm:mb-8 bg-background">
         <CardContent className="p-0">
           <div className="relative p-6 sm:p-8">
             <div className="flex flex-col lg:flex-row justify-between space-y-6 lg:space-y-0">
-              <div className="flex flex-col sm:flex-row space-x-6">
+              <div className="flex flex-col sm:flex-row sm:space-x-6 space-y-4 sm:space-y-0">
                 <Avatar className="h-20 w-20 sm:h-24 sm:w-24">
-                  <AvatarImage src={artisan.profileImage} />
+                  <AvatarImage src={artisan.profileImage || undefined} />
                   <AvatarFallback>
-                    {artisan.name?.split(" ").map((n) => n[0]).join("")}
+                    {String(artisan.name || "A")
+                      .split(" ")
+                      .map((n: string) => n[0])
+                      .join("")}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="space-y-2">
-                  <h1 className="text-3xl font-bold">{artisan.name}</h1>
-                  <p className="text-primary text-lg">{artisan.service}</p>
+                  <h1 className="text-3xl font-bold">{artisan.name || "Artisan"}</h1>
+                  <p className="text-primary text-lg">{artisan.service || "Service Provider"}</p>
 
-                  <div className="flex flex-wrap space-x-6 text-sm text-gray-600">
+                  <div className="flex flex-wrap gap-4 text-sm text-gray-600">
                     <div className="flex items-center space-x-1">
                       <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span>{summary?.rating ?? 0}</span>
+                      <span>{Number(artisan.rating || 0).toFixed(1)}</span>
                     </div>
-                    <div>{summary?.reviews} reviews</div>
+                    <div>{Number(artisan.reviews || 0)} reviews</div>
+                    <div className="flex items-center space-x-1">
+                      <MapPin className="h-4 w-4" />
+                      <span>{artisan.location || "No location"}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -287,41 +342,68 @@ export function ArtisanDashboard() {
           </div>
         </CardContent>
       </Card>
-
-      {/* QUICK STATS */}
+    
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <Card>
-          <CardContent className="p-4">
-            <p>Monthly Earnings</p>
-            <p className="text-xl font-bold">
-              ₦ {(summary?.monthlyEarnings ?? 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-            </p>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Active Jobs</p>
+              <p className="text-2xl font-bold">{activeJobsCount}</p>
+            </div>
+            <Clock className="h-8 w-8 text-primary" />
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <p>Job Requests</p>
-            <p className="text-xl font-bold">{jobRequests?.length ?? 0}</p>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Pending Requests</p>
+              <p className="text-2xl font-bold">{pendingRequests}</p>
+            </div>
+            <AlertCircle className="h-8 w-8 text-yellow-500" />
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <p>Profile Views</p>
-            <p className="text-xl font-bold">{summary?.profileViews ?? 0}</p>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Completed Jobs</p>
+              <p className="text-2xl font-bold">{completedJobsCount}</p>
+            </div>
+            <CheckCircle className="h-8 w-8 text-green-500" />
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="p-4">
-            <p>Success Rate</p>
-            <p className="text-xl font-bold">{summary?.successRate ?? 0}%</p>
+          <CardContent className="p-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm text-gray-600">Success Rate</p>
+              <p className="text-2xl font-bold">{successRate}%</p>
+            </div>
+            <Eye className="h-8 w-8 text-accent" />
           </CardContent>
         </Card>
       </div>
 
-      {/* TABS */}
+      <Card>
+        <CardContent className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm text-gray-600">Wallet Balance</p>
+            <p className="text-2xl font-bold">₦{walletBalance.toLocaleString()}</p>
+          </div>
+          <DollarSign className="h-8 w-8 text-green-500" />
+        </CardContent>
+      </Card>
+
+      <WithdrawalCard
+        balance={walletBalance}
+        title="Withdraw Earnings"
+        onSuccess={async () => {
+          const refreshed = await getArtisanDashboardSummary(token)
+          setSummary(refreshed || null)
+        }}
+      />
+
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-4">
           <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -330,226 +412,215 @@ export function ArtisanDashboard() {
           <TabsTrigger value="history">History</TabsTrigger>
         </TabsList>
 
-        {/* REQUESTS */}
-        <TabsContent value="requests" className="space-y-4">
-          {jobRequests.map((req) => (
-            <Card key={req.jobId}>
-              <CardContent className="p-5 space-y-4">
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Summary</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
                 <div className="flex justify-between">
-                  <div>
-                    <h3 className="font-bold text-lg">{req.title}</h3>
-                    <p className="text-gray-600">From {req.customer.name}</p>
-
-                    <div className="flex space-x-4 text-sm text-gray-500 mt-2">
-                      <span className="flex items-center"><MapPin className="h-4 w-4 mr-1" />{req.location}</span>
-                      <span className="flex items-center"><Calendar className="h-4 w-4 mr-1" />Due {req.deadline}</span>
-                    </div>
-                  </div>
-
-                  <Badge className={getUrgencyColor(req.urgency)}>
-                    {req.urgency}
-                  </Badge>
+                  <span>Monthly Earnings</span>
+                  <span className="font-semibold">₦{monthlyEarnings.toLocaleString()}</span>
                 </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-xl font-bold">{req.budget}</span>
-                  <span className="text-gray-500 text-sm">{req.requestDate}</span>
+                <div className="flex justify-between">
+                  <span>Profile Views</span>
+                  <span className="font-semibold">{profileViews}</span>
                 </div>
-
-                <div className="flex space-x-2">
-                  <Button variant="outline" onClick={() => handleDecline(req)}>Decline</Button>
-                  <Button onClick={() => handleAccept(req)}>Accept</Button>
+                <div className="flex justify-between">
+                  <span>Pending Requests</span>
+                  <span className="font-semibold">{pendingRequests}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Active Jobs</span>
+                  <span className="font-semibold">{activeJobsCount}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Completed Jobs</span>
+                  <span className="font-semibold">{completedJobsCount}</span>
                 </div>
               </CardContent>
             </Card>
-          ))}
-        </TabsContent>
 
-        {/* ACTIVE JOBS */}
-        <TabsContent value="active" className="space-y-4">
-          {activeJobs.map((job) => (
-            <Card key={job.jobId}>
-              <CardContent className="p-5 space-y-4">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="font-bold text-lg">{job.title}</h3>
-                    <div className="grid grid-cols-2 gap-2 text-sm text-gray-600 mt-2">
-                      <p>Customer: {job.customer.name}</p>
-                      <p>Location: {job.location}</p>
-                      <p>Deadline: {job.deadline}</p>
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent Requests</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {overviewRequests.length === 0 ? (
+                  <div className="text-sm text-gray-500">No pending requests right now.</div>
+                ) : (
+                  overviewRequests.map((req) => (
+                    <div key={req.id} className="border rounded-lg p-3">
+                      <h3 className="font-medium">{req.title}</h3>
+                      <p className="text-sm text-gray-600">{req.customer.name}</p>
+                      <div className="flex justify-between mt-2 text-sm">
+                        <span>{req.location}</span>
+                        <span className="font-medium">{req.budget}</span>
+                      </div>
                     </div>
-                  </div>
-
-                  <Badge className={getStatusColor(job.status)}>{job.status}</Badge>
-                </div>
-
-                <div>
-                  <p className="text-sm mb-1">Progress: {job.progress}%</p>
-                  <div className="w-full bg-gray-200 h-2 rounded-full">
-                    <div className="bg-primary h-2 rounded-full" style={{ width: `${job.progress}%` }}></div>
-                  </div>
-                </div>
-
-                <div className="flex justify-between">
-                  <span className="text-xl font-bold">{job.budget}</span>
-                </div>
-
-                <div className="flex space-x-2 mt-3">
-                  <Button variant="outline" asChild>
-                    <Link href="/messages"><MessageSquare className="h-4 w-4 mr-1" />Message</Link>
-                  </Button>
-                  <Button onClick={() => handleProgress(job)}>Update Progress</Button>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </TabsContent>
-
-        {/* HISTORY */}
-        <TabsContent value="history" className="space-y-4">
-          {completedJobs.map((job) => (
-            <Card key={job.jobId}>
-              <CardContent className="p-5 space-y-3">
-                <div className="flex justify-between">
-                  <div>
-                    <h3 className="font-bold text-lg">{job.title}</h3>
-                    <div className="grid grid-cols-2 text-sm text-gray-600">
-                      <p>Customer: {job.customer.name}</p>
-                      <p>Location: {job.location}</p>
-                      <p>Completed: {job.completedDate}</p>
-                    </div>
-                  </div>
-                  <Badge className={getStatusColor("completed")}>Completed</Badge>
-                </div>
-
-                {job.review && (
-                  <div className="bg-gray-50 p-3 rounded-lg">
-                    <p className="italic">"{job.review.text}"</p>
-                  </div>
+                  ))
                 )}
-
-                <div className="flex">
-                  <Button variant="outline" onClick={() => handleJobDetails(job)}>View Details</Button>
-                </div>
               </CardContent>
             </Card>
-          ))}
-        </TabsContent>
-      </Tabs>
-
-      {/* MODALS (kept identical to your UI) */}
-
-      {/* Decline Modal */}
-      <Dialog open={declineModal.isOpen} onOpenChange={(open) => setDeclineModal({ isOpen: open, job: null })}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center"><X className="h-5 w-5 text-red-500 mr-2" />Decline Job Request</DialogTitle>
-            <DialogDescription>Select a reason</DialogDescription>
-          </DialogHeader>
-
-          <Select value={declineReason} onValueChange={setDeclineReason}>
-            <SelectTrigger><SelectValue placeholder="Select a reason" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="schedule-conflict">Schedule conflict</SelectItem>
-              <SelectItem value="budget-too-low">Budget too low</SelectItem>
-              <SelectItem value="outside-expertise">Outside my expertise</SelectItem>
-            </SelectContent>
-          </Select>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDeclineModal({ isOpen: false, job: null })}>
-              Cancel
-            </Button>
-            <Button className="bg-red-600" onClick={confirmDecline} disabled={!declineReason}>
-              Decline Job
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Accept Modal */}
-      <Dialog open={acceptModal.isOpen} onOpenChange={(open) => setAcceptModal({ isOpen: open, job: null })}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="flex items-center"><Check className="h-5 w-5 text-green-500 mr-2" />Accept Job Request</DialogTitle>
-          </DialogHeader>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setAcceptModal({ isOpen: false, job: null })}>
-              Cancel
-            </Button>
-            <Button className="bg-green-600" onClick={confirmAccept}>
-              Accept Job
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Progress Modal */}
-      <Dialog open={progressModal.isOpen} onOpenChange={(open) => setProgressModal({ isOpen: open, job: null })}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Update Job Progress</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div>
-              <Label>Progress %</Label>
-              <Input type="number" max="100" min="0" value={newProgress} onChange={(e) => setNewProgress(e.target.value)} />
-            </div>
-            <div>
-              <Label>Note (optional)</Label>
-              <Textarea value={progressNote} onChange={(e) => setProgressNote(e.target.value)} />
-            </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setProgressModal({ isOpen: false, job: null })}>
-              Cancel
-            </Button>
-            <Button onClick={confirmUpdateProgress}>Update</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+          <Card>
+            <CardHeader>
+              <CardTitle>Current Active Jobs</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {overviewActiveJobs.length === 0 ? (
+                <div className="text-sm text-gray-500">No active jobs yet.</div>
+              ) : (
+                overviewActiveJobs.map((job) => (
+                  <div key={job.id} className="border rounded-lg p-4 flex items-start justify-between gap-4">
+                    <div>
+                      <h3 className="font-semibold">{job.title}</h3>
+                      <p className="text-sm text-gray-600">{job.customer.name}</p>
+                      <p className="text-sm text-gray-500 mt-1">{job.location}</p>
+                    </div>
+                    <Badge className={getStatusColor(job.status)}>{getStatusText(job.status)}</Badge>
+                  </div>
+                ))
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {/* Job Details Modal */}
-      <Dialog open={jobDetailsModal.isOpen} onOpenChange={(open) => setJobDetailsModal({ isOpen: open, job: null })}>
-        <DialogContent className="sm:max-w-lg">
-          <DialogHeader>
-            <DialogTitle><FileText className="h-5 w-5 text-primary mr-2" />Job Details</DialogTitle>
-          </DialogHeader>
+        <TabsContent value="requests" className="space-y-4">
+          {jobRequests.length === 0 ? (
+            <Card>
+              <CardContent className="p-5 text-sm text-gray-500">
+                No pending job requests.
+              </CardContent>
+            </Card>
+          ) : (
+            jobRequests.map((req) => (
+              <Card key={req.id}>
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold text-lg">{req.title}</h3>
+                      <p className="text-gray-600">From {req.customer.name}</p>
 
-          {jobDetailsModal.job && (
-            <div className="space-y-4">
-              <h3 className="font-bold text-lg">{jobDetailsModal.job.title}</h3>
-              <p>Customer: {jobDetailsModal.job.customer.name}</p>
-              <p>Budget: {jobDetailsModal.job.budget}</p>
-              <p>Location: {jobDetailsModal.job.location}</p>
-            </div>
+                      <div className="flex flex-wrap gap-4 text-sm text-gray-500 mt-2">
+                        <span className="flex items-center">
+                          <MapPin className="h-4 w-4 mr-1" />
+                          {req.location}
+                        </span>
+                        <span className="flex items-center">
+                          <Calendar className="h-4 w-4 mr-1" />
+                          Requested {req.requestDate}
+                        </span>
+                      </div>
+                    </div>
+
+                    <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                  </div>
+
+                  <div className="flex justify-between items-center">
+                    <span className="text-xl font-bold">{req.budget}</span>
+                  </div>
+
+                  <div className="flex space-x-2">
+                    <Button variant="outline" asChild>
+                      <Link href="/messages">Message</Link>
+                    </Button>
+                    <Button asChild>
+                      <Link href={`/jobs/${req.jobId}`}>View Job</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
           )}
+        </TabsContent>
 
-          <DialogFooter>
-            <Button onClick={() => setJobDetailsModal({ isOpen: false, job: null })}>
-              Close
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <TabsContent value="active" className="space-y-4">
+          {activeJobs.length === 0 ? (
+            <Card>
+              <CardContent className="p-5 text-sm text-gray-500">
+                No active jobs yet.
+              </CardContent>
+            </Card>
+          ) : (
+            activeJobs.map((job) => (
+              <Card key={job.id}>
+                <CardContent className="p-5 space-y-4">
+                  <div className="flex justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold text-lg">{job.title}</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600 mt-2">
+                        <p>Customer: {job.customer.name}</p>
+                        <p>Location: {job.location}</p>
+                        <p>Updated: {job.deadline}</p>
+                      </div>
+                    </div>
 
-      {/* Success Modal */}
-      <Dialog open={successModal.isOpen} onOpenChange={(open) => setSuccessModal({ isOpen: open, title: "", message: "" })}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle><CheckCircle className="h-5 w-5 text-green-500 mr-2" />{successModal.title}</DialogTitle>
-          </DialogHeader>
-          <p>{successModal.message}</p>
-          <DialogFooter>
-            <Button onClick={() => setSuccessModal({ isOpen: false, title: "", message: "" })}>
-              OK
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+                    <Badge className={getStatusColor(job.status)}>
+                      {getStatusText(job.status)}
+                    </Badge>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-xl font-bold">{job.budget}</span>
+                  </div>
+
+                  <div className="flex space-x-2 mt-3">
+                    <Button variant="outline" asChild>
+                      <Link href="/messages">
+                        <MessageSquare className="h-4 w-4 mr-1" />
+                        Message
+                      </Link>
+                    </Button>
+                    <Button asChild>
+                      <Link href={`/jobs/${job.jobId}`}>View Details</Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+
+        <TabsContent value="history" className="space-y-4">
+          {completedJobs.length === 0 ? (
+            <Card>
+              <CardContent className="p-5 text-sm text-gray-500">
+                No job history yet.
+              </CardContent>
+            </Card>
+          ) : (
+            completedJobs.map((job) => (
+              <Card key={job.id}>
+                <CardContent className="p-5 space-y-3">
+                  <div className="flex justify-between gap-4">
+                    <div>
+                      <h3 className="font-bold text-lg">{job.title}</h3>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 text-sm text-gray-600 gap-2 mt-2">
+                        <p>Customer: {job.customer.name}</p>
+                        <p>Location: {job.location}</p>
+                        <p>Updated: {job.completedDate}</p>
+                      </div>
+                    </div>
+                    <Badge className="bg-green-100 text-green-800">History</Badge>
+                  </div>
+
+                  <div className="flex">
+                    <Button variant="outline" asChild>
+                      <Link href={`/jobs/${job.jobId}`}>
+                        <FileText className="h-4 w-4 mr-1" />
+                        View Details
+                      </Link>
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </TabsContent>
+      </Tabs>
     </div>
   )
 }

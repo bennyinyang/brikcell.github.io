@@ -1,7 +1,7 @@
 // src/lib/api.ts
 export const API_BASE =
 
-process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:4000";
+process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://brickcell-production.up.railway.app";
 
 import { closeSocket } from "./socket-client";
 
@@ -36,16 +36,6 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
     headers["ngrok-skip-browser-warning"] = "true";
   }
 
-  // Auto-load token from localStorage unless explicitly passed
-  let token = opts.token;
-  if (!token && typeof window !== "undefined") {
-    token = localStorage.getItem("auth_token");
-  }
-
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
-
   // Content type
   if (opts.json && !opts.formData) {
     headers["Content-Type"] = "application/json";
@@ -59,7 +49,7 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
       : opts.json
       ? JSON.stringify(opts.json)
       : undefined,
-    //credentials: "omit",
+    credentials: "include",
     signal: opts.signal,
   });
 
@@ -171,6 +161,8 @@ export const AuthAPI = {
 
 export type GetArtisanProfileResponse = {
   profile: {
+    primaryService: any;
+    service_type: any;
     id: string;
     bio: string | null;
     rating: number;
@@ -187,7 +179,9 @@ export type GetArtisanProfileResponse = {
     instantBooking: boolean;
     minimumJobValue: number | null;
   };
-  user: { id: string; name: string; email: string };
+  user: {
+    phone: string; id: string; name: string; email: string 
+};
   portfolio: any[];
   reviews: any[];
   badges: { key: string; label: string }[];
@@ -209,8 +203,9 @@ export function updateMyArtisanProfile(
   });
 }
 
+
 /* ============================================================
-   ARTISAN SEARCH (MISSING FUNCTION)
+   ARTISAN SEARCH 
    ============================================================ */
 
 export function searchArtisans(params: {
@@ -239,70 +234,203 @@ export function searchArtisans(params: {
    ARTISAN DASHBOARD
    ============================================================ */
 
-export function getArtisanDashboardSummary(token?: string | null) {
-  return request(`/artisan/dashboard/summary`, { token });
-}
+// export function getArtisanDashboardSummary(token?: string | null) {
+//   return request(`/artisan/dashboard/summary`, { token });
+// }
 
-export function getArtisanJobRequests(token?: string | null) {
-  return request(`/artisan/dashboard/requests`, { token });
-}
+// export function getArtisanJobRequests(token?: string | null) {
+//   return request(`/artisan/dashboard/requests`, { token });
+// }
 
-export function getArtisanActiveJobs(token?: string | null) {
-  return request(`/artisan/dashboard/active`, { token });
-}
+// export function getArtisanActiveJobs(token?: string | null) {
+//   return request(`/artisan/dashboard/active`, { token });
+// }
 
-export function getArtisanJobHistory(token?: string | null) {
-  return request(`/artisan/dashboard/history`, { token });
-}
+// export function getArtisanJobHistory(token?: string | null) {
+//   return request(`/artisan/dashboard/history`, { token });
+// }
 
-export function acceptJobRequest(jobId: string, token?: string | null) {
-  return request(`/artisan/dashboard/requests/${jobId}/accept`, {
-    method: "PATCH",
-    token,
-  });
-}
+// export function acceptJobRequest(jobId: string, token?: string | null) {
+//   return request(`/artisan/dashboard/requests/${jobId}/accept`, {
+//     method: "PATCH",
+//     token,
+//   });
+// }
 
-export function declineJobRequest(
-  jobId: string,
-  reason: string,
-  token?: string | null
-) {
-  return request(`/artisan/dashboard/requests/${jobId}/decline`, {
-    method: "PATCH",
-    token,
-    json: { reason },
-  });
-}
+// export function declineJobRequest(
+//   jobId: string,
+//   reason: string,
+//   token?: string | null
+// ) {
+//   return request(`/artisan/dashboard/requests/${jobId}/decline`, {
+//     method: "PATCH",
+//     token,
+//     json: { reason },
+//   });
+// }
 
-export function updateJobProgress(
-  jobId: string,
-  data: { progress: number; note?: string },
-  token?: string | null
-) {
-  return request(`/artisan/dashboard/active/${jobId}/progress`, {
-    method: "PATCH",
-    token,
-    json: data,
-  });
-}
+// export function updateJobProgress(
+//   jobId: string,
+//   data: { progress: number; note?: string },
+//   token?: string | null
+// ) {
+//   return request(`/artisan/dashboard/active/${jobId}/progress`, {
+//     method: "PATCH",
+//     token,
+//     json: data,
+//   });
+// }
 
 /* ============================================================
    CUSTOMER DASHBOARD
    ============================================================ */
 
+export type EmployerDashboardStats = {
+  walletBalance(walletBalance: any): number;
+  escrowBalance(escrowBalance: any): number;
+  totalJobs: number
+  activeJobs: number
+  completedJobs: number
+  totalSpent: number
+}
+
+export type EmployerDashboardJob = {
+  id: string
+  title: string
+  description: string | null
+  category: string | null
+  location: string | null
+  budget_min: string | number | null
+  budget_max: string | number | null
+  status: "open" | "in_progress" | "completed" | "cancelled"
+  createdAt?: string
+  updatedAt?: string
+  created_at?: string
+  updated_at?: string
+}
+
+export type EmployerDashboardSuggestedArtisan = {
+  id: string
+  name: string
+  email: string
+  profileImage: string | null
+  serviceType: string
+  skills: string[]
+  location: string
+  rating: number
+  reviewsCount: number
+  hourlyRate: number
+  bio: string
+}
+
+export type EmployerDashboardOverviewResponse = {
+  suggested: any;
+  profile: {
+    id: string
+    name: string
+    email: string
+    phone?: string | null
+    created_at?: string
+  } | null
+  stats: EmployerDashboardStats
+  recentJobs: EmployerDashboardJob[]
+  suggestedArtisans: EmployerDashboardSuggestedArtisan[]
+}
+
 export const CustomerDashboardAPI = {
-  getActiveJobs(token?: string | null) {
-    return request(`/customer/dashboard/active`, { token });
+  getOverview() {
+    return request<EmployerDashboardOverviewResponse>("/customer/dashboard", {
+      token: getAuth()?.token,
+    })
   },
 
-  getJobHistory(token?: string | null) {
-    return request(`/customer/dashboard/history`, { token });
+  getProfile() {
+    return request("/customer/dashboard/profile", {
+      token: getAuth()?.token,
+    })
   },
 
-  getRecommendedArtisans(token?: string | null) {
-    return request(`/customer/dashboard/recommended`, { token });
+  getStats() {
+    return request<EmployerDashboardStats>("/customer/dashboard/stats", {
+      token: getAuth()?.token,
+    })
   },
-};
+
+  getRecentJobs() {
+    return request<EmployerDashboardJob[]>("/customer/dashboard/recent-jobs", {
+      token: getAuth()?.token,
+    })
+  },
+
+  getActiveJobs() {
+    return request<EmployerDashboardJob[]>("/customer/dashboard/active", {
+      token: getAuth()?.token,
+    })
+  },
+
+  getJobHistory() {
+    return request<EmployerDashboardJob[]>("/customer/dashboard/history", {
+      token: getAuth()?.token,
+    })
+  },
+
+  getSuggestedArtisans() {
+    return request<EmployerDashboardSuggestedArtisan[]>("/customer/dashboard/recommended", {
+      token: getAuth()?.token,
+    })
+  },
+}
+
+
+/* ============================================================
+   ARTISAN DASHBOARD
+   ============================================================ */
+
+export type ArtisanDashboardSummary = {
+  artisan: {
+    artisanId: string
+    userId: string
+    name: string
+    email: string
+    service: string
+    profileImage: string | null
+    location: string
+    rating: number
+    reviews: number
+    slug?: string | null
+  }
+  completedJobs: number
+  activeJobs: number
+  pendingRequests: number
+  successRate: number
+  profileViews: number
+  monthlyEarnings: number
+}
+
+export function getArtisanDashboardSummary(token?: string | null) {
+  return request<ArtisanDashboardSummary>("/artisan/dashboard/summary", {
+    token,
+  })
+}
+
+export function getArtisanJobRequests(token?: string | null) {
+  return request<any[]>("/artisan/dashboard/requests", {
+    token,
+  })
+}
+
+export function getArtisanActiveJobs(token?: string | null) {
+  return request<any[]>("/artisan/dashboard/active", {
+    token,
+  })
+}
+
+export function getArtisanJobHistory(token?: string | null) {
+  return request<any[]>("/artisan/dashboard/history", {
+    token,
+  })
+}
+
 
 /* ============================================================
    ARTISAN PORTFOLIO UPLOAD
@@ -464,6 +592,15 @@ export async function listContractTransactions(contractId: string) {
   return data as ContractTransaction[]
 }
 
+// Job posting API Form
+export async function createJobPosting(payload: any, token?: string | null) {
+  return request('/jobs', {
+    method: 'POST',
+    json: payload,
+    token,
+  });
+}
+
 /* ============================================================
    PAYMENTS (PAYSTACK)
    ============================================================ */
@@ -479,6 +616,7 @@ export function initDeposit(amount: number, contractId?: string) {
   return request<InitDepositResponse>("/payments/deposit/init", {
     method: "POST",
     json: { amount, contractId },
+    
   });
 }
 
@@ -487,6 +625,10 @@ export function verifyPaystack(reference: string) {
     `/payments/verify/${encodeURIComponent(reference)}`
   );
 }
+
+/* ============================================================
+   Milestone Funds Releasing 
+   ============================================================ */
 
 export type MilestoneActionResponse = {
   milestone?: {
@@ -568,26 +710,127 @@ export async function getContractState(contractId: string) {
   })
 }
 
+// Withdrawal APIs
+
+export type WithdrawalBank = {
+  name: string
+  code: string
+}
+
+export type ResolveAccountResponse = {
+  status: boolean
+  accountName: string | null
+  accountNumber: string
+}
+
+export type CreateWithdrawalPayload = {
+  amount: number
+  bank: {
+    name: string
+    bank_code: string
+    account_number: string
+    account_name?: string
+    currency?: string
+  }
+}
+
+export type WithdrawalRecord = {
+  id: string
+  amount: number | string
+  method: string
+  reference: string
+  status: "pending" | "completed" | "rejected" |"failed"
+  bank_name?: string
+  bank_code?: string
+  account_number?: string
+  account_name?: string
+  created_at?: string
+  createdAt?: string
+}
+
+function getApiErrorMessage(error: any, fallback: string) {
+  return (
+    error?.response?.data?.message ||
+    error?.data?.message ||
+    error?.message ||
+    fallback
+  )
+}
+
+export async function getWithdrawalBanks(token?: string | null) {
+  try {
+    return await request<{ status: boolean; banks: WithdrawalBank[] }>("/withdrawals/banks", {
+      token,
+    })
+  } catch (error: any) {
+    throw new Error(getApiErrorMessage(error, "Failed to load banks"))
+  }
+}
+
+export async function resolveWithdrawalAccount(
+  accountNumber: string,
+  bankCode: string,
+  token?: string | null
+) {
+  const qs = new URLSearchParams({
+    accountNumber,
+    bankCode,
+  }).toString()
+
+  try {
+    return await request<ResolveAccountResponse>(`/withdrawals/resolve?${qs}`, {
+      token,
+    })
+  } catch (error: any) {
+    throw new Error(getApiErrorMessage(error, "Failed to resolve account"))
+  }
+}
+
+export async function createWithdrawal(
+  payload: CreateWithdrawalPayload,
+  token?: string | null
+) {
+  try {
+    return await request("/withdrawals", {
+      method: "POST",
+      json: payload,
+      token,
+    })
+  } catch (error: any) {
+    throw new Error(
+      getApiErrorMessage(error, "Cannot process payment now, try again later.")
+    )
+  }
+}
+
+export async function listMyWithdrawals(token?: string | null) {
+  try {
+    return await request<WithdrawalRecord[]>("/withdrawals", {
+      token,
+    })
+  } catch (error: any) {
+    throw new Error(getApiErrorMessage(error, "Failed to load withdrawals"))
+  }
+}
+
 /* ============================================================
    AUTH HELPERS
    ============================================================ */
 
 export function saveAuth(token: string, user: UserDTO) {
   if (typeof window === "undefined") return;
-  localStorage.setItem("auth_token", token);
   localStorage.setItem("auth_user", JSON.stringify(user));
 }
 
 export function getAuth() {
   if (typeof window === "undefined") return null;
 
-  const token = localStorage.getItem("auth_token");
   const user = localStorage.getItem("auth_user");
 
-  if (!token || !user) return null;
+  if (!user) return null;
 
   try {
-    return { token, user: JSON.parse(user) as UserDTO };
+    return { token: "cookie", user: JSON.parse(user) as UserDTO };
   } catch {
     return null;
   }
@@ -595,6 +838,5 @@ export function getAuth() {
 
 export function clearAuth() {
   if (typeof window === "undefined") return;
-  localStorage.removeItem("auth_token");
   localStorage.removeItem("auth_user");
 }
