@@ -1,3 +1,5 @@
+// components/payment/checkout-interface.tsx
+
 "use client"
 
 import { useMemo, useState } from "react"
@@ -330,7 +332,7 @@ const handlePayment = async () => {
 
               {/* Terms and Conditions */}
               <div className="flex items-start space-x-2">
-                <Checkbox id="terms" checked={agreeToTerms} onCheckedChange={setAgreeToTerms} />
+                <Checkbox id="terms" checked={agreeToTerms} onCheckedChange={(checked) => setAgreeToTerms(checked === true)} />
                 <Label htmlFor="terms" className="text-sm leading-relaxed">
                   I agree to the{" "}
                   <a href="#" className="text-primary hover:underline">

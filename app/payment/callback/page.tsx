@@ -1,5 +1,8 @@
+// app/payment/callback/pages.tsx
+
 "use client"
 
+import { Suspense } from "react";
 import { useEffect, useMemo, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -18,6 +21,15 @@ type VerifyResponse = {
 type UiState = "loading" | "success" | "failed" | "missing"
 
 export default function PaymentCallbackPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <InnerPage />
+    </Suspense>
+  );
+}
+
+export function InnerPage() {
+
   const router = useRouter()
   const searchParams = useSearchParams()
 
