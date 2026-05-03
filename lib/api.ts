@@ -1,6 +1,7 @@
 // src/lib/api.ts
 export const API_BASE =
 
+// Backend API URL
 process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://brickcell-production.up.railway.app";
 
 import { closeSocket } from "./socket-client";
