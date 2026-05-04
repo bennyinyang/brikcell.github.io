@@ -21,7 +21,7 @@ type FetchOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   json?: any;
   formData?: FormData;
-  token?: string | null;
+  //token?: string | null;
   signal?: AbortSignal;
 };
 
@@ -45,12 +45,15 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   const res = await fetch(url, {
     method: opts.method ?? "GET",
     headers,
+    
+    credentials: "include",
+
     body: opts.formData
       ? opts.formData
       : opts.json
       ? JSON.stringify(opts.json)
       : undefined,
-    credentials: "include",
+    
     signal: opts.signal,
   });
 
@@ -189,18 +192,18 @@ export type GetArtisanProfileResponse = {
   meta: { completedJobs: number; reviewsCount: number };
 };
 
-export function getArtisanProfile(id: string, token?: string | null) {
-  return request<GetArtisanProfileResponse>(`/artisans/${id}`, { token });
+export function getArtisanProfile(id: string) {
+  return request<GetArtisanProfileResponse>(`/artisans/${id}`);
 }
 
 export function updateMyArtisanProfile(
   payload: any,
-  token?: string | null
+  //token?: string | null
 ) {
   return request(`/artisans/me`, {
     method: "PATCH",
     json: payload,
-    token,
+    //token,
   });
 }
 
@@ -341,43 +344,43 @@ export type EmployerDashboardOverviewResponse = {
 export const CustomerDashboardAPI = {
   getOverview() {
     return request<EmployerDashboardOverviewResponse>("/customer/dashboard", {
-      token: getAuth()?.token,
+      //token: getAuth()?.token,
     })
   },
 
   getProfile() {
     return request("/customer/dashboard/profile", {
-      token: getAuth()?.token,
+      //token: getAuth()?.token,
     })
   },
 
   getStats() {
     return request<EmployerDashboardStats>("/customer/dashboard/stats", {
-      token: getAuth()?.token,
+      //token: getAuth()?.token,
     })
   },
 
   getRecentJobs() {
     return request<EmployerDashboardJob[]>("/customer/dashboard/recent-jobs", {
-      token: getAuth()?.token,
+      //token: getAuth()?.token,
     })
   },
 
   getActiveJobs() {
     return request<EmployerDashboardJob[]>("/customer/dashboard/active", {
-      token: getAuth()?.token,
+      //token: getAuth()?.token,
     })
   },
 
   getJobHistory() {
     return request<EmployerDashboardJob[]>("/customer/dashboard/history", {
-      token: getAuth()?.token,
+      //token: getAuth()?.token,
     })
   },
 
   getSuggestedArtisans() {
     return request<EmployerDashboardSuggestedArtisan[]>("/customer/dashboard/recommended", {
-      token: getAuth()?.token,
+      //token: getAuth()?.token,
     })
   },
 }
@@ -408,27 +411,27 @@ export type ArtisanDashboardSummary = {
   monthlyEarnings: number
 }
 
-export function getArtisanDashboardSummary(token?: string | null) {
+export function getArtisanDashboardSummary() {
   return request<ArtisanDashboardSummary>("/artisan/dashboard/summary", {
-    token,
+    //token,
   })
 }
 
-export function getArtisanJobRequests(token?: string | null) {
+export function getArtisanJobRequests() {
   return request<any[]>("/artisan/dashboard/requests", {
-    token,
+    //token,
   })
 }
 
-export function getArtisanActiveJobs(token?: string | null) {
+export function getArtisanActiveJobs() {
   return request<any[]>("/artisan/dashboard/active", {
-    token,
+    //token,
   })
 }
 
-export function getArtisanJobHistory(token?: string | null) {
+export function getArtisanJobHistory() {
   return request<any[]>("/artisan/dashboard/history", {
-    token,
+    //token,
   })
 }
 
@@ -439,7 +442,7 @@ export function getArtisanJobHistory(token?: string | null) {
 
 export function uploadPortfolioImages(
   files: File[],
-  token?: string | null
+  //token?: string | null
 ) {
   const formData = new FormData();
 
@@ -450,7 +453,7 @@ export function uploadPortfolioImages(
   return request(`/artisans/me/portfolio`, {
     method: "POST",
     formData,
-    token,
+    //token,
   });
 }
 
@@ -512,14 +515,15 @@ export function initiateSupportChat() {
 */
 
 export async function acceptContract(contractId: string) {
-  const auth = getAuth()
-  if (!auth?.token) throw new Error("Not authenticated")
+  // const auth = getAuth()
+  // if (!auth?.token) throw new Error("Not authenticated")
 
   const res = await fetch(`${API_BASE}/contracts/${contractId}/accept`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.token}`,
+      //Authorization: `Bearer ${auth.token}`,
     },
   })
 
@@ -529,14 +533,15 @@ export async function acceptContract(contractId: string) {
 }
 
 export async function declineContract(contractId: string) {
-  const auth = getAuth()
-  if (!auth?.token) throw new Error("Not authenticated")
+  // const auth = getAuth()
+  // if (!auth?.token) throw new Error("Not authenticated")
 
   const res = await fetch(`${API_BASE}/contracts/${contractId}/decline`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.token}`,
+      //Authorization: `Bearer ${auth.token}`,
     },
   })
 
@@ -546,14 +551,15 @@ export async function declineContract(contractId: string) {
 }
 
 export async function requestContractChanges(contractId: string, payload?: { message?: string }) {
-  const auth = getAuth()
-  if (!auth?.token) throw new Error("Not authenticated")
+  // const auth = getAuth()
+  // if (!auth?.token) throw new Error("Not authenticated")
 
   const res = await fetch(`${API_BASE}/contracts/${contractId}/request-changes`, {
     method: "POST",
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.token}`,
+      //Authorization: `Bearer ${auth.token}`,
     },
     body: JSON.stringify(payload || {}),
   })
@@ -573,24 +579,30 @@ export type ContractTransaction = {
 }
 
 export async function listContractTransactions(contractId: string) {
-  const auth = getAuth()
-  const res = await fetch(`${API_BASE}/transactions?contractId=${encodeURIComponent(contractId)}`, {
-    headers: auth?.token ? { Authorization: `Bearer ${auth.token}` } : undefined,
-    cache: "no-store",
-  })
+  const res = await fetch(
+    `${API_BASE}/transactions?contractId=${encodeURIComponent(contractId)}`,
+    {
+      method: "GET",
+      credentials: "include",
+      cache: "no-store",
+    }
+  );
 
-  const data = await res.json().catch(() => ({}))
+  const data = await res.json().catch(() => ({}));
 
   if (!res.ok) {
-    const msg = data?.message || data?.error?.message || `Failed to load transactions (HTTP ${res.status})`
-    throw new Error(msg)
+    const msg =
+      data?.message ||
+      data?.error?.message ||
+      `Failed to load transactions (HTTP ${res.status})`;
+    throw new Error(msg);
   }
 
   if (!Array.isArray(data)) {
-    throw new Error("Transactions response is not an array")
+    throw new Error("Transactions response is not an array");
   }
 
-  return data as ContractTransaction[]
+  return data as ContractTransaction[];
 }
 
 // Job posting API Form
@@ -758,10 +770,10 @@ function getApiErrorMessage(error: any, fallback: string) {
   )
 }
 
-export async function getWithdrawalBanks(token?: string | null) {
+export async function getWithdrawalBanks() {
   try {
     return await request<{ status: boolean; banks: WithdrawalBank[] }>("/withdrawals/banks", {
-      token,
+      //token,
     })
   } catch (error: any) {
     throw new Error(getApiErrorMessage(error, "Failed to load banks"))
@@ -771,7 +783,6 @@ export async function getWithdrawalBanks(token?: string | null) {
 export async function resolveWithdrawalAccount(
   accountNumber: string,
   bankCode: string,
-  token?: string | null
 ) {
   const qs = new URLSearchParams({
     accountNumber,
@@ -780,7 +791,7 @@ export async function resolveWithdrawalAccount(
 
   try {
     return await request<ResolveAccountResponse>(`/withdrawals/resolve?${qs}`, {
-      token,
+      //token,
     })
   } catch (error: any) {
     throw new Error(getApiErrorMessage(error, "Failed to resolve account"))
@@ -789,13 +800,12 @@ export async function resolveWithdrawalAccount(
 
 export async function createWithdrawal(
   payload: CreateWithdrawalPayload,
-  token?: string | null
 ) {
   try {
     return await request("/withdrawals", {
       method: "POST",
       json: payload,
-      token,
+      //token,
     })
   } catch (error: any) {
     throw new Error(
@@ -804,10 +814,10 @@ export async function createWithdrawal(
   }
 }
 
-export async function listMyWithdrawals(token?: string | null) {
+export async function listMyWithdrawals() {
   try {
     return await request<WithdrawalRecord[]>("/withdrawals", {
-      token,
+      //token,
     })
   } catch (error: any) {
     throw new Error(getApiErrorMessage(error, "Failed to load withdrawals"))

@@ -58,12 +58,10 @@ export function InnerPage() {
         setUiState("loading")
         setMessage("Verifying your payment…")
 
-        const auth = getAuth()
-        const token = auth?.token
-
         const res = await fetch(`/api/payments/verify/${encodeURIComponent(reference)}`, {
           method: "GET",
-          headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+          credentials: "include", 
+
         })
 
         const data = await res.json().catch(() => ({}))

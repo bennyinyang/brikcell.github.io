@@ -10,20 +10,32 @@ export async function GET(
 
     console.log("BACKEND URL:", backendUrl);
 
+    const cookie = req.headers.get("cookie");
+
     const res = await fetch(
-      `${backendUrl}/payments/verify/${params.reference}`
+      `${backendUrl}/payments/verify/${params.reference}`,
+      {
+        method: "GET",
+        headers: {
+          cookie: cookie || "", 
+        },
+      }
     );
 
     console.log("BACKEND STATUS:", res.status);
 
-    const data = await res.text(); // temporarily use text
+    const data = await res.json().catch(() => ({}));
+
+    //const data = await res.text(); // temporarily use text
 
     console.log("BACKEND RAW RESPONSE:", data);
 
-    return new Response(data, {
-      status: res.status,
-      headers: { "Content-Type": "application/json" },
-    });
+    return Response.json(data, { status: res.status });
+
+    // return new Response(data, {
+    //   status: res.status,
+    //   headers: { "Content-Type": "application/json" },
+    // });
 
   } catch (err: any) {
     console.error("NEXT VERIFY ERROR:", err);

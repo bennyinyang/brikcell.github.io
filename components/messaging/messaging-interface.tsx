@@ -182,7 +182,7 @@ export function MessagingInterface() {
   const auth = getAuth()
   console.log("[Messaging] auth.user.id =", auth?.user?.id)
   console.log("[Messaging] auth.user.role =", auth?.user?.role)
-  console.log("[Messaging] tokenExists =", Boolean(auth?.token))
+  //console.log("[Messaging] tokenExists =", Boolean(auth?.token))
   const currentUserRole = auth?.user?.role
   const currentUserId = auth?.user?.id as string | undefined
 
@@ -693,7 +693,7 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
   }): Promise<string | null> => {
     const { targetUserId, targetEmail, displayName } = opts
 
-    if (!auth?.token || !currentUserId) {
+    if (!currentUserId) {
       console.warn("[Messaging] initiateChatWith: missing auth/currentUserId, aborting")
       return null
     }
@@ -706,9 +706,10 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
     try {
       const res = await fetch(`${API_BASE}/chat/initiate`, {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${auth.token}`,
+          //Authorization: `Bearer ${auth.token}`,
         },
         body: JSON.stringify({
           userId: targetUserId ?? undefined,

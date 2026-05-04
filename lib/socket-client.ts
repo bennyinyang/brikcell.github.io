@@ -18,8 +18,9 @@ export function getSocket(token: string): Socket {
   socketToken = token;
 
   socket = io(API_BASE, {
-    auth: { token },
-    transports: ["websocket"], // keep as-is; matches your current client preference
+    auth: token ? { token } : {},  
+    withCredentials: true,          
+    transports: ["websocket"],
     autoConnect: true,
     path: "/socket.io",
   });
