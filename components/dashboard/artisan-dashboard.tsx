@@ -182,9 +182,10 @@ export function ArtisanDashboard() {
   const [completedJobs, setCompletedJobs] = useState<DashboardHistoryCard[]>([])
   const [loading, setLoading] = useState(true)
   const walletBalance = Number(summary?.walletBalance || 0)
+  const [showWithdraw, setShowWithdraw] = useState(false)
 
-  const auth = getAuth()
-  const token = auth?.token
+  // const auth = getAuth()
+  // const token = auth?.token
 
   useEffect(() => {
     let cancelled = false
@@ -192,10 +193,10 @@ export function ArtisanDashboard() {
     async function loadDashboard() {
       try {
         const [s, req, act, hist] = await Promise.all([
-          getArtisanDashboardSummary(token),
-          getArtisanJobRequests(token),
-          getArtisanActiveJobs(token),
-          getArtisanJobHistory(token),
+          getArtisanDashboardSummary(),
+          getArtisanJobRequests(),
+          getArtisanActiveJobs(),
+          getArtisanJobHistory(),
         ])
 
         if (cancelled) return
@@ -216,15 +217,14 @@ export function ArtisanDashboard() {
     return () => {
       cancelled = true
     }
-  }, [token])
+  }, [])
 
   const artisan = summary?.artisan || {}
 
   const publicProfileId =
     artisan.slug ||
     artisan.artisanId ||
-    artisan.userId ||
-    auth?.user?.id
+    artisan.userId 
 
   const monthlyEarnings = Number(summary?.monthlyEarnings || 0)
   const pendingRequests = Number(summary?.pendingRequests || 0)
@@ -385,24 +385,51 @@ export function ArtisanDashboard() {
         </Card>
       </div>
 
-      <Card>
-        <CardContent className="p-4 flex items-center justify-between">
-          <div>
-            <p className="text-sm text-gray-600">Wallet Balance</p>
-            <p className="text-2xl font-bold">₦{walletBalance.toLocaleString()}</p>
+      {/* Wallet Balance + Withdraw */}
+      <Card className="mb-6 overflow-hidden border-green-100 bg-gradient-to-br from-green-50 via-white to-white">
+        <CardContent className="p-5 sm:p-6">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div className="flex items-center gap-4">
+              <div className="h-12 w-12 rounded-2xl bg-green-100 flex items-center justify-center">
+                <DollarSign className="h-6 w-6 text-green-600" />
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-600">Wallet Balance</p>
+                <p className="text-2xl sm:text-3xl font-bold text-gray-900">
+                  ₦{walletBalance.toLocaleString()}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">
+                  Available earnings ready for withdrawal
+                </p>
+              </div>
+            </div>
+
+            <Button
+              className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
+              onClick={() => setShowWithdraw((prev) => !prev)}
+            >
+              {showWithdraw ? "Hide Withdrawal" : "Withdraw Funds"}
+            </Button>
           </div>
-          <DollarSign className="h-8 w-8 text-green-500" />
         </CardContent>
       </Card>
 
-      <WithdrawalCard
-        balance={walletBalance}
-        title="Withdraw Earnings"
-        onSuccess={async () => {
-          const refreshed = await getArtisanDashboardSummary(token)
-          setSummary(refreshed || null)
-        }}
-      />
+      <div
+        className={`mb-6 overflow-hidden transition-all duration-300 ease-in-out ${
+          showWithdraw ? "max-h-[650px] opacity-100" : "max-h-0 opacity-0"
+        }`}
+      >
+        <WithdrawalCard
+          balance={walletBalance}
+          title="Withdraw Earnings"
+          onSuccess={async () => {
+            const refreshed = await getArtisanDashboardSummary()
+            setSummary(refreshed || null)
+            setShowWithdraw(false)
+          }}
+        />
+      </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid grid-cols-4">
