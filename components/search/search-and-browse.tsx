@@ -86,16 +86,16 @@ export function SearchAndBrowse() {
   }, [searchQuery, selectedCategory, selectedRating, availableToday])
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold">Find Your Perfect Artisan</h1>
-        <p className="text-gray-600">Browse thousands of skilled professionals</p>
+      <div className="mb-6 sm:mb-8">
+        <h1 className="text-2xl sm:text-3xl font-bold">Find Your Perfect Artisan</h1>
+        <p className="text-sm sm:text-base text-gray-600">Browse thousands of skilled professionals</p>
       </div>
 
       {/* Search Bar */}
       <Card className="mb-6 py-2 shadow-none">
-        <CardContent className="p-6 py-1.5">
+        <CardContent className="p-4 sm:p-6 py-1.5">
           <div className="flex flex-col md:flex-row gap-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 h-4 w-4" />
@@ -133,7 +133,7 @@ export function SearchAndBrowse() {
       </Card>
 
       {/* Results Count */}
-      <h2 className="text-xl font-semibold mb-6">{total} artisans found</h2>
+      <h2 className="text-lg sm:text-xl font-semibold mb-4 sm:mb-6">{total} artisans found</h2>
 
       {/* Loading Placeholder */}
       {loading && (
@@ -145,7 +145,7 @@ export function SearchAndBrowse() {
         <div
           className={
             viewMode === "grid"
-              ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
+              ? "grid grid-cols-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2 sm:gap-3 lg:gap-4"
               : "space-y-4"
           }
         >
@@ -157,41 +157,57 @@ export function SearchAndBrowse() {
               }`}
             >
               <div className={viewMode === "list" ? "flex w-full" : ""}>
-                <div className={`${viewMode === "list" ? "w-28 h-28" : "aspect-[4/3]"} relative`}>
+                <div
+                  className={`${
+                    viewMode === "list"
+                      ? "w-28 h-28"
+                      : "aspect-square sm:aspect-[4/3]"
+                  } relative`}
+                >
                   <img
                     src="/placeholder.svg"
                     alt={artisan.name}
-                    className={`w-full h-full object-cover ${viewMode === "list" ? "rounded-l-lg" : "rounded-t-lg"}`}
+                    className={`w-full h-full object-cover ${
+                      viewMode === "list" ? "rounded-l-lg" : "rounded-t-lg"
+                    }`}
                   />
                 </div>
 
-                <CardContent className={`${viewMode === "list" ? "flex-1" : ""} p-3`}>
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                <CardContent
+                  className={`${
+                    viewMode === "list" ? "flex-1" : ""
+                  } p-2 sm:p-3`}
+                >
+                  <div className="flex items-start justify-between gap-1 sm:gap-2 mb-1.5 sm:mb-2">
                     <div className="min-w-0">
-                      <h3 className="font-semibold text-sm truncate">{artisan.name}</h3>
-                      <p className="text-primary font-medium text-xs truncate">
+                      <h3 className="font-semibold text-[11px] sm:text-sm truncate">
+                        {artisan.name}
+                      </h3>
+                      <p className="text-primary font-medium text-[10px] sm:text-xs truncate">
                         {(artisan.skills ?? [])[0] || "Artisan"}
                       </p>
                     </div>
 
-                    <div className="flex items-center space-x-1 shrink-0">
-                      <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
-                      <span className="text-xs font-medium">{artisan.rating}</span>
+                    <div className="flex items-center space-x-0.5 sm:space-x-1 shrink-0">
+                      <Star className="h-3 w-3 sm:h-3.5 sm:w-3.5 fill-yellow-400 text-yellow-400" />
+                      <span className="text-[10px] sm:text-xs font-medium">
+                        {artisan.rating}
+                      </span>
                     </div>
                   </div>
 
-                  <div className="text-xs text-gray-600 space-y-1.5 mb-3">
+                  <div className="text-[10px] sm:text-xs text-gray-600 space-y-1 sm:space-y-1.5 mb-2 sm:mb-3">
                     <div className="flex items-center space-x-1">
                       <MapPin className="h-3 w-3 shrink-0" />
                       <span className="truncate">{artisan.location || "—"}</span>
                     </div>
                     <div className="flex items-center space-x-1">
                       <DollarSign className="h-3 w-3 shrink-0" />
-                      <span>₦{(artisan.hourlyRate ?? 0).toLocaleString()}</span>
+                      <span className="truncate">₦{(artisan.hourlyRate ?? 0).toLocaleString()}</span>
                     </div>
                   </div>
 
-                  <Button asChild size="sm" className="h-8 text-xs w-full">
+                  <Button asChild size="sm" className="h-7 sm:h-8 text-[10px] sm:text-xs w-full px-2">
                     <Link href={`/artisan/${artisan.artisanId}`}>View Profile</Link>
                   </Button>
                 </CardContent>
