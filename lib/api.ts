@@ -610,7 +610,7 @@ export async function createJobPosting(payload: any, token?: string | null) {
   return request('/jobs', {
     method: 'POST',
     json: payload,
-    token,
+    //token,
   });
 }
 

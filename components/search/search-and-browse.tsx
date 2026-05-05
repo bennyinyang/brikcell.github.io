@@ -61,7 +61,7 @@ export function SearchAndBrowse() {
     const backendType = CATEGORY_MAP[selectedCategory] ?? undefined
 
     try {
-      const data = await searchArtisans({
+      const data: any = await searchArtisans({
         type: backendType,
         location: searchQuery || undefined,
         rating: selectedRating !== "all" ? selectedRating : undefined,
@@ -145,53 +145,53 @@ export function SearchAndBrowse() {
         <div
           className={
             viewMode === "grid"
-              ? "grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              ? "grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4"
               : "space-y-4"
           }
         >
           {results.map((artisan) => (
             <Card
               key={artisan.artisanId}
-              className={`hover:shadow-lg transition-shadow py-0 ${
+              className={`hover:shadow-md transition-shadow py-0 overflow-hidden ${
                 viewMode === "list" ? "flex" : ""
               }`}
             >
               <div className={viewMode === "list" ? "flex w-full" : ""}>
-                <div className={`${viewMode === "list" ? "w-32 h-32" : "aspect-square"} relative`}>
+                <div className={`${viewMode === "list" ? "w-28 h-28" : "aspect-[4/3]"} relative`}>
                   <img
                     src="/placeholder.svg"
                     alt={artisan.name}
-                    className="w-full h-full object-cover rounded-t-lg"
+                    className={`w-full h-full object-cover ${viewMode === "list" ? "rounded-l-lg" : "rounded-t-lg"}`}
                   />
                 </div>
 
-                <CardContent className={`${viewMode === "list" ? "flex-1" : ""} p-4`}>
-                  <div className="flex items-start justify-between mb-2">
-                    <div>
-                      <h3 className="font-semibold">{artisan.name}</h3>
-                      <p className="text-primary font-medium">
+                <CardContent className={`${viewMode === "list" ? "flex-1" : ""} p-3`}>
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <div className="min-w-0">
+                      <h3 className="font-semibold text-sm truncate">{artisan.name}</h3>
+                      <p className="text-primary font-medium text-xs truncate">
                         {(artisan.skills ?? [])[0] || "Artisan"}
                       </p>
                     </div>
 
-                    <div className="flex items-center space-x-1">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span className="text-sm font-medium">{artisan.rating}</span>
+                    <div className="flex items-center space-x-1 shrink-0">
+                      <Star className="h-3.5 w-3.5 fill-yellow-400 text-yellow-400" />
+                      <span className="text-xs font-medium">{artisan.rating}</span>
                     </div>
                   </div>
 
-                  <div className="text-sm text-gray-600 space-y-2 mb-4">
+                  <div className="text-xs text-gray-600 space-y-1.5 mb-3">
                     <div className="flex items-center space-x-1">
-                      <MapPin className="h-3 w-3" />
-                      <span>{artisan.location || "—"}</span>
+                      <MapPin className="h-3 w-3 shrink-0" />
+                      <span className="truncate">{artisan.location || "—"}</span>
                     </div>
                     <div className="flex items-center space-x-1">
-                      <DollarSign className="h-3 w-3" />
+                      <DollarSign className="h-3 w-3 shrink-0" />
                       <span>₦{(artisan.hourlyRate ?? 0).toLocaleString()}</span>
                     </div>
                   </div>
 
-                  <Button asChild size="sm">
+                  <Button asChild size="sm" className="h-8 text-xs w-full">
                     <Link href={`/artisan/${artisan.artisanId}`}>View Profile</Link>
                   </Button>
                 </CardContent>

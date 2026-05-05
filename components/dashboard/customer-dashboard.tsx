@@ -735,6 +735,8 @@ export function CustomerDashboard() {
   const [completedJobs, setCompletedJobs] = useState<ContractJobCard[]>([])
   const [suggestedArtisans, setSuggestedArtisans] = useState<SuggestedArtisan[]>([])
   const [loading, setLoading] = useState(true)
+  const [showFunding, setShowFunding] = useState(false)
+  const [showWithdrawal, setShowWithdrawal] = useState(false)
 
   const refreshStats = useCallback(async () => {
     try {
@@ -824,12 +826,36 @@ export function CustomerDashboard() {
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 mb-1">Welcome back!</h1>
           <p className="text-base text-gray-600">Manage your jobs and find trusted artisans</p>
         </div>
-        <Button asChild size="lg" className="w-full sm:w-auto">
-          <Link href="/post-job">
-            <Plus className="h-5 w-5 mr-2" />
-            Post New Job
-          </Link>
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button
+            type="button"
+            variant={showFunding ? "default" : "outline"}
+            size="lg"
+            className="w-full sm:w-auto"
+            onClick={() => setShowFunding((prev) => !prev)}
+          >
+            <Wallet className="h-5 w-5 mr-2" />
+            {showFunding ? "Hide Fund" : "Fund"}
+          </Button>
+
+          <Button
+            type="button"
+            variant={showWithdrawal ? "default" : "outline"}
+            size="lg"
+            className="w-full sm:w-auto"
+            onClick={() => setShowWithdrawal((prev) => !prev)}
+          >
+            <DollarSign className="h-5 w-5 mr-2" />
+            {showWithdrawal ? "Hide Withdraw" : "Withdraw"}
+          </Button>
+
+          <Button asChild size="lg" className="w-full sm:w-auto">
+            <Link href="/post-job">
+              <Plus className="h-5 w-5 mr-2" />
+              Post New Job
+            </Link>
+          </Button>
+        </div>
       </div>
 
       {/* ── Stats Grid ── */}
@@ -856,15 +882,29 @@ export function CustomerDashboard() {
         ))}
       </div>
 
-      {/* ── Wallet Funding ── */}
-      <WalletFundingCard walletBalance={stats.walletBalance} onSuccess={refreshStats} />
+      <div
+        className={`grid transition-all duration-300 ease-in-out ${
+          showFunding ? "grid-rows-[1fr] opacity-100 mb-6" : "grid-rows-[0fr] opacity-0 mb-0"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <WalletFundingCard walletBalance={stats.walletBalance} onSuccess={refreshStats} />
+        </div>
+      </div>
 
-      {/* ── Withdrawal ── */}
-      <WithdrawalCard
-        balance={stats.walletBalance}
-        title="Withdraw from Wallet"
-        onSuccess={refreshStats}
-      />
+      <div
+        className={`grid transition-all duration-300 ease-in-out ${
+          showWithdrawal ? "grid-rows-[1fr] opacity-100 mb-6" : "grid-rows-[0fr] opacity-0 mb-0"
+        }`}
+      >
+        <div className="overflow-hidden">
+          <WithdrawalCard
+            balance={stats.walletBalance}
+            title="Withdraw from Wallet"
+            onSuccess={refreshStats}
+          />
+        </div>
+      </div>
 
       {/* ── Tabs ── */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
