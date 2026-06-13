@@ -86,9 +86,9 @@ export function Header() {
                   </>
                 ) : (
                   <>
-                    <Link href="/dashboard/artisan" className="text-gray-700 hover:text-secondary transition-colors flex items-center space-x-1">
+                    <Link href="/dashboard/jobs" className="text-gray-700 hover:text-secondary transition-colors flex items-center space-x-1">
                       <Briefcase className="h-4 w-4" />
-                      <span>My Jobs</span>
+                      <span>Search Jobs</span>
                     </Link>
                     <Link href="/profile/setup" className="text-gray-700 hover:text-secondary transition-colors flex items-center space-x-1">
                       <Wrench className="h-4 w-4" />
@@ -219,12 +219,12 @@ export function Header() {
                 ) : (
                   <>
                     <Link
-                      href="/dashboard/artisan"
+                      href="/dashboard/jobs"
                       onClick={closeMobileMenu}
                       className="flex items-center space-x-3 px-3 py-3 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-secondary transition-colors"
                     >
                       <Briefcase className="h-5 w-5 flex-shrink-0" />
-                      <span className="text-sm font-medium">My Jobs</span>
+                      <span className="text-sm font-medium">Search Jobs</span>
                     </Link>
                     <Link
                       href="/profile/setup"

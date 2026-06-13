@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation"
 import { 
   listChatRooms, listChatMessages, API_BASE, getAuth,
   acceptContract,
+  sendChatMessageWithFile,
   declineContract,
   requestContractChanges,
   listContractTransactions,
@@ -168,6 +169,9 @@ export function MessagingInterface() {
   const [milestoneActionLoading, setMilestoneActionLoading] = useState<string | null>(null)
   const [partialReleaseOpenFor, setPartialReleaseOpenFor] = useState<string | null>(null)
   const [partialReleaseAmount, setPartialReleaseAmount] = useState<Record<string, string>>({})
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [isSendingFile, setIsSendingFile] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
 
   const router = useRouter()
   const socketRef = useRef<Socket | null>(null)
@@ -681,7 +685,16 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
         : undefined,
       phaseUpdate: m.type === "phase-update" ? m.phase_update_data : undefined,
       paymentPrompt: m.type === "payment-prompt" ? m.payment_prompt_data : undefined,
-      attachments: m.type === "file" ? m.attachments : undefined,
+      attachments:
+        m.type === "file"
+          ? [
+              {
+                type: m.file_mime_type || m.file_resource_type || "file",
+                url: m.file_url || "",
+                name: m.file_original_name || m.message || "Attachment",
+              },
+            ].filter((file) => Boolean(file.url))
+          : undefined,
     }))
   }
 
@@ -888,6 +901,11 @@ useEffect(() => {
         created_at: string
         type?: string
         contract?: Contract
+        file_url?: string | null
+        file_original_name?: string | null
+        file_mime_type?: string | null
+        file_resource_type?: string | null
+        file_size?: number | null
         contractStatus?: {
           contractId: string
           status: Contract["status"]
@@ -993,6 +1011,16 @@ useEffect(() => {
               status: "delivered",
               type: msgType,
               contract: msgType === "contract" ? payload.contract : undefined,
+              attachments:
+                msgType === "file"
+                  ? [
+                      {
+                        type: payload.file_mime_type || payload.file_resource_type || "file",
+                        url: payload.file_url || "",
+                        name: payload.file_original_name || payload.message || "Attachment",
+                      },
+                    ].filter((file) => Boolean(file.url))
+                  : undefined,
             }
 
             return [...normalized, mapped]
@@ -1013,6 +1041,8 @@ useEffect(() => {
                 ? "Payment Request"
                 : msgType === "phase-update"
                 ? "Phase Update"
+                : msgType === "file"
+                ? "File attachment"
                 : payload.message
 
             return {
@@ -1153,6 +1183,66 @@ useEffect(() => {
         roomId = initiatedRoomId
       }
 
+      if (selectedFile) {
+      setIsSendingFile(true)
+
+      const fileToSend = selectedFile
+      setSelectedFile(null)
+
+      const created = await sendChatMessageWithFile(roomId, {
+        message: text,
+        file: fileToSend,
+      })
+
+      const fileMessage: Message = {
+        id: created.id,
+        text: created.message || fileToSend.name,
+        timestamp: created.createdAt || created.created_at || new Date().toISOString(),
+        sender: "me",
+        status: "sent",
+        type: "file",
+        attachments: [
+          {
+            type:
+              created.file_mime_type ||
+              created.file_resource_type ||
+              fileToSend.type ||
+              "file",
+            url: created.file_url || "",
+            name: created.file_original_name || fileToSend.name,
+          },
+        ].filter((file) => Boolean(file.url)),
+      }
+
+      setMessages((prev) => [...prev, fileMessage])
+
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === roomId
+            ? {
+                ...conv,
+                lastMessage: {
+                  text: "File attachment",
+                  timestamp: fileMessage.timestamp,
+                  isRead: true,
+                  sender: "me",
+                  type: "file",
+                },
+              }
+            : conv
+        )
+      )
+
+      setTimeout(() => scrollToBottom(), 50)
+      return
+    }
+
+    if (!socketRef.current) {
+      console.warn("[Messaging] No socket, cannot send via socket")
+      setNewMessage(text)
+      return
+    }
+
       socketRef.current.emit("chatMessage", {
         roomId,
         message: text,
@@ -1169,9 +1259,13 @@ useEffect(() => {
 
       setMessages((prev) => [...prev, tempMessage])
       setTimeout(() => scrollToBottom(), 50)
-    } catch (err) {
+    } catch (err: any) {
       console.error("Failed to send message", err)
-      setNewMessage(text)
+      toast.error(err?.message || "Failed to send message")
+
+      if (text) setNewMessage(text)
+    } finally {
+      setIsSendingFile(false)
     }
   }
 
@@ -2080,7 +2174,37 @@ useEffect(() => {
 
           {/* Composer ALWAYS visible */}
           <div className="border-t p-3 sm:p-4">
+            {selectedFile && (
+              <div className="mb-2 flex items-center justify-between rounded-lg border bg-gray-50 px-3 py-2 text-xs">
+                <div className="min-w-0">
+                  <p className="truncate font-medium text-gray-900">{selectedFile.name}</p>
+                  <p className="text-gray-500">
+                    {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-red-600"
+                  onClick={() => setSelectedFile(null)}
+                >
+                  Remove
+                </Button>
+              </div>
+            )}
             <div className="flex items-center space-x-2">
+              <input
+                ref={fileInputRef}
+                type="file"
+                className="hidden"
+                onChange={(e) => {
+                  const file = e.target.files?.[0] || null
+                  setSelectedFile(file)
+                  e.target.value = ""
+                }}
+              />
               {auth?.user?.role === "artisan" && (
                 <Button
                   variant="outline"
@@ -2098,22 +2222,27 @@ useEffect(() => {
                 variant="outline"
                 size="sm"
                 className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
-                disabled={!selectedConversation?.id}
-              >
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!canType || isSendingFile || !selectedConversation?.id}
+                title="Attach File">
                 <Paperclip className="h-4 w-4" />
               </Button>
               <Button
                 variant="outline"
                 size="sm"
                 className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
-                disabled={!selectedConversation?.id}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={!canType || isSendingFile || !selectedConversation?.id}
+                title="Attach Image"
               >
                 <ImageIcon className="h-4 w-4" />
               </Button>
 
               <Input
                 placeholder={
-                  selectedConversation?.id
+                  selectedFile
+                    ? "Add a message about this file..."
+                    : selectedConversation?.id
                     ? "Type your message..."
                     : canStartFromUrl
                     ? "Type your message to start chat..."
@@ -2129,7 +2258,7 @@ useEffect(() => {
               <Button
                 size="sm"
                 onClick={sendMessageHandler}
-                disabled={!canType || !newMessage.trim()}
+                disabled={!canType || isSendingFile || (!newMessage.trim() && !selectedFile)}
                 className="h-10 w-10 p-0"
               >
                 <Send className="h-4 w-4" />

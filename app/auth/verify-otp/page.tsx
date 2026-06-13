@@ -2,245 +2,311 @@
 
 import type React from "react"
 
-import { useState, useRef, useEffect } from "react"
+import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ArrowLeft, Check, KeyRound, Mail } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft, Shield, Check } from "lucide-react"
-import { AuthAPI } from "@/lib/api";
+import { AuthAPI } from "@/lib/api"
+
+const OTP_LENGTH = 6
 
 export default function VerifyOTPPage() {
-  const searchParams = useSearchParams();
-  const router = useRouter();
-  const email = (searchParams.get("email") || "").trim().toLowerCase();
+  const searchParams = useSearchParams()
+  const router = useRouter()
 
-  // Prefill OTP from query (?otp=123456) if present
-  const initialOtpStr = (searchParams.get("otp") || "").replace(/\D/g, "").slice(0, 6);
-  const initialOtpArray = Array.from({ length: 6 }, (_, i) => initialOtpStr[i] ?? "");
+  const email = (searchParams.get("email") || "").trim().toLowerCase()
+  const mode = (searchParams.get("mode") || "").toLowerCase()
+  const isResetMode = mode === "reset"
 
-  // Initialize OTP input boxes with the prefilled values
-  const [otp, setOtp] = useState<string[]>(initialOtpArray);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSuccess, setIsSuccess] = useState(false);
-  const [error, setError] = useState("");
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+  const initialOtpStr = (searchParams.get("otp") || "")
+    .replace(/\D/g, "")
+    .slice(0, OTP_LENGTH)
+
+  const initialOtpArray = Array.from(
+    { length: OTP_LENGTH },
+    (_, index) => initialOtpStr[index] ?? ""
+  )
+
+  const [otp, setOtp] = useState<string[]>(initialOtpArray)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSuccess, setIsSuccess] = useState(false)
+  const [error, setError] = useState("")
+  const [resendCooldown, setResendCooldown] = useState(0)
+
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => {
-    // Focus first input on mount
     inputRefs.current[0]?.focus()
   }, [])
 
   useEffect(() => {
-    if (resendCooldown > 0) {
-      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000)
-      return () => clearTimeout(timer)
-    }
+    if (resendCooldown <= 0) return
+
+    const timer = setTimeout(() => {
+      setResendCooldown((prev) => prev - 1)
+    }, 1000)
+
+    return () => clearTimeout(timer)
   }, [resendCooldown])
 
   const handleInputChange = (index: number, value: string) => {
-    if (value.length > 1) return // Prevent multiple characters
-    const v = value.replace(/\D/g, "");
+    const digit = value.replace(/\D/g, "").slice(0, 1)
 
-    const newOtp = [...otp]
-    newOtp[index] = v
-    setOtp(newOtp)
+    const nextOtp = [...otp]
+    nextOtp[index] = digit
+
+    setOtp(nextOtp)
     setError("")
 
-    // Auto-focus next input
-    if (value && index < 5) {
+    if (digit && index < OTP_LENGTH - 1) {
       inputRefs.current[index + 1]?.focus()
     }
   }
 
-  const handleKeyDown = (index: number, e: React.KeyboardEvent) => {
+  const handleKeyDown = (
+    index: number,
+    e: React.KeyboardEvent<HTMLInputElement>
+  ) => {
     if (e.key === "Backspace" && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus()
     }
   }
 
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    e.preventDefault()
+
+    const pasted = e.clipboardData
+      .getData("text")
+      .replace(/\D/g, "")
+      .slice(0, OTP_LENGTH)
+
+    if (!pasted) return
+
+    const nextOtp = Array.from(
+      { length: OTP_LENGTH },
+      (_, index) => pasted[index] ?? ""
+    )
+
+    setOtp(nextOtp)
+    setError("")
+
+    const nextFocusIndex = Math.min(pasted.length, OTP_LENGTH - 1)
+    inputRefs.current[nextFocusIndex]?.focus()
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
     const otpString = otp.join("")
 
-    if (otpString.length !== 6) {
-      setError("Please enter the complete 6-digit code")
-      return;
+    if (otpString.length !== OTP_LENGTH) {
+      setError(`Please enter the complete ${OTP_LENGTH}-digit code`)
+      return
     }
 
     setIsLoading(true)
     setError("")
 
     try {
-    const normalizedEmail = (email || "").trim().toLowerCase();
-    const mode = (searchParams.get("mode") || "").toLowerCase();
+      const normalizedEmail = email.trim().toLowerCase()
 
-    console.log("[FE verify-otp] API_BASE", process.env.NEXT_PUBLIC_API_BASE_URL);
-    console.log("[FE verify-otp] payload", { email: normalizedEmail, otp: otpString });
+      if (isResetMode) {
+        setIsSuccess(true)
+        setIsLoading(false)
 
-    if (mode === "reset") {
-      // 🚫 Skip hitting /auth/verify-otp (email already verified).
-      // ✅ Carry the code to the reset page.
-      setIsSuccess(true);
-      setIsLoading(false);
+        setTimeout(() => {
+          router.push(
+            `/auth/reset-password?email=${encodeURIComponent(
+              normalizedEmail
+            )}&otp=${encodeURIComponent(otpString)}`
+          )
+        }, 700)
+
+        return
+      }
+
+      await AuthAPI.verifyOtp({
+        email: normalizedEmail,
+        otp: otpString,
+      })
+
+      setIsSuccess(true)
+      setIsLoading(false)
+
       setTimeout(() => {
-        router.push(
-          `/auth/reset-password?email=${encodeURIComponent(normalizedEmail)}&otp=${encodeURIComponent(otpString)}`
-        );
-      }, 800);
-      return;
+        router.push("/auth/login")
+      }, 800)
+    } catch (err: any) {
+      setError(err?.message || "Invalid verification code. Please try again.")
+      setIsLoading(false)
+      setOtp(Array.from({ length: OTP_LENGTH }, () => ""))
+      inputRefs.current[0]?.focus()
     }
-
-    // ✅ Normal signup verification flow
-    await AuthAPI.verifyOtp({ email: normalizedEmail, otp: otpString });
-
-    setIsSuccess(true);
-    setIsLoading(false);
-
-    setTimeout(() => {
-    router.push("/auth/login");
-          }, 800);
-        } catch (err: any) {
-        setError(err?.message || "Invalid verification code. Please try again.");
-        setIsLoading(false);
-        setOtp(["", "", "", "", "", ""]);
-        // @ts-ignore
-        inputRefs.current[0]?.focus();
-    }
-  };
-  
+  }
 
   const handleResendCode = async () => {
-
     if (!email) {
-      setError("Missing email address.");
-      return;
+      setError("Missing email address.")
+      return
     }
 
-    setResendCooldown(60);
-    setError("");
-        try {
-      await AuthAPI.sendOtp({ email: (email || "").trim().toLowerCase() });
+    setResendCooldown(60)
+    setError("")
+
+    try {
+      if (isResetMode) {
+        await AuthAPI.forgotPassword({ email: email.trim().toLowerCase() })
+      } else {
+        await AuthAPI.sendOtp({ email: email.trim().toLowerCase() })
+      }
     } catch (err: any) {
-      setResendCooldown(0);
-      setError(err?.message || "Failed to resend code. Please try again.");
+      setResendCooldown(0)
+      setError(err?.message || "Failed to resend code. Please try again.")
     }
   }
 
   if (isSuccess) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-8">
-        <Card className="w-full max-w-md border-0 shadow-lg bg-card">
-          <CardContent className="pt-8 pb-8">
-            <div className="text-center space-y-6">
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <Check className="h-8 w-8 text-green-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">Code Verified!</h2>
-                <p className="text-muted-foreground mt-2">Your verification code has been confirmed successfully.</p>
-              </div>
-              <p className="text-sm text-muted-foreground">Redirecting to password reset...</p>
+      <main className="min-h-screen w-full bg-white">
+        <div className="flex min-h-screen w-full items-center justify-center">
+          <div className="text-center">
+            <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-green-100">
+              <Check className="h-8 w-8 text-green-600" />
             </div>
-          </CardContent>
-        </Card>
-      </div>
+
+            <h2 className="text-[30px] font-semibold tracking-[-0.04em] text-slate-950">
+              Code Verified!
+            </h2>
+
+            <p className="mt-3 text-[15px] text-slate-500">
+              Your verification code has been confirmed successfully.
+            </p>
+          </div>
+        </div>
+      </main>
     )
   }
 
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Brand Imagery */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-primary/90 via-primary to-primary/80 overflow-hidden">
-        {/* Background Image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: "url('/professional-hairstylist-woman.png')",
-          }}
-        />
-        {/* Overlay */}
-        
+    <main className="min-h-screen w-full bg-white">
+      <div className="grid min-h-screen w-full grid-cols-1 lg:grid-cols-2">
+        <section className="relative hidden min-h-screen overflow-hidden lg:block">
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{
+              backgroundImage: isResetMode
+                ? "url('/auth/forgot-hero.png')"
+                : "url('/auth/signup-hero.png')",
+            }}
+          />
+          {!isResetMode && (
+            <>
+              <div className="absolute inset-0 bg-black/35" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/25 to-transparent" />
+            </>
+          )}
+        </section>
 
-        {/* Content */}
-        
-      </div>
-
-      {/* Right Side - OTP Verification Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-background">
-        <div className="w-full max-w-md space-y-6">
-          {/* Back to Forgot Password */}
-          <Link
-            href="/auth/forgot-password"
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
-          </Link>
-
-          {/* Form Card */}
-          <Card className="border-0 shadow-none bg-transparent">
-            <CardHeader className="space-y-1 px-0 text-center">
-              <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <Shield className="h-6 w-6 text-primary" />
+        <section className="relative flex min-h-screen w-full items-center justify-center bg-white px-6 py-10 lg:px-12">
+          <div className="w-full max-w-[460px]">
+            {isResetMode && (
+              <div className="mb-7 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white">
+                <KeyRound className="h-4 w-4 text-slate-700" />
               </div>
-              <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Verify your email</CardTitle>
-              <CardDescription className="text-muted-foreground text-base">
-                We sent a 6-digit code to <strong>{email}</strong>
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 px-0">
-              <form onSubmit={handleSubmit} className="space-y-5">
-                {error && (
-                  <div className="p-4 text-sm text-destructive-foreground bg-destructive/10 border border-destructive/20 rounded-lg">
-                    {error}
-                  </div>
-                )}
+            )}
 
-                <div className="space-y-4">
-                  <div className="flex justify-center space-x-3">
-                    {otp.map((digit, index) => (
-                      <Input
-                        key={index}
-                        ref={(el) => { inputRefs.current[index] = el; }} 
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={digit}
-                        onChange={(e) => handleInputChange(index, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(index, e)}
-                        className="w-12 h-12 text-center text-lg font-semibold bg-card border-border focus:border-primary focus:ring-primary/20"
-                      />
-                    ))}
-                  </div>
+            <h2 className="text-[34px] font-semibold tracking-[-0.045em] text-slate-950">
+              {isResetMode ? "Reset pin" : "Verify email"}
+            </h2>
+
+            <p className="mt-3 text-[15px] text-slate-500">
+              {isResetMode ? "We sent a " : "We sent a "}
+              {OTP_LENGTH} digit code to{" "}
+              <span className="text-slate-600">{email || "your email"}</span>
+              {isResetMode ? " to reset your password" : ""}
+            </p>
+
+            <form onSubmit={handleSubmit} className="mt-9">
+              <div className="grid grid-cols-6 gap-2 sm:gap-3">
+                {otp.map((digit, index) => (
+                  <Input
+                    key={index}
+                    ref={(el) => {
+                      inputRefs.current[index] = el
+                    }}
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={1}
+                    value={digit}
+                    onPaste={handlePaste}
+                    onChange={(e) =>
+                      handleInputChange(index, e.target.value)
+                    }
+                    onKeyDown={(e) => handleKeyDown(index, e)}
+                    className="h-[66px] rounded-xl border-slate-200 bg-white text-center text-[34px] font-semibold text-slate-400 shadow-sm focus:border-primary focus:ring-primary/20 sm:h-[72px]"
+                  />
+                ))}
+              </div>
+
+              {error && (
+                <div className="mt-4 rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {error}
                 </div>
+              )}
 
-                <Button
-                  type="submit"
-                  className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
-                  disabled={isLoading || otp.join("").length !== 6}
-                >
-                  {isLoading ? "Verifying..." : "Verify Code"}
-                </Button>
-              </form>
+              <Button
+                type="submit"
+                disabled={isLoading || otp.join("").length !== OTP_LENGTH}
+                className="mt-8 h-12 w-full rounded-md bg-primary text-[15px] font-medium text-white hover:bg-primary/90"
+              >
+                {isLoading
+                  ? "Checking..."
+                  : isResetMode
+                  ? "Set password"
+                  : "Get started"}
+              </Button>
+            </form>
 
-              <div className="text-center space-y-3">
-                <p className="text-sm text-muted-foreground">Didn't receive the code?</p>
-                <Button
-                  variant="ghost"
-                  onClick={handleResendCode}
-                  disabled={resendCooldown > 0}
-                  className="text-secondary hover:text-secondary/80 hover:bg-transparent"
-                >
-                  {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : "Resend code"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+            <div className="mt-8 text-center text-[14px] text-slate-500">
+              Didn&apos;t receive the email?{" "}
+              <button
+                type="button"
+                onClick={handleResendCode}
+                disabled={resendCooldown > 0}
+                className="font-medium text-primary hover:underline disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {resendCooldown > 0
+                  ? `Resend in ${resendCooldown}s`
+                  : "Click to resend"}
+              </button>
+            </div>
+
+            <div className="mt-8 text-center">
+              <Link
+                href="/auth/login"
+                className="inline-flex items-center text-[15px] text-slate-600 hover:text-slate-950"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to log in
+              </Link>
+            </div>
+          </div>
+
+          <SupportEmail />
+        </section>
       </div>
+    </main>
+  )
+}
+
+function SupportEmail() {
+  return (
+    <div className="absolute bottom-8 right-8 hidden items-center gap-2 text-[12px] text-slate-500 lg:flex">
+      <Mail className="h-4 w-4" />
+      support@brikcell.com
     </div>
   )
 }

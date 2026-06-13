@@ -2,7 +2,8 @@
 export const API_BASE =
 
 // Backend API URL
-process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://brickcell-production.up.railway.app";
+//process.env.NEXT_PUBLIC_API_BASE_URL ?? "https://brickcell-production.up.railway.app";
+process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8080";
 
 import { closeSocket } from "./socket-client";
 
@@ -21,6 +22,7 @@ type FetchOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   json?: any;
   formData?: FormData;
+  body?: BodyInit;
   //token?: string | null;
   signal?: AbortSignal;
 };
@@ -50,6 +52,8 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
 
     body: opts.formData
       ? opts.formData
+      : opts.body
+      ? opts.body
       : opts.json
       ? JSON.stringify(opts.json)
       : undefined,
@@ -76,6 +80,98 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   }
 
   return data as T;
+}
+
+/* ============================================================
+   Pagination Helpers
+   ============================================================ */
+
+export type PaginationMeta = {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNextPage: boolean
+  hasPrevPage: boolean
+}
+
+export type PaginatedResponse<T> = {
+  data: T[]
+  pagination: PaginationMeta
+}
+
+export function normalizePaginatedResponse<T>(res: any): PaginatedResponse<T> {
+  if (Array.isArray(res)) {
+    return {
+      data: res,
+      pagination: {
+        page: 1,
+        limit: res.length || 10,
+        total: res.length,
+        totalPages: 1,
+        hasNextPage: false,
+        hasPrevPage: false,
+      },
+    }
+  }
+
+  if (Array.isArray(res?.data) && res?.pagination) {
+    const page = Number(res.pagination.page || 1)
+    const limit = Number(res.pagination.limit || res.data.length || 10)
+    const total = Number(res.pagination.total || res.data.length)
+    const totalPages = Number(
+      res.pagination.totalPages || Math.max(Math.ceil(total / limit), 1)
+    )
+
+    return {
+      data: res.data,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage:
+          typeof res.pagination.hasNextPage === "boolean"
+            ? res.pagination.hasNextPage
+            : page < totalPages,
+        hasPrevPage:
+          typeof res.pagination.hasPrevPage === "boolean"
+            ? res.pagination.hasPrevPage
+            : page > 1,
+      },
+    }
+  }
+
+  if (Array.isArray(res?.results) && res?.pagination) {
+    const page = Number(res.pagination.page || 1)
+    const limit = Number(res.pagination.limit || res.results.length || 12)
+    const total = Number(res.pagination.total || res.results.length)
+    const totalPages = Math.max(Math.ceil(total / limit), 1)
+
+    return {
+      data: res.results,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    }
+  }
+
+  return {
+    data: [],
+    pagination: {
+      page: 1,
+      limit: 10,
+      total: 0,
+      totalPages: 1,
+      hasNextPage: false,
+      hasPrevPage: false,
+    },
+  }
 }
 
 /* ============================================================
@@ -165,6 +261,7 @@ export const AuthAPI = {
 
 export type GetArtisanProfileResponse = {
   profile: {
+    portfolioGallery(portfolioGallery: any): unknown;
     primaryService: any;
     service_type: any;
     id: string;
@@ -214,6 +311,7 @@ export function updateMyArtisanProfile(
 
 export function searchArtisans(params: {
   type?: string;
+  types?: string[]
   location?: string;
   rating?: string;
   available?: boolean;
@@ -222,16 +320,23 @@ export function searchArtisans(params: {
 }) {
   const qs = new URLSearchParams();
 
-  if (params.type) qs.append("type", params.type);
-  if (params.location) qs.append("location", params.location);
-  if (params.rating) qs.append("rating", params.rating);
-  if (params.available !== undefined)
-    qs.append("available", params.available ? "true" : "false");
+  if (params.type) qs.append("type", params.type)
 
-  qs.append("page", String(params.page ?? 1));
-  qs.append("limit", String(params.limit ?? 12));
+  if (params.types?.length) {
+    qs.append("types", params.types.join(","))
+  }
 
-  return request(`/artisans/search?${qs.toString()}`);
+  if (params.location) qs.append("location", params.location)
+  if (params.rating) qs.append("rating", params.rating)
+
+  if (params.available !== undefined) {
+    qs.append("available", params.available ? "true" : "false")
+  }
+
+  qs.append("page", String(params.page ?? 1))
+  qs.append("limit", String(params.limit ?? 24))
+
+  return request<any>(`/artisans/search?${qs.toString()}`)
 }
 
 /* ============================================================
@@ -342,8 +447,8 @@ export type EmployerDashboardOverviewResponse = {
 }
 
 export const CustomerDashboardAPI = {
-  getOverview() {
-    return request<EmployerDashboardOverviewResponse>("/customer/dashboard", {
+  getOverview(page = 1, limit = 6) {
+    return request<EmployerDashboardOverviewResponse>(`/customer/dashboard?page=${page}&limit=${limit}`, {
       //token: getAuth()?.token,
     })
   },
@@ -366,20 +471,20 @@ export const CustomerDashboardAPI = {
     })
   },
 
-  getActiveJobs() {
-    return request<EmployerDashboardJob[]>("/customer/dashboard/active", {
+  getActiveJobs(page = 1, limit = 6) {
+    return request<EmployerDashboardJob[]>(`/customer/dashboard/active?page=${page}&limit=${limit}`, {
       //token: getAuth()?.token,
     })
   },
 
-  getJobHistory() {
-    return request<EmployerDashboardJob[]>("/customer/dashboard/history", {
+  getJobHistory(page = 1, limit = 6) {
+    return request<EmployerDashboardJob[]>(`/customer/dashboard/history?page=${page}&limit=${limit}`, {
       //token: getAuth()?.token,
     })
   },
 
-  getSuggestedArtisans() {
-    return request<EmployerDashboardSuggestedArtisan[]>("/customer/dashboard/recommended", {
+  getSuggestedArtisans(page = 1, limit = 6) {
+    return request<EmployerDashboardSuggestedArtisan[]>(`/customer/dashboard/recommended?page=${page}&limit=${limit}`, {
       //token: getAuth()?.token,
     })
   },
@@ -412,27 +517,22 @@ export type ArtisanDashboardSummary = {
 }
 
 export function getArtisanDashboardSummary() {
+  
   return request<ArtisanDashboardSummary>("/artisan/dashboard/summary", {
     //token,
   })
 }
 
-export function getArtisanJobRequests() {
-  return request<any[]>("/artisan/dashboard/requests", {
-    //token,
-  })
+export function getArtisanJobRequests(page = 1, limit = 6) {
+  return request<any>(`/artisan/dashboard/requests?page=${page}&limit=${limit}`)
 }
 
-export function getArtisanActiveJobs() {
-  return request<any[]>("/artisan/dashboard/active", {
-    //token,
-  })
+export function getArtisanActiveJobs(page = 1, limit = 6) {
+  return request<any>(`/artisan/dashboard/active?page=${page}&limit=${limit}`)
 }
 
-export function getArtisanJobHistory() {
-  return request<any[]>("/artisan/dashboard/history", {
-    //token,
-  })
+export function getArtisanJobHistory(page = 1, limit = 6) {
+  return request<any>(`/artisan/dashboard/history?page=${page}&limit=${limit}`)
 }
 
 
@@ -485,6 +585,16 @@ export type ChatMessageDTO = {
   sender_id: string;
   message: string;
   createdAt: string;
+  created_at?: string;
+
+  type?: "text" | "contract" | "phase-update" | "payment-prompt" | "file" | "system";
+
+  file_url?: string | null;
+  file_public_id?: string | null;
+  file_original_name?: string | null;
+  file_mime_type?: string | null;
+  file_size?: number | null;
+  file_resource_type?: string | null;
 };
 
 export function listChatRooms() {
@@ -502,6 +612,27 @@ export function sendChatMessage(roomId: string, message: string) {
   return request<ChatMessageDTO>(`/chat/${roomId}/messages`, {
     method: 'POST',
     json: { message },
+  });
+}
+
+export function sendChatMessageWithFile(
+  roomId: string,
+  payload: {
+    message?: string;
+    file: File;
+  }
+) {
+  const formData = new FormData();
+
+  if (payload.message?.trim()) {
+    formData.append("message", payload.message.trim());
+  }
+
+  formData.append("file", payload.file);
+
+  return request<ChatMessageDTO>(`/chat/${roomId}/messages`, {
+    method: "POST",
+    formData,
   });
 }
 
@@ -822,6 +953,616 @@ export async function listMyWithdrawals() {
   } catch (error: any) {
     throw new Error(getApiErrorMessage(error, "Failed to load withdrawals"))
   }
+}
+
+
+/* ============================================================
+   JOBS
+   ============================================================ */
+
+export type JobStatus = "open" | "in_progress" | "completed" | "cancelled"
+
+export type JobEmployer = {
+  id: string
+  name: string
+  email?: string
+  receivedReviews?: { rating: number }[]
+}
+
+export type JobRecord = {
+  id: string
+  employer_id: string
+  title: string
+  description?: string | null
+  category?: string | null
+  location?: string | null
+  budget_min?: number | string | null
+  budget_max?: number | string | null
+  status: JobStatus
+  created_at?: string
+  createdAt?: string
+  updated_at?: string
+  updatedAt?: string
+  employer?: JobEmployer
+}
+
+export type SearchJobsParams = {
+  type?: string
+  location?: string
+  rating?: string
+  available?: boolean
+  page?: number
+  limit?: number
+}
+
+export function listJobs(page = 1, limit = 12) {
+  return request<any>(`/jobs?page=${page}&limit=${limit}`)
+}
+
+export function searchJobs(params: SearchJobsParams = {}) {
+  const qs = new URLSearchParams()
+
+  if (params.type) qs.append("type", params.type)
+  if (params.location) qs.append("location", params.location)
+  if (params.rating) qs.append("rating", params.rating)
+  if (params.available !== undefined) {
+    qs.append("available", params.available ? "true" : "false")
+  }
+
+  qs.append("page", String(params.page ?? 1))
+  qs.append("limit", String(params.limit ?? 12))
+
+  return request<any>(`/jobs/search?${qs.toString()}`)
+}
+
+export function getJobById(id: string) {
+  return request<JobRecord>(`/jobs/${id}` )
+}
+
+export function listMyEmployerJobs() {
+  return request<JobRecord[]>("/jobs/mine")
+}
+
+
+/* ============================================================
+   SERVICES
+   ============================================================ */
+
+export type ServiceType =
+  | "general"
+  | "hairstyling"
+  | "plumbing"
+  | "carpentry"
+  | "electrical"
+  | "painting"
+  | "cleaning"
+  | "autorepair"
+  | "techsupport"
+
+export type CreateServicePayload = {
+  title: string
+  service_type: ServiceType
+  location?: string
+  description?: string
+  requirements?: string
+  budget_min?: number
+  budget_max?: number
+  status?: "draft" | "published"
+  budget_type?: "fixed" | "hourly"
+  deadline?: string
+  is_negotiable?: boolean
+  includes_material_amount?: boolean
+  tags?: string[]
+  files?: File[]
+}
+
+export type ServiceRecord = {
+  id: string
+  artisan_id: string
+  title: string
+  service_type: ServiceType
+  location?: string | null
+  description?: string | null
+  requirements?: string | null
+  budget_min?: string | number | null
+  budget_max?: string | number | null
+  status?: "draft" | "published"
+  budget_type?: "fixed" | "hourly"
+  deadline?: string | null
+  is_negotiable?: boolean
+  includes_material_amount?: boolean
+  tags?: string[]
+  attachments?: any[]
+  created_at?: string
+  createdAt?: string
+}
+
+export async function createServiceListing(
+  payload: CreateServicePayload,
+  token?: string | null
+) {
+  const form = new FormData()
+
+  form.append("title", payload.title)
+  form.append("service_type", payload.service_type || "general")
+
+  if (payload.location) form.append("location", payload.location)
+  if (payload.description) form.append("description", payload.description)
+  if (payload.requirements) form.append("requirements", payload.requirements)
+  if (payload.budget_min !== undefined) form.append("budget_min", String(payload.budget_min))
+  if (payload.budget_max !== undefined) form.append("budget_max", String(payload.budget_max))
+  if (payload.status) form.append("status", payload.status)
+  if (payload.budget_type) form.append("budget_type", payload.budget_type)
+  if (payload.deadline) form.append("deadline", payload.deadline)
+
+  form.append("is_negotiable", String(Boolean(payload.is_negotiable)))
+  form.append("includes_material_amount", String(Boolean(payload.includes_material_amount)))
+  form.append("tags", JSON.stringify(payload.tags || []))
+
+  ;(payload.files || []).forEach((file) => {
+    form.append("files", file)
+  })
+
+  const auth = token ? { token } : getAuth()
+  const bearer = token || auth?.token
+
+  const res = await fetch(`${API_BASE}/services`, {
+    method: "POST",
+    // headers: bearer
+    //   ? {
+    //       Authorization: `Bearer ${bearer}`,
+    //     }
+    //   : undefined,
+    body: form,
+  })
+
+  const data = await res.json().catch(() => null)
+
+  if (!res.ok) {
+    throw new Error(data?.message || data?.error || "Failed to create service")
+  }
+
+  return data as ServiceRecord
+}
+
+export function listMyServices() {
+  return request<ServiceRecord[]>("/services/mine", {
+   
+  })
+}
+
+export function listServices() {
+  return request<ServiceRecord[]>("/services")
+}
+
+export function getServiceById(id: string) {
+  return request<ServiceRecord>(`/services/${id}`)
+}
+
+export function searchServices(params: {
+  type?: string
+  location?: string
+  rating?: string
+  available?: boolean
+}) {
+  const qs = new URLSearchParams()
+
+  if (params.type) qs.append("type", params.type)
+  if (params.location) qs.append("location", params.location)
+  if (params.rating) qs.append("rating", params.rating)
+  if (params.available !== undefined) qs.append("available", String(params.available))
+
+  return request<ServiceRecord[]>(`/services/search?${qs.toString()}`)
+}
+
+/* ============================================================
+   POST GIG / JOB
+   ============================================================ */
+
+export type CreateJobPostingFormPayload = {
+  title: string
+  description?: string
+  category?: string
+  location?: string
+  budget_min?: number
+  budget_max?: number
+  skills_required?: string[]
+  budget_type?: "fixed" | "hourly"
+  deadline_at?: string
+  is_remote?: boolean
+  contact_preference?: "platform" | "direct"
+  is_negotiable?: boolean
+  includes_material?: boolean
+  status?: "draft" | "open"
+  files?: File[]
+}
+
+export async function createJobPostingWithFiles(
+  payload: CreateJobPostingFormPayload,
+  token?: string | null
+) {
+  const formData = new FormData();
+
+  formData.append("title", payload.title);
+
+  if (payload.description) formData.append("description", payload.description);
+  if (payload.category) formData.append("category", payload.category);
+  if (payload.location) formData.append("location", payload.location);
+
+  if (payload.budget_min !== undefined) {
+    formData.append("budget_min", String(payload.budget_min));
+  }
+
+  if (payload.budget_max !== undefined) {
+    formData.append("budget_max", String(payload.budget_max));
+  }
+
+  formData.append("skills_required", JSON.stringify(payload.skills_required || []));
+  formData.append("budget_type", payload.budget_type || "fixed");
+  formData.append("is_remote", String(Boolean(payload.is_remote)));
+  formData.append("contact_preference", payload.contact_preference || "platform");
+  formData.append("is_negotiable", String(Boolean(payload.is_negotiable)));
+  formData.append("includes_material", String(Boolean(payload.includes_material)));
+  formData.append("status", payload.status || "open");
+
+  if (payload.deadline_at) {
+    formData.append("deadline_at", payload.deadline_at);
+  }
+
+  if (payload.files?.length) {
+    payload.files.forEach((file) => {
+      formData.append("files", file);
+    });
+  }
+
+  return request<any>("/jobs", {
+    method: "POST",
+    formData,
+  });
+}
+
+/* ============================================================
+   EMPLOYER WALLET
+   ============================================================ */
+
+export type EmployerWalletTransaction = {
+  id: string
+  title: string
+  type: "deposit" | "job_payment" | "withdrawal" | string
+  amount: number
+  status: string
+  method?: string
+  reference?: string
+  contractId?: string | null
+  createdAt?: string
+}
+
+export function getEmployerWalletStats() {
+  return CustomerDashboardAPI.getStats()
+}
+
+export function getEmployerWalletTransactions(page = 1, limit = 10) {
+  return request<any>(
+    `/customer/dashboard/wallet/transactions?page=${page}&limit=${limit}`
+  )
+}
+
+/* ============================================================
+   Artisan BOOKINGS
+   ============================================================ */
+
+export type BookingStatus = "scheduled" | "completed" | "cancelled"
+
+export type BookingRecord = {
+  id: string
+  customer_id: string
+  artisan_id: string
+  job_id: string
+  proposal_id: string
+  scheduled_at: string
+  status: BookingStatus
+  details?: any
+  created_at?: string
+  updated_at?: string
+
+  Job?: {
+    id: string
+    title: string
+    description?: string | null
+    category?: string | null
+    location?: string | null
+    budget_min?: string | number | null
+    budget_max?: string | number | null
+    status?: string
+  }
+
+  job?: {
+    id: string
+    title: string
+    description?: string | null
+    category?: string | null
+    location?: string | null
+    budget_min?: string | number | null
+    budget_max?: string | number | null
+    status?: string
+  } | null
+
+  Proposal?: any
+  proposal?: any
+
+  customer?: {
+    id: string
+    name: string
+    email: string
+  } | null
+
+  artisan?: {
+    id: string
+    name: string
+    email: string
+  } | null
+}
+
+export function listArtisanBookings(authToken: string) {
+  return request<BookingRecord[]>("/bookings/artisan", {
+  
+  })
+}
+
+export function listArtisanBookingHistory(authToken: string) {
+  return request<BookingRecord[]>("/bookings/artisan/history", {
+    
+  })
+}
+
+export function getBookingById(id: string) {
+  return request<BookingRecord>(`/bookings/${id}`, {
+    
+  })
+}
+
+export function updateBookingStatusArtisan(
+id: string, p0: string, token: string, status: BookingStatus,
+) {
+  return request<BookingRecord>(`/bookings/${id}/status`, {
+    method: "PATCH",
+    json: { status },
+    
+  })
+}
+
+export function modifyBooking(
+  id: string,
+  payload: {
+    scheduledAt: string
+    details?: any
+  },
+) {
+  return request<BookingRecord>(`/bookings/${id}`, {
+    method: "PATCH",
+    json: payload,
+    
+  })
+}
+
+/* ============================================================
+   EMPLOYER BOOKINGS
+   ============================================================ */
+
+export type BookingDTO = {
+  id: string
+  customer_id: string
+  artisan_id: string
+  job_id: string
+  proposal_id: string
+  scheduled_at: string
+  status: BookingStatus
+  details?: any
+  created_at?: string
+  updated_at?: string
+  job?: {
+    id: string
+    title: string
+    description?: string | null
+    category?: string | null
+    location?: string | null
+    budget_min?: string | number | null
+    budget_max?: string | number | null
+    status?: string
+  } | null
+  proposal?: any
+  artisan?: {
+    id: string
+    name: string
+    email: string
+  } | null
+  customer?: {
+    id: string
+    name: string
+    email: string
+  } | null
+}
+
+export function listEmployerBookings() {
+  return request<BookingDTO[]>("/bookings")
+}
+
+export function listEmployerBookingHistory() {
+  return request<BookingDTO[]>("/bookings/history")
+}
+
+export function getBookingDetails(id: string) {
+  return request<BookingDTO>(`/bookings/${id}`)
+}
+
+export function updateBookingStatusEmployer(id: string, status: BookingStatus) {
+  return request<BookingDTO>(`/bookings/${id}/status`, {
+    method: "PATCH",
+    json: { status },
+  })
+}
+
+
+/* ============================================================
+   SETTINGS
+   ============================================================ */
+
+export type UserSettingsPayload = {
+  push_notification?: boolean
+  email_notification?: boolean
+  sms_notification?: boolean
+  notify_job_status?: boolean
+  notify_feedback?: boolean
+  notify_deposit_withdrawal?: boolean
+  notify_promotions?: boolean
+  notify_newsletters?: boolean
+  prompt_feedback?: boolean
+  auto_send_feedback_request?: boolean
+  make_reviews_public?: boolean
+  keep_reviews_anonymous?: boolean
+}
+
+export function getMyProfile() {
+  return request<any>("/users/me", {
+   
+  })
+}
+
+export function updateMyProfile(payload: any) {
+  return request<any>("/users/me", {
+    method: "PATCH",
+    json: payload,
+   
+  })
+}
+
+export function updateMyProfessionalProfile(payload: any) {
+  return request<any>("/users/me/professional-profile", {
+    method: "PATCH",
+    json: payload,
+    
+  })
+}
+
+export function updateMySettings(payload: UserSettingsPayload) {
+  return request<any>("/users/me/settings", {
+    method: "PATCH",
+    json: payload,
+
+  })
+}
+
+export function changeMyPassword(
+  payload: {
+    currentPassword: string
+    newPassword: string
+    confirmPassword: string
+  },
+
+) {
+  return request<{ message: string }>("/users/me/password", {
+    method: "PATCH",
+    json: payload,
+  
+  })
+}
+
+export function getMyReviews() {
+  return request<any[]>("/users/me/reviews", {
+   
+  })
+}
+
+/* ============================================================
+   EMPLOYER SETTINGS
+   ============================================================ */
+
+export type EmployerProfessionalProfilePayload = {
+  company_name?: string
+  industry?: string
+  company_size?: string
+  hiring_frequency?: string
+  preferred_categories?: string[]
+  average_budget?: number | string | null
+  company_description?: string
+  website?: string
+  state?: string
+  city?: string
+  address?: string
+  verification_document?: string
+  portfolio_reference?: string
+  verification_document_public_id?: string
+  portfolio_reference_public_id?: string
+}
+
+export function updateMyEmployerProfessionalProfile(
+  payload: EmployerProfessionalProfilePayload
+) {
+  return request("/users/me/employer-professional-profile", {
+    method: "PATCH",
+    json: payload,
+  })
+}
+
+export function getMyReviewsGiven() {
+  return request<any[]>("/users/me/reviews-given")
+}
+
+/* ============================================================
+   CLOUDINARY UPLOADS
+   ============================================================ */
+   
+export type CloudinaryUploadResponse = {
+  url: string
+  public_id: string
+  resource_type: string
+  format?: string
+  bytes?: number
+  original_name?: string
+  mime_type?: string
+}
+
+export function uploadSingleFile(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  return request<CloudinaryUploadResponse>("/uploads/single", {
+    method: "POST",
+    formData,
+  })
+}
+
+export function uploadMultipleFiles(files: File[]) {
+  const formData = new FormData()
+
+  files.forEach((file) => {
+    formData.append("files", file)
+  })
+
+  return request<CloudinaryUploadResponse[]>("/uploads/multiple", {
+    method: "POST",
+    formData,
+  })
+}
+
+export function uploadProfileImage(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  return request<CloudinaryUploadResponse>("/uploads/profile-image", {
+    method: "POST",
+    formData,
+  })
+}
+
+export function uploadDocument(file: File) {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  return request<CloudinaryUploadResponse>("/uploads/document", {
+    method: "POST",
+    formData,
+  })
 }
 
 /* ============================================================

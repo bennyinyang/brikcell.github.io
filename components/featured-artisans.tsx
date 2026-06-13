@@ -102,6 +102,7 @@ export function FeaturedArtisans() {
               </CardContent>
             </Card>
           ))}
+          
         </div>
 
         <div className="text-center mt-12">

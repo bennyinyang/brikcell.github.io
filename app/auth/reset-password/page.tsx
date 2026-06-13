@@ -4,41 +4,47 @@ import type React from "react"
 
 import { useState } from "react"
 import Link from "next/link"
-import { useSearchParams, useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
+import { ArrowLeft, CheckCircle2, Eye, EyeOff, LockKeyhole, Mail } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Eye, EyeOff, ArrowLeft, Lock, Check } from "lucide-react"
 import { AuthAPI } from "@/lib/api"
 
 export default function ResetPasswordPage() {
-  const [otp, setOtp] = useState("")
+  const searchParams = useSearchParams()
+  const router = useRouter()
+
+  const email = (searchParams.get("email") || "").trim().toLowerCase()
+  const otp = (searchParams.get("otp") || "").replace(/\D/g, "").slice(0, 6)
+
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
   const [showPassword, setShowPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [isSuccess, setIsSuccess] = useState(false)
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [serverError, setServerError] = useState("")
-  const searchParams = useSearchParams()
-  const router = useRouter()
-  const email = (searchParams.get("email") || "").trim().toLowerCase()
+
+  const hasEightCharacters = password.length >= 8
+  const hasSpecialCharacter = /[^A-Za-z0-9]/.test(password)
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {}
 
-    if (!otp || otp.trim().length !== 6) {
-      newErrors.otp = "Enter the 6-digit code sent to your email"
+    if (!email || !otp || otp.length !== 6) {
+      newErrors.form = "Missing reset code. Please restart the reset process."
     }
 
     if (!password) {
       newErrors.password = "Password is required"
-    } else if (password.length < 8) {
+    } else if (!hasEightCharacters) {
       newErrors.password = "Password must be at least 8 characters"
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
-      newErrors.password = "Password must contain uppercase, lowercase, and number"
+    }
+
+    if (!hasSpecialCharacter) {
+      newErrors.password = "Password must contain one special character"
     }
 
     if (password !== confirmPassword) {
@@ -59,17 +65,13 @@ export default function ResetPasswordPage() {
     setServerError("")
 
     try {
-      if (!email) {
-        throw new Error("Missing email. Please restart the reset process.")
-      }
       await AuthAPI.resetPassword({
         email,
-        otp: otp.trim(),
-        newPassword: password
+        otp,
+        newPassword: password,
       })
-      setTimeout(() => {
-        router.push("/auth/password-changed")
-      }, 2000)
+
+      router.push("/auth/password-changed")
     } catch (err: any) {
       setServerError(err?.message || "Failed to update password. Please try again.")
     } finally {
@@ -77,171 +79,181 @@ export default function ResetPasswordPage() {
     }
   }
 
-  const handleInputChange = (field: string, value: string) => {
-    if (field === "password") {
-      setPassword(value)
-    } else if (field === "confirmPassword") {
-      setConfirmPassword(value)
-    } else if (field === "otp") {
-      setOtp(value.replace(/\D/g, "").slice(0, 6)) // digits only, max 6
-    }
-
-    if (errors[field]) {
-      setErrors((prev) => ({ ...prev, [field]: "" }))
-    }
-  }
-
-  if (isSuccess) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background p-8">
-        <Card className="w-full max-w-md border-0 shadow-lg bg-card">
-          <CardContent className="pt-8 pb-8">
-            <div className="text-center space-y-6">
-              <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-                <Check className="h-8 w-8 text-green-600" />
-              </div>
-              <div>
-                <h2 className="text-2xl font-bold text-foreground">Password Reset!</h2>
-                <p className="text-muted-foreground mt-2">Your password has been successfully updated.</p>
-              </div>
-              <p className="text-sm text-muted-foreground">Redirecting to confirmation page...</p>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
-
   return (
-    <div className="min-h-screen flex">
-      {/* Left Side - Brand Imagery */}
-      <div className="hidden lg:flex lg:w-1/2 relative bg-gradient-to-br from-secondary/90 via-secondary to-secondary/80 overflow-hidden">
-        {/* Background Image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: "url('/professional-painter.png')",
-          }}
-        />
-        {/* Overlay */}
-        <div className="absolute inset-0 bg-gradient-to-br from-secondary/80 via-secondary/60 to-secondary/90" />
+    <main className="min-h-screen w-full bg-white">
+      <div className="grid min-h-screen w-full grid-cols-1 lg:grid-cols-2">
+        <AuthImagePanel />
 
-        {/* Content */}
-        <div className="relative z-10 flex flex-col justify-center px-12 py-16 text-white">
-          <div className="max-w-md">
-            <h1 className="text-4xl font-bold mb-6 leading-tight">Create New Password</h1>
-            <p className="text-xl text-white/90 mb-8 leading-relaxed">
-              Choose a strong, secure password to protect your Brikcell account. Make it unique and memorable for you.
-            </p>
-            <div className="space-y-4 text-white/80">
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-white rounded-full" />
-                <span>Strong password protection</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-white rounded-full" />
-                <span>Encrypted data storage</span>
-              </div>
-              <div className="flex items-center space-x-3">
-                <div className="w-2 h-2 bg-white rounded-full" />
-                <span>Secure account access</span>
-              </div>
+        <section className="relative flex min-h-screen w-full items-center justify-center bg-white px-6 py-10 lg:px-12">
+          <div className="w-full max-w-[420px]">
+            <div className="mb-7 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white">
+              <LockKeyhole className="h-4 w-4 text-slate-700" />
             </div>
-          </div>
-        </div>
-      </div>
 
-      {/* Right Side - Reset Password Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-background">
-        <div className="w-full max-w-md space-y-6">
-          {/* Back to Login */}
-          <Link
-            href="/auth/login"
-            className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4 mr-2" />
-            Back to Login
-          </Link>
+            <div className="mb-7">
+              <h1 className="text-[30px] font-semibold tracking-[-0.04em] text-slate-950">
+                Set new password
+              </h1>
+              <p className="mt-3 text-[13px] leading-5 text-slate-500">
+                Your new password must be different to previously used passwords.
+              </p>
+            </div>
 
-          {/* Form Card */}
-          <Card className="border-0 shadow-none bg-transparent">
-            <CardHeader className="space-y-1 px-0 text-center">
-              <div className="mx-auto w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mb-4">
-                <Lock className="h-6 w-6 text-primary" />
-              </div>
-              <CardTitle className="text-3xl font-bold tracking-tight text-foreground">Reset password</CardTitle>
-              <CardDescription className="text-muted-foreground text-base">
-                Create a new secure password for your account
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6 px-0">
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="space-y-2">
-                  <Label htmlFor="otp" className="text-sm font-medium text-foreground">
-                    6-digit Code
-                  </Label>
+            <form onSubmit={handleSubmit} className="space-y-5">
+              {(errors.form || serverError) && (
+                <div className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+                  {errors.form || serverError}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <Label htmlFor="password" className="text-[13px] text-slate-800">
+                  Password
+                </Label>
+
+                <div className="relative">
                   <Input
-                    id="otp"
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    placeholder="Enter the code sent to your email"
-                    value={otp}
-                    onChange={(e) => handleInputChange("otp", e.target.value)}
-                    className={`h-12 bg-card border-border focus:border-primary focus:ring-primary/20 ${errors.otp ? "border-destructive" : ""}`}
+                    id="password"
+                    type={showPassword ? "text" : "password"}
+                    placeholder="••••"
+                    value={password}
+                    onChange={(e) => {
+                      setPassword(e.target.value)
+                      setErrors((prev) => ({ ...prev, password: "" }))
+                    }}
+                    className="h-11 rounded-md border-slate-200 pr-10 text-[15px]"
                   />
-                  {errors.otp && <p className="text-sm text-destructive">{errors.otp}</p>}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
+              </div>
 
-                <div className="space-y-2">
-                  <Label htmlFor="confirmPassword" className="text-sm font-medium text-foreground">
-                    Confirm New Password
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="confirmPassword"
-                      type={showConfirmPassword ? "text" : "password"}
-                      placeholder="Confirm new password"
-                      value={confirmPassword}
-                      onChange={(e) => handleInputChange("confirmPassword", e.target.value)}
-                      className={`h-12 pr-12 bg-card border-border focus:border-primary focus:ring-primary/20 ${errors.confirmPassword ? "border-destructive" : ""}`}
-                    />
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      className="absolute right-0 top-0 h-full px-3 hover:bg-transparent"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    >
-                      {showConfirmPassword ? (
-                        <EyeOff className="h-4 w-4 text-muted-foreground" />
-                      ) : (
-                        <Eye className="h-4 w-4 text-muted-foreground" />
-                      )}
-                    </Button>
-                  </div>
-                  {errors.confirmPassword && <p className="text-sm text-destructive">{errors.confirmPassword}</p>}
-                </div>
-
-                {/* Server error (e.g., invalid/expired OTP) */}
-                {serverError && (
-                  <div className="p-4 text-sm text-destructive-foreground bg-destructive/10 border border-destructive/20 rounded-lg">
-                    {serverError}
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  className="w-full h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-medium"
-                  disabled={isLoading}
+              <div className="space-y-2">
+                <Label
+                  htmlFor="confirmPassword"
+                  className="text-[13px] text-slate-800"
                 >
-                  {isLoading ? "Updating password..." : "Update password"}
-                </Button>
-              </form>
-            </CardContent>
-          </Card>
-        </div>
+                  Confirm password
+                </Label>
+
+                <div className="relative">
+                  <Input
+                    id="confirmPassword"
+                    type={showConfirmPassword ? "text" : "password"}
+                    placeholder="••••"
+                    value={confirmPassword}
+                    onChange={(e) => {
+                      setConfirmPassword(e.target.value)
+                      setErrors((prev) => ({ ...prev, confirmPassword: "" }))
+                    }}
+                    className="h-11 rounded-md border-slate-200 pr-10 text-[15px]"
+                  />
+
+                  <button
+                    type="button"
+                    onClick={() => setShowConfirmPassword((prev) => !prev)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showConfirmPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
+                </div>
+
+                {errors.confirmPassword && (
+                  <p className="text-xs text-red-500">{errors.confirmPassword}</p>
+                )}
+              </div>
+
+              <div className="space-y-2 pt-1">
+                <PasswordRule active={hasEightCharacters}>
+                  Must be at least 8 characters
+                </PasswordRule>
+                <PasswordRule active={hasSpecialCharacter}>
+                  Must contain one special character
+                </PasswordRule>
+
+                {errors.password && (
+                  <p className="pt-1 text-xs text-red-500">{errors.password}</p>
+                )}
+              </div>
+
+              <Button
+                type="submit"
+                disabled={isLoading}
+                className="h-11 w-full rounded-md bg-primary text-[14px] font-medium text-white hover:bg-primary/90"
+              >
+                {isLoading ? "Resetting..." : "Reset password"}
+              </Button>
+
+              <div className="pt-2 text-center">
+                <Link
+                  href="/auth/login"
+                  className="inline-flex items-center text-[13px] text-slate-600 hover:text-slate-950"
+                >
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back to log in
+                </Link>
+              </div>
+            </form>
+          </div>
+
+          <SupportEmail />
+        </section>
       </div>
+    </main>
+  )
+}
+
+function PasswordRule({
+  active,
+  children,
+}: {
+  active: boolean
+  children: React.ReactNode
+}) {
+  return (
+    <div className="flex items-center gap-2 text-[12px] text-slate-500">
+      <CheckCircle2
+        className={`h-4 w-4 ${
+          active ? "text-green-500" : "text-slate-300"
+        }`}
+      />
+      <span>{children}</span>
+    </div>
+  )
+}
+
+function AuthImagePanel() {
+  return (
+    <section className="relative hidden min-h-screen overflow-hidden lg:block">
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: "url('/auth/forgot-hero.png')",
+        }}
+      />
+    </section>
+  )
+}
+
+function SupportEmail() {
+  return (
+    <div className="absolute bottom-8 right-8 hidden items-center gap-2 text-[12px] text-slate-500 lg:flex">
+      <Mail className="h-4 w-4" />
+      support@brikcell.com
     </div>
   )
 }

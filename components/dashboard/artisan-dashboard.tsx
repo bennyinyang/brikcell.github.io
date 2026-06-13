@@ -1,32 +1,45 @@
 "use client"
 
-import { useEffect, useState } from "react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
+import {
+  Briefcase,
+  Calendar,
+  ChevronDown,
+  CircleUserRound,
+  CreditCard,
+  LayoutDashboard,
+  Search,
+  Settings,
+  ShieldQuestion,
+  Star,
+  User,
+  Wallet,
+  X,
+} from "lucide-react"
+
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Card, CardContent } from "@/components/ui/card"
+import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
-  DollarSign,
-  Star,
-  Clock,
-  CheckCircle,
-  AlertCircle,
-  MessageSquare,
-  Calendar,
-  MapPin,
-  Eye,
-  FileText,
-} from "lucide-react"
-import Link from "next/link"
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+
 import {
   getArtisanDashboardSummary,
   getArtisanJobRequests,
   getArtisanActiveJobs,
   getArtisanJobHistory,
-  getAuth,
+  normalizePaginatedResponse,
+  type PaginationMeta,
 } from "@/lib/api"
-import { WithdrawalCard } from "@/components/withdrawal-card"
+import { PaginationControl } from "@/components/pagination-control"
 
 type DashboardRequestCard = {
   id: string
@@ -76,7 +89,28 @@ function formatDate(value?: string | null) {
   if (!value) return "—"
   const d = new Date(value)
   if (Number.isNaN(d.getTime())) return "—"
-  return d.toLocaleDateString()
+
+  return d.toLocaleDateString(undefined, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  })
+}
+
+function formatTime(value?: string | null) {
+  if (!value) return "10:00 AM"
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return "10:00 AM"
+
+  return d.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  })
+}
+
+function formatMoney(value?: string | number | null) {
+  const num = Number(value || 0)
+  return `₦${num.toLocaleString()}`
 }
 
 function formatCurrencyRange(minValue?: any, maxValue?: any) {
@@ -92,6 +126,7 @@ function formatCurrencyRange(minValue?: any, maxValue?: any) {
 function formatCurrencyFromMilestone(raw: any) {
   const amount = Number(raw?.amount || 0)
   if (amount > 0) return `₦${amount.toLocaleString()}`
+
   return formatCurrencyRange(
     raw?.contract?.job?.budget_min ?? raw?.job?.budget_min,
     raw?.contract?.job?.budget_max ?? raw?.job?.budget_max
@@ -100,6 +135,54 @@ function formatCurrencyFromMilestone(raw: any) {
 
 function normalizeMilestoneStatus(status: any) {
   return String(status || "").toUpperCase()
+}
+
+function getStatusLabel(status: string) {
+  const normalized = normalizeMilestoneStatus(status)
+
+  switch (normalized) {
+    case "ACTIVE":
+    case "FUNDED":
+      return "Scheduled"
+    case "SUBMITTED":
+      return "Submitted"
+    case "APPROVAL_PENDING":
+      return "Review"
+    case "APPROVED":
+      return "Approved"
+    case "RELEASED":
+    case "PARTIAL_RELEASED":
+    case "PAID":
+      return "Completed"
+    case "REFUNDED":
+      return "Refunded"
+    case "CANCELLED":
+      return "Cancelled"
+    default:
+      return "In progress"
+  }
+}
+
+function getStatusClass(status: string) {
+  const normalized = normalizeMilestoneStatus(status)
+
+  switch (normalized) {
+    case "ACTIVE":
+    case "FUNDED":
+    case "SUBMITTED":
+    case "APPROVAL_PENDING":
+    case "APPROVED":
+      return "bg-slate-100 text-slate-600 border-slate-200"
+    case "RELEASED":
+    case "PARTIAL_RELEASED":
+    case "PAID":
+      return "bg-green-50 text-green-700 border-green-200"
+    case "REFUNDED":
+    case "CANCELLED":
+      return "bg-red-50 text-red-700 border-red-200"
+    default:
+      return "bg-orange-50 text-orange-700 border-orange-200"
+  }
 }
 
 function mapRequest(raw: any): DashboardRequestCard {
@@ -123,17 +206,33 @@ function mapRequest(raw: any): DashboardRequestCard {
 }
 
 function mapActiveJob(raw: any): DashboardActiveJobCard {
-  const contract = raw?.contract || {}
-  const job = contract?.job || raw?.job || {}
-  const employer = contract?.employer || raw?.employer || {}
+  const contract = raw?.contract || raw?.Contract || {}
+  const job = contract?.job || contract?.Job || raw?.job || raw?.Job || {}
+  const employer =
+    contract?.employer ||
+    contract?.Employer ||
+    job?.employer ||
+    job?.Employer ||
+    raw?.employer ||
+    raw?.Employer ||
+    {}
 
   return {
     id: String(raw?.id || ""),
     jobId: String(job?.id || contract?.job_id || raw?.job_id || ""),
-    title: raw?.title || job?.title || "Untitled Job",
-    location: job?.location || "No location",
+    title:
+      raw?.title ||
+      raw?.name ||
+      job?.title ||
+      contract?.title ||
+      "Untitled Service",
+    location:
+      job?.location ||
+      contract?.location ||
+      raw?.location ||
+      "No location",
     budget: formatCurrencyFromMilestone(raw),
-    status: String(raw?.status || ""),
+    status: String(raw?.status || contract?.status || ""),
     deadline: formatDate(
       raw?.review_deadline_at ||
         raw?.approved_at ||
@@ -143,22 +242,38 @@ function mapActiveJob(raw: any): DashboardActiveJobCard {
     ),
     customer: {
       id: String(employer?.id || ""),
-      name: employer?.name || "Employer",
+      name: employer?.name || "User",
       email: employer?.email || "",
     },
   }
 }
 
 function mapHistoryJob(raw: any): DashboardHistoryCard {
-  const contract = raw?.contract || {}
-  const job = contract?.job || raw?.job || {}
-  const employer = contract?.employer || raw?.employer || {}
+  const contract = raw?.contract || raw?.Contract || {}
+  const job = contract?.job || contract?.Job || raw?.job || raw?.Job || {}
+  const employer =
+    contract?.employer ||
+    contract?.Employer ||
+    job?.employer ||
+    job?.Employer ||
+    raw?.employer ||
+    raw?.Employer ||
+    {}
 
   return {
     id: String(raw?.id || ""),
     jobId: String(job?.id || contract?.job_id || raw?.job_id || ""),
-    title: raw?.title || job?.title || "Untitled Job",
-    location: job?.location || "No location",
+    title:
+      raw?.title ||
+      raw?.name ||
+      job?.title ||
+      contract?.title ||
+      "Untitled Service",
+    location:
+      job?.location ||
+      contract?.location ||
+      raw?.location ||
+      "No location",
     budget: formatCurrencyFromMilestone(raw),
     completedDate: formatDate(
       raw?.updatedAt ||
@@ -168,43 +283,288 @@ function mapHistoryJob(raw: any): DashboardHistoryCard {
     ),
     customer: {
       id: String(employer?.id || ""),
-      name: employer?.name || "Employer",
+      name: employer?.name || "User",
       email: employer?.email || "",
     },
   }
 }
 
+function getInitials(name?: string) {
+  if (!name) return "A"
+  return name
+    .split(" ")
+    .map((n) => n[0])
+    .join("")
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+function EmptyServices() {
+  return (
+    <div className="relative flex min-h-[310px] flex-col items-center justify-center overflow-hidden rounded-2xl bg-white px-4 text-center">
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="h-[360px] w-[360px] rounded-full border border-slate-100" />
+        <div className="absolute h-[300px] w-[300px] rounded-full border border-slate-100" />
+        <div className="absolute h-[240px] w-[240px] rounded-full border border-slate-100" />
+        <div className="absolute h-[180px] w-[180px] rounded-full border border-slate-100" />
+        <div className="absolute h-[120px] w-[120px] rounded-full border border-slate-100" />
+      </div>
+
+      <div className="relative z-10 mb-4 flex h-12 w-12 items-center justify-center rounded-xl border bg-white shadow-sm">
+        <CircleUserRound className="h-6 w-6 text-slate-500" />
+      </div>
+
+      <h3 className="relative z-10 text-base font-semibold text-slate-950">
+        No services found
+      </h3>
+      <p className="relative z-10 mt-1 text-sm text-slate-500">
+        You haven&apos;t started any services yet.
+      </p>
+
+      <div className="relative z-10 mt-6 flex flex-col gap-3 sm:flex-row">
+        <Button asChild variant="outline" className="min-w-[140px]">
+          <Link href="/dashboard/jobs">Search for Jobs</Link>
+        </Button>
+
+        <Button asChild className="min-w-[140px] bg-primary hover:bg-primary/90">
+          <Link href="/dashboard/services/post">Post a service</Link>
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function ServiceCard({
+  item,
+  type,
+  onViewDetails,
+}: {
+  item: DashboardActiveJobCard | DashboardHistoryCard
+  type: "active" | "history"
+  onViewDetails: (item: DashboardActiveJobCard | DashboardHistoryCard) => void
+}) {
+  const isHistory = type === "history"
+  const status = isHistory ? "RELEASED" : (item as DashboardActiveJobCard).status
+  
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white px-4 py-4 shadow-sm">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-950">{item.title}</h3>
+
+          <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+            <Avatar className="h-5 w-5">
+              <AvatarFallback className="bg-yellow-100 text-[10px] text-yellow-700">
+                {getInitials(item.customer.name)}
+              </AvatarFallback>
+            </Avatar>
+            <span>User: {item.customer.name}</span>
+          </div>
+        </div>
+
+        <Badge
+          variant="outline"
+          className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${getStatusClass(
+            status
+          )}`}
+        >
+          {isHistory ? "Completed" : getStatusLabel(status)}
+        </Badge>
+      </div>
+
+      <div className="mb-4 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:flex sm:items-center sm:justify-end sm:gap-8">
+        <span>
+          Date initiated:{" "}
+          <span className="text-slate-600">
+            {isHistory ? (item as DashboardHistoryCard).completedDate : (item as DashboardActiveJobCard).deadline}
+          </span>
+        </span>
+        <span>
+          Time:{" "}
+          <span className="text-slate-600">
+            {formatTime(new Date().toISOString())}
+          </span>
+        </span>
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:justify-end">
+        <Button
+          variant="outline"
+          onClick={() => onViewDetails(item)}
+          className="border-primary/30 text-primary hover:bg-primary/5 sm:min-w-[110px]"
+        >
+          View Details
+        </Button>
+
+        {!isHistory && (
+          <Button className="bg-red-600 text-white hover:bg-red-700 sm:min-w-[110px]">
+            Cancel service
+          </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function JobDetailsDialog({
+  open,
+  onOpenChange,
+  title,
+  job,
+  type,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  title: string
+  job: DashboardActiveJobCard | DashboardHistoryCard | null
+  type: "active" | "history"
+}) {
+  if (!job) return null
+
+  const isHistory = type === "history"
+  const historyJob = job as DashboardHistoryCard
+  const activeJob = job as DashboardActiveJobCard
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-base">{title}</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4 text-sm">
+          <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+            <p className="text-xs text-slate-500">Job title</p>
+            <p className="mt-1 font-semibold text-slate-950">
+              {job.title || "Untitled job"}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg border border-slate-100 p-3">
+              <p className="text-xs text-slate-500">Budget</p>
+              <p className="mt-1 font-semibold text-slate-950">
+                {job.budget || "Budget not set"}
+              </p>
+            </div>
+
+            <div className="rounded-lg border border-slate-100 p-3">
+              <p className="text-xs text-slate-500">
+                {isHistory ? "Completed" : "Deadline"}
+              </p>
+              <p className="mt-1 font-semibold text-slate-950">
+                {isHistory
+                  ? formatDate(historyJob.completedDate)
+                  : formatDate(activeJob.deadline)}
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-3 rounded-xl border border-slate-100 p-4 text-xs">
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-500">Job ID</span>
+              <span className="max-w-[190px] truncate text-right font-medium text-slate-900">
+                {job.jobId || job.id}
+              </span>
+            </div>
+
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-500">Location</span>
+              <span className="max-w-[190px] text-right font-medium text-slate-900">
+                {job.location || "—"}
+              </span>
+            </div>
+
+            {!isHistory && (
+              <div className="flex justify-between gap-4">
+                <span className="text-slate-500">Status</span>
+                <span className="font-medium text-slate-900 capitalize">
+                  {activeJob.status || "Active"}
+                </span>
+              </div>
+            )}
+
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-500">Customer</span>
+              <span className="max-w-[190px] text-right font-medium text-slate-900">
+                {job.customer?.name || "—"}
+              </span>
+            </div>
+
+            <div className="flex justify-between gap-4">
+              <span className="text-slate-500">Customer email</span>
+              <span className="max-w-[190px] truncate text-right font-medium text-slate-900">
+                {job.customer?.email || "—"}
+              </span>
+            </div>
+          </div>
+
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => onOpenChange(false)}
+            className="w-full"
+          >
+            Close
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function ArtisanDashboard() {
-  const [activeTab, setActiveTab] = useState("overview")
+  const [activeTab, setActiveTab] = useState("active")
   const [summary, setSummary] = useState<any>(null)
   const [jobRequests, setJobRequests] = useState<DashboardRequestCard[]>([])
   const [activeJobs, setActiveJobs] = useState<DashboardActiveJobCard[]>([])
   const [completedJobs, setCompletedJobs] = useState<DashboardHistoryCard[]>([])
   const [loading, setLoading] = useState(true)
-  const walletBalance = Number(summary?.walletBalance || 0)
-  const [showWithdraw, setShowWithdraw] = useState(false)
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [showPublicProfileModal, setShowPublicProfileModal] = useState(false)
+  const [selectedActiveJob, setSelectedActiveJob] =
+  useState<DashboardActiveJobCard | null>(null)
 
-  // const auth = getAuth()
-  // const token = auth?.token
+  const [selectedHistoryJob, setSelectedHistoryJob] =
+    useState<DashboardHistoryCard | null>(null)
+
+  const [requestPage, setRequestPage] = useState(1)
+  const [activePage, setActivePage] = useState(1)
+  const [historyPage, setHistoryPage] = useState(1)
+
+  const [requestPagination, setRequestPagination] = useState<PaginationMeta | null>(null)
+  const [activePagination, setActivePagination] = useState<PaginationMeta | null>(null)
+  const [historyPagination, setHistoryPagination] = useState<PaginationMeta | null>(null)  
 
   useEffect(() => {
     let cancelled = false
 
     async function loadDashboard() {
       try {
+        setLoading(true)
+
         const [s, req, act, hist] = await Promise.all([
           getArtisanDashboardSummary(),
-          getArtisanJobRequests(),
-          getArtisanActiveJobs(),
-          getArtisanJobHistory(),
+          getArtisanJobRequests(requestPage, 6),
+          getArtisanActiveJobs(activePage, 6),
+          getArtisanJobHistory(historyPage, 6),
         ])
 
         if (cancelled) return
 
+        const reqPaginated = normalizePaginatedResponse<any>(req)
+        const activePaginated = normalizePaginatedResponse<any>(act)
+        const historyPaginated = normalizePaginatedResponse<any>(hist)
+
         setSummary(s || null)
-        setJobRequests(Array.isArray(req) ? req.map(mapRequest) : [])
-        setActiveJobs(Array.isArray(act) ? act.map(mapActiveJob) : [])
-        setCompletedJobs(Array.isArray(hist) ? hist.map(mapHistoryJob) : [])
+
+        setJobRequests(reqPaginated.data.map(mapRequest))
+        setActiveJobs(activePaginated.data.map(mapActiveJob))
+        setCompletedJobs(historyPaginated.data.map(mapHistoryJob))
+
+        setRequestPagination(reqPaginated.pagination)
+        setActivePagination(activePaginated.pagination)
+        setHistoryPagination(historyPaginated.pagination)
       } catch (err) {
         console.error("Dashboard load error:", err)
       } finally {
@@ -217,437 +577,473 @@ export function ArtisanDashboard() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [requestPage, activePage, historyPage])
 
   const artisan = summary?.artisan || {}
 
-  const publicProfileId =
-    artisan.slug ||
-    artisan.artisanId ||
-    artisan.userId 
+  const artisanName =
+    artisan.name ||
+    artisan.fullName ||
+    artisan.businessName ||
+    summary?.name ||
+    "Artisan"
+
+  const profileImage =
+    artisan.profileImage ||
+    artisan.profile_image ||
+    summary?.profileImage ||
+    ""
 
   const monthlyEarnings = Number(summary?.monthlyEarnings || 0)
-  const pendingRequests = Number(summary?.pendingRequests || 0)
-  const profileViews = Number(summary?.profileViews || 0)
-  const successRate = Number(summary?.successRate || 0)
+  const completedJobsCount = Number(summary?.completedJobs || completedJobs.length || 0)
+  const activeJobsCount = Number(summary?.activeJobs || activeJobs.length || 0)
+  const pendingRequests = Number(summary?.pendingRequests || jobRequests.length || 0)
+  const walletBalance = Number(summary?.walletBalance || 0)
 
-  const activeJobsCount = Number(summary?.activeJobs || 0)
-  const completedJobsCount = Number(summary?.completedJobs || 0)
+  const totalJobs = activeJobsCount + completedJobsCount + pendingRequests
 
-  const overviewActiveJobs = activeJobs.slice(0, 3)
-  const overviewRequests = jobRequests.slice(0, 3)
+  const calculatedProfileFields = useMemo(() => {
+    const profile = artisan || {}
 
-  const getStatusColor = (status: string) => {
-    const normalized = normalizeMilestoneStatus(status)
+    return [
+      profileImage,
+      profile.bio,
+      profile.location,
+      profile.experience,
+      profile.hourlyRate || profile.hourly_rate,
+      profile.service || profile.service_type,
+      Array.isArray(profile.skills) && profile.skills.length > 0,
+    ]
+  }, [artisan, profileImage])
 
-    switch (normalized) {
-      case "ACTIVE":
-      case "FUNDED":
-      case "SUBMITTED":
-      case "APPROVAL_PENDING":
-      case "APPROVED":
-        return "bg-primary/10 text-primary"
-      case "RELEASED":
-      case "PARTIAL_RELEASED":
-      case "PAID":
-        return "bg-green-100 text-green-800"
-      case "REFUNDED":
-      case "CANCELLED":
-        return "bg-red-100 text-red-800"
-      default:
-        return "bg-gray-100 text-gray-800"
-    }
-  }
+  const fallbackProfileProgress = Math.min(
+    100,
+    Math.round(
+      (calculatedProfileFields.filter(Boolean).length /
+        calculatedProfileFields.length) *
+        100
+    )
+  )
 
-  const getStatusText = (status: string) => {
-    const normalized = normalizeMilestoneStatus(status)
+  const backendProfileProgress = Number(
+    summary?.profileCompletion ?? artisan?.profileCompletion
+  )
 
-    switch (normalized) {
-      case "ACTIVE":
-        return "Active"
-      case "FUNDED":
-        return "Funded"
-      case "SUBMITTED":
-        return "Submitted"
-      case "APPROVAL_PENDING":
-        return "Awaiting Approval"
-      case "APPROVED":
-        return "Approved"
-      case "RELEASED":
-        return "Released"
-      case "PARTIAL_RELEASED":
-        return "Partially Released"
-      case "PAID":
-        return "Paid"
-      case "REFUNDED":
-        return "Refunded"
-      case "CANCELLED":
-        return "Cancelled"
-      default:
-        return status || "Unknown"
-    }
-  }
+  const profileProgress = Number.isFinite(backendProfileProgress)
+    ? Math.min(100, Math.max(0, backendProfileProgress))
+    : fallbackProfileProgress
 
-  if (loading) {
-    return <div className="p-8 text-center text-gray-600">Loading dashboard…</div>
-  }
+  const missingProfileItems = [
+    !profileImage && "Avatar",
+    !artisan?.bio && "Bio",
+    !artisan?.location && "Location",
+    !artisan?.experience && "Experience",
+    !(artisan?.service || artisan?.service_type) && "Service type",
+    !(Array.isArray(artisan?.skills) && artisan.skills.length > 0) && "Skills",
+  ].filter(Boolean) as string[]
 
   return (
-    <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 lg:px-8 py-4 sm:py-6 lg:py-8">
-      <Card className="mb-6 sm:mb-8 bg-background">
-        <CardContent className="p-0">
-          <div className="relative p-6 sm:p-8">
-            <div className="flex flex-col lg:flex-row justify-between space-y-6 lg:space-y-0">
-              <div className="flex flex-col sm:flex-row sm:space-x-6 space-y-4 sm:space-y-0">
-                <Avatar className="h-20 w-20 sm:h-24 sm:w-24">
-                  <AvatarImage src={artisan.profileImage || undefined} />
-                  <AvatarFallback>
-                    {String(artisan.name || "A")
-                      .split(" ")
-                      .map((n: string) => n[0])
-                      .join("")}
-                  </AvatarFallback>
-                </Avatar>
-
-                <div className="space-y-2">
-                  <h1 className="text-3xl font-bold">{artisan.name || "Artisan"}</h1>
-                  <p className="text-primary text-lg">{artisan.service || "Service Provider"}</p>
-
-                  <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-                    <div className="flex items-center space-x-1">
-                      <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                      <span>{Number(artisan.rating || 0).toFixed(1)}</span>
-                    </div>
-                    <div>{Number(artisan.reviews || 0)} reviews</div>
-                    <div className="flex items-center space-x-1">
-                      <MapPin className="h-4 w-4" />
-                      <span>{artisan.location || "No location"}</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex space-x-3">
-                <Button variant="outline" asChild>
-                  <Link href="/profile/setup">Edit Profile</Link>
-                </Button>
-
-                {publicProfileId && (
-                  <Button asChild>
-                    <Link href={`/artisan/${publicProfileId}`}>View Public Profile</Link>
-                  </Button>
-                )}
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-    
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <Card>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Active Jobs</p>
-              <p className="text-2xl font-bold">{activeJobsCount}</p>
-            </div>
-            <Clock className="h-8 w-8 text-primary" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Pending Requests</p>
-              <p className="text-2xl font-bold">{pendingRequests}</p>
-            </div>
-            <AlertCircle className="h-8 w-8 text-yellow-500" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Completed Jobs</p>
-              <p className="text-2xl font-bold">{completedJobsCount}</p>
-            </div>
-            <CheckCircle className="h-8 w-8 text-green-500" />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="p-4 flex items-center justify-between">
-            <div>
-              <p className="text-sm text-gray-600">Success Rate</p>
-              <p className="text-2xl font-bold">{successRate}%</p>
-            </div>
-            <Eye className="h-8 w-8 text-accent" />
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Wallet Balance + Withdraw */}
-      <Card className="mb-6 overflow-hidden border-green-100 bg-gradient-to-br from-green-50 via-white to-white">
-        <CardContent className="p-5 sm:p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-4">
-              <div className="h-12 w-12 rounded-2xl bg-green-100 flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-green-600" />
-              </div>
-
-              <div>
-                <p className="text-sm text-gray-600">Wallet Balance</p>
-                <p className="text-2xl sm:text-3xl font-bold text-gray-900">
-                  ₦{walletBalance.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Available earnings ready for withdrawal
-                </p>
-              </div>
-            </div>
-
-            <Button
-              className="w-full sm:w-auto bg-green-600 hover:bg-green-700"
-              onClick={() => setShowWithdraw((prev) => !prev)}
+    <main className="mx-auto max-w-[1280px] px-4 pb-12 pt-6 sm:px-6 lg:px-8">
+      <div className="grid gap-6 lg:grid-cols-[170px_minmax(0,1fr)_280px]">
+        {/* Left Sidebar */}
+        <aside className="hidden lg:block">
+          <nav className="sticky top-24 space-y-2">
+            <Link
+              href="/dashboard/artisan"
+              className="flex items-center gap-3 rounded-md bg-slate-50 px-4 py-3 text-sm font-semibold text-slate-950"
             >
-              {showWithdraw ? "Hide Withdrawal" : "Withdraw Funds"}
-            </Button>
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              Dashboard
+            </Link>
+
+            <Link
+              href="/dashboard/jobs"
+              className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Briefcase className="h-4 w-4" />
+              Browse Jobs
+            </Link>
+
+            <Link
+              href="/dashboard/bookings"
+              className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Calendar className="h-4 w-4" />
+              My bookings
+            </Link>
+
+            <Link
+              href="/dashboard/services/post"
+              className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Briefcase className="h-4 w-4" />
+              Post Service
+            </Link>
+
+            <Link
+              href="/dashboard/wallet"
+              className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Wallet className="h-4 w-4" />
+              Wallet
+            </Link>
+
+            <Link
+              href="/dashboard/settings"
+              className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
+
+            <Link
+              href="#"
+              className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              <ShieldQuestion className="h-4 w-4" />
+              Support
+            </Link>
+          </nav>
+        </aside>
+
+        {/* Main Content */}
+        <section>
+          <div className="mb-7">
+            <h1 className="text-[26px] font-semibold tracking-tight text-slate-950 sm:text-[30px]">
+              Welcome Back, {artisanName}!
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Here is a quick overview of your activities
+            </p>
           </div>
-        </CardContent>
-      </Card>
 
-      <div
-        className={`mb-6 overflow-hidden transition-all duration-300 ease-in-out ${
-          showWithdraw ? "max-h-[650px] opacity-100" : "max-h-0 opacity-0"
-        }`}
-      >
-        <WithdrawalCard
-          balance={walletBalance}
-          title="Withdraw Earnings"
-          onSuccess={async () => {
-            const refreshed = await getArtisanDashboardSummary()
-            setSummary(refreshed || null)
-            setShowWithdraw(false)
-          }}
-        />
-      </div>
+          <div className="mb-7 flex flex-wrap gap-x-10 gap-y-4 border-b border-slate-100 pb-6 text-sm font-medium text-primary">
+            <button 
+           
+            type="button" onClick={() => setShowProfileModal(true)}>
+              Manage profile
+            </button>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-4">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="requests">Requests</TabsTrigger>
-          <TabsTrigger value="active">Active Jobs</TabsTrigger>
-          <TabsTrigger value="history">History</TabsTrigger>
-        </TabsList>
+            <button type="button" onClick={() => setShowPublicProfileModal(true)}>
+              View public profile
+            </button>
 
-        <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Quick Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="flex justify-between">
-                  <span>Monthly Earnings</span>
-                  <span className="font-semibold">₦{monthlyEarnings.toLocaleString()}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Profile Views</span>
-                  <span className="font-semibold">{profileViews}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Pending Requests</span>
-                  <span className="font-semibold">{pendingRequests}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Active Jobs</span>
-                  <span className="font-semibold">{activeJobsCount}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Completed Jobs</span>
-                  <span className="font-semibold">{completedJobsCount}</span>
-                </div>
-              </CardContent>
-            </Card>
+            <Link href="/dashboard/services/post">View my services</Link>
+            <Link href="/dashboard/jobs">Top clients</Link>
+          </div>
 
-            <Card>
-              <CardHeader>
-                <CardTitle>Recent Requests</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {overviewRequests.length === 0 ? (
-                  <div className="text-sm text-gray-500">No pending requests right now.</div>
-                ) : (
-                  overviewRequests.map((req) => (
-                    <div key={req.id} className="border rounded-lg p-3">
-                      <h3 className="font-medium">{req.title}</h3>
-                      <p className="text-sm text-gray-600">{req.customer.name}</p>
-                      <div className="flex justify-between mt-2 text-sm">
-                        <span>{req.location}</span>
-                        <span className="font-medium">{req.budget}</span>
-                      </div>
-                    </div>
-                  ))
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="mb-5 grid h-10 w-full grid-cols-3 rounded-lg border bg-white p-1">
+              <TabsTrigger value="active" className="text-xs">
+                Active services
+                <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                  {activePagination?.total ?? activeJobs.length}
+                </span>
+              </TabsTrigger>
+
+              <TabsTrigger value="upcoming" className="text-xs">
+                Upcoming services
+                <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                  0
+                </span>
+              </TabsTrigger>
+
+              <TabsTrigger value="history" className="text-xs">
+                Service history
+                <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                  {historyPagination?.total ?? completedJobs.length}
+                </span>
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="active" className="mt-0">
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2].map((item) => (
+                    <div
+                      key={item}
+                      className="h-32 animate-pulse rounded-xl border bg-slate-50"
+                    />
+                  ))}
+                </div>
+              ) : activeJobs.length ? (
+                <>
+                <div className="space-y-4">
+                  {activeJobs.map((item) => (
+                    <ServiceCard
+                      key={item.id}
+                      item={item}
+                      type="active"
+                      onViewDetails={(job) =>
+                        setSelectedActiveJob(job as DashboardActiveJobCard)
+                      }
+                    />
+                  ))}
+                </div>
+
+                {activePagination && (
+                  <PaginationControl
+                    pagination={activePagination}
+                    onPageChange={setActivePage}
+                  />
                 )}
-              </CardContent>
-            </Card>
-          </div>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Current Active Jobs</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {overviewActiveJobs.length === 0 ? (
-                <div className="text-sm text-gray-500">No active jobs yet.</div>
+                </>
               ) : (
-                overviewActiveJobs.map((job) => (
-                  <div key={job.id} className="border rounded-lg p-4 flex items-start justify-between gap-4">
-                    <div>
-                      <h3 className="font-semibold">{job.title}</h3>
-                      <p className="text-sm text-gray-600">{job.customer.name}</p>
-                      <p className="text-sm text-gray-500 mt-1">{job.location}</p>
-                    </div>
-                    <Badge className={getStatusColor(job.status)}>{getStatusText(job.status)}</Badge>
-                  </div>
-                ))
+                <EmptyServices />
               )}
+            
+            </TabsContent>
+
+            <TabsContent value="upcoming" className="mt-0">
+              <EmptyServices />
+            </TabsContent>
+
+            <TabsContent value="history" className="mt-0">
+              {loading ? (
+                <div className="space-y-4">
+                  {[1, 2].map((item) => (
+                    <div
+                      key={item}
+                      className="h-32 animate-pulse rounded-xl border bg-slate-50"
+                    />
+                  ))}
+                </div>
+              ) : completedJobs.length ? (
+                <>
+                <div className="space-y-4">
+                  {completedJobs.map((item) => (
+                      <ServiceCard
+                        key={item.id}
+                        item={item}
+                        type="history"
+                        onViewDetails={(job) =>
+                          setSelectedHistoryJob(job as DashboardHistoryCard)
+                        }
+                      />
+                  ))}
+                </div>
+                          {historyPagination && (
+                <PaginationControl
+                  pagination={historyPagination}
+                  onPageChange={setHistoryPage}
+                />
+              )}
+              </>
+              ) : (
+                <EmptyServices />
+              )}
+            </TabsContent>
+          </Tabs>
+        </section>
+
+        {/* Right Panel */}
+        <aside className="space-y-4">
+          <Card className="rounded-2xl border-slate-100 shadow-sm">
+            <CardContent className="p-4">
+              <div className="mb-2 flex items-center justify-between text-sm">
+                <span className="text-slate-700">Complete your profile</span>
+                <span className="text-xs text-slate-700">{profileProgress}%</span>
+              </div>
+
+              <Progress value={profileProgress} className="mb-4 h-1.5" />
+
+              <p className="mb-3 text-xs text-slate-500">
+                Improve your profile by completing:
+              </p>
+
+              <div className="space-y-2">
+                {(missingProfileItems.length ? missingProfileItems.slice(0, 3) : ["Profile completed"]).map(
+                  (item) => (
+                    <div
+                      key={item}
+                      className="flex items-center justify-between text-xs text-slate-600"
+                    >
+                      <span>— {item}</span>
+                      <span className="font-medium text-primary">+10%</span>
+                    </div>
+                  )
+                )}
+              </div>
+
+              <button
+                type="button"
+                onClick={() => setShowProfileModal(true)}
+                className="mt-4 flex items-center gap-2 text-xs font-medium text-primary"
+              >
+                View all
+                <ChevronDown className="h-3 w-3" />
+              </button>
             </CardContent>
           </Card>
-        </TabsContent>
 
-        <TabsContent value="requests" className="space-y-4">
-          {jobRequests.length === 0 ? (
-            <Card>
-              <CardContent className="p-5 text-sm text-gray-500">
-                No pending job requests.
-              </CardContent>
-            </Card>
-          ) : (
-            jobRequests.map((req) => (
-              <Card key={req.id}>
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex justify-between gap-4">
-                    <div>
-                      <h3 className="font-bold text-lg">{req.title}</h3>
-                      <p className="text-gray-600">From {req.customer.name}</p>
+          <Card className="rounded-2xl border-slate-100 shadow-sm">
+            <CardContent className="p-4">
+              <h2 className="mb-4 text-xl font-semibold text-slate-950">Earnings</h2>
 
-                      <div className="flex flex-wrap gap-4 text-sm text-gray-500 mt-2">
-                        <span className="flex items-center">
-                          <MapPin className="h-4 w-4 mr-1" />
-                          {req.location}
-                        </span>
-                        <span className="flex items-center">
-                          <Calendar className="h-4 w-4 mr-1" />
-                          Requested {req.requestDate}
-                        </span>
-                      </div>
-                    </div>
+              <div className="space-y-4 border-t border-slate-100 pt-4">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Estimated earnings</span>
+                  <span className="font-medium text-slate-700">
+                    {formatMoney(monthlyEarnings)}
+                  </span>
+                </div>
 
-                    <Badge className="bg-yellow-100 text-yellow-800">Pending</Badge>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-4 text-sm">
+                  <span className="text-slate-500">Completed jobs</span>
+                  <span className="font-medium text-slate-700">
+                    {completedJobsCount}
+                  </span>
+                </div>
+
+                <div>
+                  <p className="mb-3 text-sm text-slate-500">Payment method</p>
+                  <div className="flex items-center gap-2 text-xs text-slate-700">
+                    <CreditCard className="h-4 w-4 text-primary" />
+                    <span>**** **** **** 1234</span>
                   </div>
+                </div>
 
-                  <div className="flex justify-between items-center">
-                    <span className="text-xl font-bold">{req.budget}</span>
-                  </div>
+                <div className="flex items-center justify-between border-t border-slate-100 pt-4 text-sm">
+                  <span className="text-slate-500">Wallet balance</span>
+                  <span className="font-medium text-slate-700">
+                    {formatMoney(walletBalance)}
+                  </span>
+                </div>
 
-                  <div className="flex space-x-2">
-                    <Button variant="outline" asChild>
-                      <Link href="/messages">Message</Link>
-                    </Button>
-                    <Button asChild>
-                      <Link href={`/jobs/${req.jobId}`}>View Job</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-slate-500">Total Jobs</span>
+                  <span className="font-medium text-slate-700">
+                    {totalJobs} jobs
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </aside>
+      </div>
 
-        <TabsContent value="active" className="space-y-4">
-          {activeJobs.length === 0 ? (
-            <Card>
-              <CardContent className="p-5 text-sm text-gray-500">
-                No active jobs yet.
-              </CardContent>
-            </Card>
-          ) : (
-            activeJobs.map((job) => (
-              <Card key={job.id}>
-                <CardContent className="p-5 space-y-4">
-                  <div className="flex justify-between gap-4">
-                    <div>
-                      <h3 className="font-bold text-lg">{job.title}</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm text-gray-600 mt-2">
-                        <p>Customer: {job.customer.name}</p>
-                        <p>Location: {job.location}</p>
-                        <p>Updated: {job.deadline}</p>
-                      </div>
-                    </div>
+        <JobDetailsDialog
+        open={!!selectedActiveJob}
+        onOpenChange={(open) => {
+          if (!open) setSelectedActiveJob(null)
+        }}
+        title="Active Service Details"
+        job={selectedActiveJob}
+        type="active"
+      />
 
-                    <Badge className={getStatusColor(job.status)}>
-                      {getStatusText(job.status)}
-                    </Badge>
-                  </div>
+      <JobDetailsDialog
+        open={!!selectedHistoryJob}
+        onOpenChange={(open) => {
+          if (!open) setSelectedHistoryJob(null)
+        }}
+        title="Service History Details"
+        job={selectedHistoryJob}
+        type="history"
+      />
 
-                  <div className="flex justify-between">
-                    <span className="text-xl font-bold">{job.budget}</span>
-                  </div>
+      {/* Manage Profile Modal */}
+      <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Manage profile</DialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowProfileModal(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
 
-                  <div className="flex space-x-2 mt-3">
-                    <Button variant="outline" asChild>
-                      <Link href="/messages">
-                        <MessageSquare className="h-4 w-4 mr-1" />
-                        Message
-                      </Link>
-                    </Button>
-                    <Button asChild>
-                      <Link href={`/jobs/${job.jobId}`}>View Details</Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
+          <div className="space-y-4">
+            <div className="flex items-center gap-4 rounded-xl border p-4">
+              <Avatar className="h-14 w-14">
+                <AvatarImage src={profileImage || undefined} />
+                <AvatarFallback>{getInitials(artisanName)}</AvatarFallback>
+              </Avatar>
 
-        <TabsContent value="history" className="space-y-4">
-          {completedJobs.length === 0 ? (
-            <Card>
-              <CardContent className="p-5 text-sm text-gray-500">
-                No job history yet.
-              </CardContent>
-            </Card>
-          ) : (
-            completedJobs.map((job) => (
-              <Card key={job.id}>
-                <CardContent className="p-5 space-y-3">
-                  <div className="flex justify-between gap-4">
-                    <div>
-                      <h3 className="font-bold text-lg">{job.title}</h3>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 text-sm text-gray-600 gap-2 mt-2">
-                        <p>Customer: {job.customer.name}</p>
-                        <p>Location: {job.location}</p>
-                        <p>Updated: {job.completedDate}</p>
-                      </div>
-                    </div>
-                    <Badge className="bg-green-100 text-green-800">History</Badge>
-                  </div>
+              <div>
+                <h3 className="font-semibold text-slate-950">{artisanName}</h3>
+                <p className="text-sm text-slate-500">
+                  {artisan?.location || "No location added"}
+                </p>
+              </div>
+            </div>
 
-                  <div className="flex">
-                    <Button variant="outline" asChild>
-                      <Link href={`/jobs/${job.jobId}`}>
-                        <FileText className="h-4 w-4 mr-1" />
-                        View Details
-                      </Link>
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))
-          )}
-        </TabsContent>
-      </Tabs>
-    </div>
+            <div className="rounded-xl border p-4">
+              <p className="mb-2 text-sm font-medium text-slate-950">
+                Profile completion
+              </p>
+              <Progress value={profileProgress} className="h-2" />
+              <p className="mt-2 text-xs text-slate-500">
+                Your profile is {profileProgress}% complete.
+              </p>
+            </div>
+
+            <Button asChild className="w-full">
+              <Link href="/profile/setup">Edit profile details</Link>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Public Profile Modal */}
+      <Dialog open={showPublicProfileModal} onOpenChange={setShowPublicProfileModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle>Public profile preview</DialogTitle>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setShowPublicProfileModal(false)}
+                className="h-8 w-8"
+              >
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-2xl border p-5 text-center">
+              <Avatar className="mx-auto h-20 w-20">
+                <AvatarImage src={profileImage || undefined} />
+                <AvatarFallback>{getInitials(artisanName)}</AvatarFallback>
+              </Avatar>
+
+              <h3 className="mt-3 text-lg font-semibold text-slate-950">
+                {artisanName}
+              </h3>
+              <p className="text-sm text-primary">
+                {artisan?.service_type || artisan?.primaryService || "Artisan"}
+              </p>
+              <p className="mt-1 text-sm text-slate-500">
+                {artisan?.location || "Location not added"}
+              </p>
+
+              <div className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-600">
+                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
+                <span>{Number(artisan?.rating || 0).toFixed(1)} rating</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl border p-4">
+              <p className="mb-2 text-sm font-medium text-slate-950">Bio</p>
+              <p className="text-sm leading-relaxed text-slate-600">
+                {artisan?.bio || "No bio has been added yet."}
+              </p>
+            </div>
+
+            <Button asChild variant="outline" className="w-full">
+              <Link href="/profile/setup">Update public profile</Link>
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </main>
   )
 }

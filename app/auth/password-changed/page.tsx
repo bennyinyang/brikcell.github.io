@@ -2,16 +2,15 @@
 
 import { useEffect } from "react"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { CheckCircle, ArrowRight } from "lucide-react"
 import { useRouter } from "next/navigation"
+import { CheckCircle2, Mail } from "lucide-react"
+
+import { Button } from "@/components/ui/button"
 
 export default function PasswordChangedPage() {
   const router = useRouter()
 
   useEffect(() => {
-    // Auto-redirect after 10 seconds
     const timer = setTimeout(() => {
       router.push("/auth/login")
     }, 10000)
@@ -20,54 +19,58 @@ export default function PasswordChangedPage() {
   }, [router])
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-muted/20 to-primary/5 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md shadow-xl border-0 bg-card/80 backdrop-blur-sm">
-        <CardContent className="pt-8 pb-8">
-          <div className="text-center space-y-6">
-            {/* Success Icon */}
-            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-              <CheckCircle className="h-8 w-8 text-green-600" />
+    <main className="min-h-screen w-full bg-white">
+      <div className="grid min-h-screen w-full grid-cols-1 lg:grid-cols-2">
+        <AuthImagePanel />
+
+        <section className="relative flex min-h-screen w-full items-center justify-center bg-white px-6 py-10 lg:px-12">
+          <div className="w-full max-w-[420px]">
+            <div className="mb-7 flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white">
+              <CheckCircle2 className="h-4 w-4 text-slate-700" />
             </div>
 
-            {/* Success Message */}
-            <div className="space-y-2">
-              <h1 className="text-2xl font-bold text-foreground">Password Changed Successfully!</h1>
-              <p className="text-muted-foreground">
-                Your password has been updated successfully. You can now sign in with your new password.
+            <div className="mb-7">
+              <h1 className="text-[30px] font-semibold tracking-[-0.04em] text-slate-950">
+                Password reset
+              </h1>
+              <p className="mt-3 text-[13px] leading-5 text-slate-500">
+                Your password has been successfully reset. Click below to log in.
               </p>
             </div>
 
-            {/* Security Tips */}
-            <div className="bg-muted/50 rounded-lg p-4 text-left">
-              <h3 className="font-semibold text-sm mb-2">Security Tips:</h3>
-              <ul className="text-sm text-muted-foreground space-y-1">
-                <li>• Keep your password secure and don't share it</li>
-                <li>• Use a unique password for your Brikcell account</li>
-                <li>• Consider enabling two-factor authentication</li>
-              </ul>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="space-y-3">
-              <Button asChild className="w-full h-11">
-                <Link href="/auth/login">
-                  Sign in with new password
-                  <ArrowRight className="h-4 w-4 ml-2" />
-                </Link>
-              </Button>
-
-              <Button variant="outline" asChild className="w-full h-11 bg-transparent">
-                <Link href="/">Return to Home</Link>
-              </Button>
-            </div>
-
-            {/* Auto-redirect Notice */}
-            <p className="text-xs text-muted-foreground">
-              You'll be automatically redirected to the login page in 10 seconds
-            </p>
+            <Button
+              asChild
+              className="h-11 w-full rounded-md bg-primary text-[14px] font-medium text-white hover:bg-primary/90"
+            >
+              <Link href="/auth/login">Back to login</Link>
+            </Button>
           </div>
-        </CardContent>
-      </Card>
+
+          <SupportEmail />
+        </section>
+      </div>
+    </main>
+  )
+}
+
+function AuthImagePanel() {
+  return (
+    <section className="relative hidden min-h-screen overflow-hidden lg:block">
+      <div
+        className="absolute inset-0 bg-cover bg-center"
+        style={{
+          backgroundImage: "url('/auth/forgot-hero.png')",
+        }}
+      />
+    </section>
+  )
+}
+
+function SupportEmail() {
+  return (
+    <div className="absolute bottom-8 right-8 hidden items-center gap-2 text-[12px] text-slate-500 lg:flex">
+      <Mail className="h-4 w-4" />
+      support@brikcell.com
     </div>
   )
 }

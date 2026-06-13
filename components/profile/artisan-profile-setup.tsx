@@ -15,7 +15,13 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Progress } from "@/components/ui/progress"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Upload, X, Plus, MapPin, DollarSign, ChevronLeft, ChevronRight, Check } from "lucide-react"
-import { getArtisanProfile, updateMyArtisanProfile, getAuth } from "@/lib/api"
+import {
+  getArtisanProfile, 
+  updateMyArtisanProfile, 
+  getAuth, 
+  uploadProfileImage,
+  uploadMultipleFiles, 
+} from "@/lib/api"
 
 const serviceCategories = [
   "Plumbing",
@@ -53,6 +59,8 @@ type ContactMethod = "platform" | "direct"
 export function ArtisanProfileSetup() {
   const [token, setToken] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
+  const [profileImagePublicId, setProfileImagePublicId] = useState("")
+  const [portfolioGallery, setPortfolioGallery] = useState<any[]>([])
   const router = useRouter()
 
   useEffect(() => {
@@ -122,7 +130,7 @@ export function ArtisanProfileSetup() {
       }
 
       try {
-        const data = await getArtisanProfile(userId, token ?? undefined)
+        const data = await getArtisanProfile(userId)
         if (cancelled) return
 
         const [firstName, ...rest] = String(data.user?.name || "").split(" ")
@@ -165,20 +173,65 @@ export function ArtisanProfileSetup() {
     }
   }, [userId, token])
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, type: "profile" | "portfolio") => {
+  const handleImageUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+    type: "profile" | "portfolio"
+  ) => {
     const files = Array.from(e.target.files || [])
+    e.target.value = ""
 
     if (type === "profile" && files[0]) {
-      setFormData((prev) => ({ ...prev, profileImage: files[0] }))
-      setProfileImageUrl(URL.createObjectURL(files[0]))
+      const toastId = toast.loading("Uploading profile image...")
+
+      try {
+        const uploaded = await uploadProfileImage(files[0])
+
+        setFormData((prev) => ({
+          ...prev,
+          profileImage: files[0],
+        }))
+
+        setProfileImageUrl(uploaded.url)
+        setProfileImagePublicId(uploaded.public_id)
+
+        toast.success("Profile image uploaded", { id: toastId })
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to upload profile image", {
+          id: toastId,
+        })
+      }
+
       return
     }
 
-    if (type === "portfolio") {
-      setFormData((prev) => ({
-        ...prev,
-        portfolioImages: [...prev.portfolioImages, ...files].slice(0, 10),
-      }))
+    if (type === "portfolio" && files.length) {
+      const toastId = toast.loading("Uploading portfolio images...")
+
+      try {
+        const uploaded = await uploadMultipleFiles(files)
+
+        setFormData((prev) => ({
+          ...prev,
+          portfolioImages: [...prev.portfolioImages, ...files].slice(0, 10),
+        }))
+
+        setPortfolioGallery((prev) => [
+          ...prev,
+          ...uploaded.map((file) => ({
+            url: file.url,
+            public_id: file.public_id,
+            original_name: file.original_name,
+            resource_type: file.resource_type,
+            mime_type: file.mime_type,
+          })),
+        ])
+
+        toast.success("Portfolio uploaded", { id: toastId })
+      } catch (error: any) {
+        toast.error(error?.message || "Failed to upload portfolio", {
+          id: toastId,
+        })
+      }
     }
   }
 
@@ -238,7 +291,12 @@ export function ArtisanProfileSetup() {
           location: formData.location,
           hourly_rate: formData.hourlyRate ? Number(formData.hourlyRate) : undefined,
           experience: formData.experience,
+          profile_image: profileImageUrl || undefined,
           profileImage: profileImageUrl || undefined,
+          profile_image_public_id: profileImagePublicId || undefined,
+          profileImagePublicId: profileImagePublicId || undefined,
+          portfolio_gallery: portfolioGallery,
+          portfolioGallery: portfolioGallery,
           certifications: formData.certifications,
           serviceRadius: formData.serviceRadius ? Number(formData.serviceRadius) : undefined,
           isRemoteAvailable: formData.isRemoteAvailable,
@@ -247,11 +305,17 @@ export function ArtisanProfileSetup() {
           minimumJobValue: formData.minimumJobValue ? Number(formData.minimumJobValue) : undefined,
           skills: formData.services,
         },
-        token
+        
       )
+      
+      console.log("Saving artisan profile image:", {
+        profileImageUrl,
+        profileImagePublicId,
+      });
 
       console.log("Profile updated successfully")
       toast.success("Profile updated successfully")
+      
       router.push("/dashboard/artisan")
     } catch (error) {
       console.error("Failed to update artisan profile:", error)

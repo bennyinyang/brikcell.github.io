@@ -112,8 +112,8 @@ export function WithdrawalCard({ balance, title, onSuccess }: Props) {
     ;(async () => {
       try {
         const [banksRes, withdrawals] = await Promise.all([
-          getWithdrawalBanks(token),
-          listMyWithdrawals(token),
+          getWithdrawalBanks(),
+          listMyWithdrawals(),
         ])
         setBanks(banksRes?.banks || [])
         setHistory(Array.isArray(withdrawals) ? withdrawals : [])
@@ -133,7 +133,7 @@ export function WithdrawalCard({ balance, title, onSuccess }: Props) {
     const t = setTimeout(async () => {
       try {
         setResolving(true)
-        const res = await resolveWithdrawalAccount(accountNumber, bankCode, token)
+        const res = await resolveWithdrawalAccount(accountNumber, bankCode)
         setAccountName(res?.accountName || "")
       } catch {
         setAccountName("")
@@ -175,14 +175,14 @@ export function WithdrawalCard({ balance, title, onSuccess }: Props) {
             currency: "NGN",
           },
         },
-        token
+        //token,
       )
 
       toast.success("Withdrawal request submitted successfully!", { id: toastId })
       setAmount("")
       await onSuccess?.()
 
-      const withdrawals = await listMyWithdrawals(token)
+      const withdrawals = await listMyWithdrawals()
       setHistory(Array.isArray(withdrawals) ? withdrawals : [])
     } catch (err: any) {
       console.error(err)
@@ -262,37 +262,7 @@ export function WithdrawalCard({ balance, title, onSuccess }: Props) {
 
         {/* ── Recent Withdrawals ── */}
         <div className="pt-4 border-t space-y-2">
-          <h4 className="text-sm font-semibold">Recent Withdrawals</h4>
-          {history.length === 0 ? (
-            <p className="text-sm text-gray-500">No withdrawals yet.</p>
-          ) : (
-            history.slice(0, 5).map((item) => {
-              const { label, color } = formatWithdrawalStatus(item.status)
-              const ts = formatTimestamp(
-                item.createdAt || item.created_at || item.updatedAt || item.updated_at
-              )
 
-              return (
-                <div
-                  key={item.id}
-                  className="flex items-center justify-between text-sm py-1"
-                >
-                  {/* Amount */}
-                  <span className="font-medium">
-                    ₦{Number(item.amount || 0).toLocaleString()}
-                  </span>
-
-                  {/* Timestamp + Status */}
-                  <div className="flex items-center gap-2 text-right">
-                    {ts && (
-                      <span className="text-gray-400 text-xs whitespace-nowrap">{ts}</span>
-                    )}
-                    <span className={`capitalize font-medium ₦{color}`}>{label}</span>
-                  </div>
-                </div>
-              )
-            })
-          )}
         </div>
       </CardContent>
     </Card>

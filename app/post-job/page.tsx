@@ -3,9 +3,10 @@ import { Header } from "@/components/header"
 
 export default function PostJobPage() {
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-white">
       <Header />
-      <main className="py-8">
+
+      <main>
         <JobPostingForm />
       </main>
     </div>
