@@ -273,12 +273,17 @@ export type GetArtisanProfileResponse = {
     skills: string[];
     experience: string | null;
     profileImage: string | null;
+    cover_image: string | null;
+    coverImage: string | null;
+    cover_image_public_id: string | null;
     certifications: string[];
     serviceRadius: number | null;
     isRemoteAvailable: boolean;
     preferredContactMethod: string;
     instantBooking: boolean;
     minimumJobValue: number | null;
+    currentStatus: string | null;
+    responseTime: string | null;
   };
   user: {
     phone: string; id: string; name: string; email: string 
@@ -597,11 +602,34 @@ export type ChatMessageDTO = {
   file_resource_type?: string | null;
 };
 
+export function sendContactForm(payload: { name: string; email: string; subject: string; message: string }) {
+  return request<{ ok: boolean }>("/contact", { method: "POST", json: payload });
+}
+
+export function submitFeedback(payload: { rating: number; category: string; title: string; message: string }) {
+  return request<any>("/feedback", { method: "POST", json: payload });
+}
+
+export function getMyFeedback() {
+  return request<any[]>("/feedback/mine");
+}
+
 export function listChatRooms() {
   return request<any>("/chat").then((res) => {
     console.log("RAW /chat response:", res);
     return res;
   });
+}
+
+export function markChatRoomRead(roomId: string) {
+  return request(`/chat/${roomId}/read`, { method: "POST" });
+}
+
+export function editChatMessage(roomId: string, messageId: string, message: string) {
+  return request<{ id: string; message: string; is_edited: boolean }>(
+    `/chat/${roomId}/messages/${messageId}`,
+    { method: "PATCH", json: { message } }
+  );
 }
 
 export function listChatMessages(roomId: string) {
@@ -644,6 +672,44 @@ export function initiateSupportChat() {
    CONTRACT MANAGEMENT
    ============================================================ 
 */
+
+export type BookingContractOption = {
+  id: string
+  status: string
+  title?: string
+  description?: string
+  employer_id?: string
+  artisan_id?: string
+  job_id?: string
+  proposal_id?: string | null
+
+  employerId?: string
+  artisanId?: string
+  jobId?: string
+  proposalId?: string | null
+
+  employer?: {
+    id: string
+    name?: string
+    email?: string
+  } | null
+
+  artisan?: {
+    id: string
+    name?: string
+    email?: string
+  } | null
+
+  job?: {
+    id: string
+    title?: string
+  } | null
+
+  Job?: {
+    id: string
+    title?: string
+  } | null
+}
 
 export async function acceptContract(contractId: string) {
   // const auth = getAuth()
@@ -793,6 +859,12 @@ export type MilestoneActionResponse = {
 //     method: "POST",
 //   })
 // }
+export async function fundMilestone(milestoneId: string) {
+  return request<MilestoneActionResponse>(`/escrow/milestones/${milestoneId}/fund`, {
+    method: "POST",
+  })
+}
+
 export async function submitMilestone(milestoneId: string) {
   const path = `/escrow/milestones/${milestoneId}/submit`
   console.log("[frontend] submitMilestone path =", path)
@@ -824,6 +896,7 @@ export type ContractStateResponse = {
   contract: {
     id: string
     status: string
+    payment_mode?: 'FULL' | 'MILESTONE'
     title: string
     description: string
     totalAmount: number
@@ -836,6 +909,9 @@ export type ContractStateResponse = {
       description: string
       deliverables: string[]
       amount: number
+      labour_cost?: number
+      material_cost?: number
+      initial_release_done?: boolean
       status: string
       dueDate?: string | null
       completedDate?: string | null
@@ -1029,15 +1105,58 @@ export function listMyEmployerJobs() {
    ============================================================ */
 
 export type ServiceType =
+  // physical / local
   | "general"
-  | "hairstyling"
   | "plumbing"
   | "carpentry"
   | "electrical"
   | "painting"
   | "cleaning"
+  | "hairstyling"
   | "autorepair"
   | "techsupport"
+  | "landscaping"
+  | "moving"
+  | "hvac"
+  | "roofing"
+  | "flooring"
+  | "pestcontrol"
+  | "interiordesign"
+  | "masonry"
+  | "poolmaintenance"
+  | "appliancerepair"
+  | "welding"
+  | "securitycctv"
+  | "photography"
+  | "catering"
+  | "personaltraining"
+  | "childcare"
+  | "elderlycare"
+  | "tailoring"
+  | "laundry"
+  | "windowcleaning"
+  | "furnitureassembly"
+  | "homeinspection"
+  | "tiling"
+  // digital / remote
+  | "webdevelopment"
+  | "mobiledev"
+  | "graphicdesign"
+  | "logodesign"
+  | "videoediting"
+  | "socialmedia"
+  | "contentwriting"
+  | "seomarketing"
+  | "virtualassistant"
+  | "bookkeeping"
+  | "translation"
+  | "tutoring"
+  | "musicproduction"
+  | "animation"
+  | "uiuxdesign"
+  | "cybersecurity"
+  | "qatesting"
+  | "voiceover"
 
 export type CreateServicePayload = {
   title: string
@@ -1103,16 +1222,9 @@ export async function createServiceListing(
     form.append("files", file)
   })
 
-  const auth = token ? { token } : getAuth()
-  const bearer = token || auth?.token
-
   const res = await fetch(`${API_BASE}/services`, {
     method: "POST",
-    // headers: bearer
-    //   ? {
-    //       Authorization: `Bearer ${bearer}`,
-    //     }
-    //   : undefined,
+    credentials: "include",
     body: form,
   })
 
@@ -1248,106 +1360,62 @@ export function getEmployerWalletTransactions(page = 1, limit = 10) {
 }
 
 /* ============================================================
-   Artisan BOOKINGS
+   ARTISAN WALLET
    ============================================================ */
 
-export type BookingStatus = "scheduled" | "completed" | "cancelled"
-
-export type BookingRecord = {
+export type ArtisanWalletTransaction = {
   id: string
-  customer_id: string
-  artisan_id: string
-  job_id: string
-  proposal_id: string
-  scheduled_at: string
-  status: BookingStatus
-  details?: any
-  created_at?: string
-  updated_at?: string
-
-  Job?: {
-    id: string
-    title: string
-    description?: string | null
-    category?: string | null
-    location?: string | null
-    budget_min?: string | number | null
-    budget_max?: string | number | null
-    status?: string
-  }
-
-  job?: {
-    id: string
-    title: string
-    description?: string | null
-    category?: string | null
-    location?: string | null
-    budget_min?: string | number | null
-    budget_max?: string | number | null
-    status?: string
-  } | null
-
-  Proposal?: any
-  proposal?: any
-
-  customer?: {
-    id: string
-    name: string
-    email: string
-  } | null
-
-  artisan?: {
-    id: string
-    name: string
-    email: string
-  } | null
+  title: string
+  type: "milestone_payment" | "deposit" | "withdrawal" | string
+  amount: number
+  status: string
+  method?: string
+  reference?: string
+  contractId?: string | null
+  createdAt?: string
 }
 
-export function listArtisanBookings(authToken: string) {
-  return request<BookingRecord[]>("/bookings/artisan", {
-  
-  })
-}
-
-export function listArtisanBookingHistory(authToken: string) {
-  return request<BookingRecord[]>("/bookings/artisan/history", {
-    
-  })
-}
-
-export function getBookingById(id: string) {
-  return request<BookingRecord>(`/bookings/${id}`, {
-    
-  })
-}
-
-export function updateBookingStatusArtisan(
-id: string, p0: string, token: string, status: BookingStatus,
-) {
-  return request<BookingRecord>(`/bookings/${id}/status`, {
-    method: "PATCH",
-    json: { status },
-    
-  })
-}
-
-export function modifyBooking(
-  id: string,
-  payload: {
-    scheduledAt: string
-    details?: any
-  },
-) {
-  return request<BookingRecord>(`/bookings/${id}`, {
-    method: "PATCH",
-    json: payload,
-    
-  })
+export function getArtisanWalletTransactions(page = 1, limit = 10) {
+  return request<any>(
+    `/artisan/dashboard/wallet/transactions?page=${page}&limit=${limit}`
+  )
 }
 
 /* ============================================================
-   EMPLOYER BOOKINGS
+   BOOKINGS
    ============================================================ */
+
+export type BookingStatus =
+  | "in_progress"
+  | "scheduled"
+  | "completed"
+  | "cancelled"
+
+export type BookingDetails = {
+  employerNote?: string | null
+  artisanNote?: string | null
+  artisanName?: string | null
+  location?: string | null
+  duration?: string | null
+  title?: string | null
+}
+
+export type BookingUserDTO = {
+  id: string
+  name: string
+  email: string
+}
+
+export type BookingJobDTO = {
+  id: string
+  title: string
+  description?: string | null
+  category?: string | null
+  location?: string | null
+  budget_min?: string | number | null
+  budget_max?: string | number | null
+  status?: string
+}
 
 export type BookingDTO = {
   id: string
@@ -1357,30 +1425,78 @@ export type BookingDTO = {
   proposal_id: string
   scheduled_at: string
   status: BookingStatus
-  details?: any
+  details?: BookingDetails | null
   created_at?: string
+  createdAt?: string
   updated_at?: string
-  job?: {
-    id: string
-    title: string
-    description?: string | null
-    category?: string | null
-    location?: string | null
-    budget_min?: string | number | null
-    budget_max?: string | number | null
-    status?: string
-  } | null
+  updatedAt?: string
+
+  job?: BookingJobDTO | null
+  Job?: BookingJobDTO | null
+
   proposal?: any
-  artisan?: {
-    id: string
-    name: string
-    email: string
-  } | null
-  customer?: {
-    id: string
-    name: string
-    email: string
-  } | null
+  Proposal?: any
+
+  artisan?: BookingUserDTO | null
+  customer?: BookingUserDTO | null
+}
+
+export type BookingRecord = BookingDTO
+
+export type EligibleBookingProposal = {
+  id: string
+  job_id: string
+  artisan_id: string
+  status: string
+  amount?: number | string | null
+  cover_letter?: string | null
+  job?: BookingJobDTO | null
+  Job?: BookingJobDTO | null
+  artisan?: BookingUserDTO | null
+}
+
+export type CreateBookingPayload = {
+  contractId: string
+  artisanId: string
+  scheduledAt: string
+  details?: {
+    employerNote?: string
+    location?: string
+    duration?: string
+  }
+}
+
+export type UpdateBookingPayload = {
+  scheduledAt?: string
+  employerNote?: string
+  artisanNote?: string
+  location?: string
+  duration?: string
+}
+
+export function createBooking(
+  payload: CreateBookingPayload
+) {
+  return request<BookingDTO>("/bookings", {
+    method: "POST",
+    json: payload,
+  })
+}
+
+export function listEligibleBookingProposals(
+  artisanId: string
+) {
+  return request<EligibleBookingProposal[]>(
+    `/bookings/eligible/${artisanId}`
+  )
+}
+
+export function listBookingsWithParticipant(
+  participantId: string
+) {
+  return request<BookingDTO[]>(
+    `/bookings/with/${participantId}`
+  )
 }
 
 export function listEmployerBookings() {
@@ -1388,20 +1504,69 @@ export function listEmployerBookings() {
 }
 
 export function listEmployerBookingHistory() {
-  return request<BookingDTO[]>("/bookings/history")
+  return request<BookingDTO[]>(
+    "/bookings/history"
+  )
+}
+
+export function listArtisanBookings(
+  _authToken?: string
+) {
+  return request<BookingDTO[]>("/bookings/artisan")
+}
+
+export function listArtisanBookingHistory(
+  _authToken?: string
+) {
+  return request<BookingDTO[]>(
+    "/bookings/artisan/history"
+  )
 }
 
 export function getBookingDetails(id: string) {
   return request<BookingDTO>(`/bookings/${id}`)
 }
 
-export function updateBookingStatusEmployer(id: string, status: BookingStatus) {
-  return request<BookingDTO>(`/bookings/${id}/status`, {
+export function getBookingById(id: string) {
+  return getBookingDetails(id)
+}
+
+export function modifyBooking(
+  id: string,
+  payload: UpdateBookingPayload
+) {
+  return request<BookingDTO>(`/bookings/${id}`, {
     method: "PATCH",
-    json: { status },
+    json: payload,
   })
 }
 
+export function updateBookingStatus(
+  id: string,
+  status: BookingStatus
+) {
+  return request<BookingDTO>(
+    `/bookings/${id}/status`,
+    {
+      method: "PATCH",
+      json: { status },
+    }
+  )
+}
+
+export function updateBookingStatusEmployer(
+  id: string,
+  status: BookingStatus
+) {
+  return updateBookingStatus(id, status)
+}
+
+export function updateBookingStatusArtisan(
+  id: string,
+  status: BookingStatus
+) {
+  return updateBookingStatus(id, status)
+}
 
 /* ============================================================
    SETTINGS
@@ -1566,12 +1731,281 @@ export function uploadDocument(file: File) {
 }
 
 /* ============================================================
+   SUPPORT TICKETS
+   ============================================================ */
+
+export type SupportCategoryValue =
+  | "payment_issue"
+  | "withdrawal_issue"
+  | "booking_issue"
+  | "contract_milestone_issue"
+  | "account_profile_issue"
+  | "job_service_issue"
+  | "chat_message_issue"
+
+export type SupportPriorityValue =
+  | "low"
+  | "medium"
+  | "high"
+  | "urgent"
+
+export type SupportTicketStatus =
+  | "open"
+  | "in_progress"
+  | "waiting_for_user"
+  | "resolved"
+  | "closed"
+
+export type SupportCategoryOption = {
+  label: string
+  value: SupportCategoryValue
+  description: string
+  issues: string[]
+}
+
+export type SupportPriorityOption = {
+  label: string
+  value: SupportPriorityValue
+  description: string
+}
+
+export type SupportOptionsResponse = {
+  categories: SupportCategoryOption[]
+  priorities: SupportPriorityOption[]
+}
+
+export type SupportTicketAttachmentDTO = {
+  id: string
+  ticket_id: string
+  url: string
+  public_id: string
+  resource_type?: string | null
+  original_name?: string | null
+  mime_type?: string | null
+  size?: number | null
+}
+
+export type SupportTicketDTO = {
+  id: string
+  user_id: string
+  ticket_number: string
+  category: SupportCategoryValue
+  issue: string
+  subject: string
+  description: string
+  priority: SupportPriorityValue
+  related_reference?: string | null
+  status: SupportTicketStatus
+  resolution_note?: string | null
+  resolved_at?: string | null
+  createdAt?: string
+  created_at?: string
+  updatedAt?: string
+  updated_at?: string
+  attachments?: SupportTicketAttachmentDTO[]
+}
+
+export function getSupportOptions() {
+  return request<SupportOptionsResponse>("/support-tickets/options")
+}
+
+export function getMySupportTicketCount() {
+  return request<{ count: number }>("/support-tickets/count")
+}
+
+export function listMySupportTickets(page = 1, limit = 10) {
+  return request<PaginatedResponse<SupportTicketDTO>>(
+    `/support-tickets?page=${page}&limit=${limit}`
+  )
+}
+
+export function getMySupportTicket(ticketId: string) {
+  return request<SupportTicketDTO>(`/support-tickets/${ticketId}`)
+}
+
+export function createSupportTicket(payload: {
+  category: SupportCategoryValue
+  issue: string
+  subject: string
+  description: string
+  priority: SupportPriorityValue
+  relatedReference?: string
+  attachments?: File[]
+}) {
+  const formData = new FormData()
+
+  formData.append("category", payload.category)
+  formData.append("issue", payload.issue)
+  formData.append("subject", payload.subject)
+  formData.append("description", payload.description)
+  formData.append("priority", payload.priority)
+
+  if (payload.relatedReference?.trim()) {
+    formData.append(
+      "relatedReference",
+      payload.relatedReference.trim()
+    )
+  }
+
+  ;(payload.attachments || []).forEach((file) => {
+    formData.append("attachments", file)
+  })
+
+  return request<SupportTicketDTO>("/support-tickets", {
+    method: "POST",
+    formData,
+  })
+}
+
+export function updateMySupportTicket(
+  ticketId: string,
+  payload: {
+    category?: SupportCategoryValue
+    issue?: string
+    subject?: string
+    description?: string
+    priority?: SupportPriorityValue
+    relatedReference?: string
+  }
+) {
+  return request<SupportTicketDTO>(
+    `/support-tickets/${ticketId}`,
+    {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }
+  )
+}
+
+export function deleteSupportTicket(ticketId: string) {
+  return request<void>(`/support-tickets/${ticketId}`, {
+    method: "DELETE",
+  })
+}
+
+/* ============================================================
+   NOTIFICATIONS
+   ============================================================ */
+
+export type NotificationDTO = {
+  id: string
+  type: string
+  title: string
+  body: string
+  is_read: boolean
+  meta: Record<string, any>
+  created_at: string
+  createdAt?: string
+}
+
+export type NotificationsResponse = {
+  notifications: NotificationDTO[]
+  total: number
+  page: number
+  limit: number
+}
+
+export function listNotifications(page = 1, limit = 20) {
+  return request<NotificationsResponse>(`/notifications?page=${page}&limit=${limit}`)
+}
+
+export function getUnreadNotificationCount() {
+  return request<{ count: number }>("/notifications/unread-count")
+}
+
+export function markNotificationRead(id: string) {
+  return request<{ ok: boolean }>(`/notifications/${id}/read`, { method: "PATCH" })
+}
+
+export function markAllNotificationsRead() {
+  return request<{ ok: boolean }>("/notifications/read-all", { method: "PATCH" })
+}
+
+/* ============================================================
+   REVIEWS
+   ============================================================ */
+
+export type ReviewDTO = {
+  id: string
+  reviewer_id: string
+  reviewee_id: string
+  job_id?: string | null
+  rating: number
+  comment?: string | null
+  created_at: string
+  reviewer?: { id: string; name: string; role: string }
+}
+
+export function submitReview(data: {
+  reviewee_id: string
+  rating: number
+  comment?: string
+  job_id?: string
+}) {
+  return request<{ review: ReviewDTO; average: number }>("/reviews", {
+    method: "POST",
+    json: data,
+  })
+}
+
+export function getReviewsForUser(userId: string) {
+  return request<ReviewDTO[]>(`/reviews/user/${userId}`)
+}
+
+export function checkIfReviewed(revieweeId: string, jobId?: string) {
+  const qs = jobId ? `?reviewee_id=${revieweeId}&job_id=${jobId}` : `?reviewee_id=${revieweeId}`
+  return request<{ reviewed: boolean; review: ReviewDTO | null }>(`/reviews/check${qs}`)
+}
+
+/* ============================================================
+   MESSAGE REQUESTS
+   ============================================================ */
+
+export type MessageRequestDTO = {
+  id: string
+  sender_id: string
+  recipient_id: string
+  job_id?: string | null
+  message?: string | null
+  status: "pending" | "accepted" | "declined"
+  chat_room_id?: string | null
+  created_at: string
+  sender?: { id: string; name: string; role: string }
+}
+
+export function sendMessageRequest(data: {
+  recipient_id: string
+  job_id?: string
+  message?: string
+}) {
+  return request<MessageRequestDTO>("/message-requests", { method: "POST", json: data })
+}
+
+export function getIncomingMessageRequests() {
+  return request<MessageRequestDTO[]>("/message-requests/incoming")
+}
+
+export function acceptMessageRequest(id: string) {
+  return request<{ request: MessageRequestDTO; room: { id: string } }>(
+    `/message-requests/${id}/accept`,
+    { method: "PATCH" }
+  )
+}
+
+export function declineMessageRequest(id: string) {
+  return request<MessageRequestDTO>(`/message-requests/${id}/decline`, { method: "PATCH" })
+}
+
+/* ============================================================
    AUTH HELPERS
    ============================================================ */
 
 export function saveAuth(token: string, user: UserDTO) {
   if (typeof window === "undefined") return;
   localStorage.setItem("auth_user", JSON.stringify(user));
+  // JWT is intentionally NOT stored in localStorage — XSS protection.
+  // The server issues an HttpOnly cookie alongside the response; all auth
+  // (HTTP and socket.io) uses that cookie. JS never touches the raw token.
 }
 
 export function getAuth() {
@@ -1582,6 +2016,8 @@ export function getAuth() {
   if (!user) return null;
 
   try {
+    // "cookie" is a sentinel that tells the socket middleware to authenticate
+    // via the HttpOnly auth_token cookie sent in the handshake headers.
     return { token: "cookie", user: JSON.parse(user) as UserDTO };
   } catch {
     return null;
@@ -1591,4 +2027,25 @@ export function getAuth() {
 export function clearAuth() {
   if (typeof window === "undefined") return;
   localStorage.removeItem("auth_user");
+}
+// ── Favourite Artisans (employer) ──────────────────────────────
+export function getFavouriteArtisans() {
+  return request<any[]>("/customer/dashboard/favourites");
+}
+export function addFavouriteArtisan(artisanId: string) {
+  return request<any>(`/customer/dashboard/favourites/${artisanId}`, { method: "POST" });
+}
+export function removeFavouriteArtisan(artisanId: string) {
+  return request<any>(`/customer/dashboard/favourites/${artisanId}`, { method: "DELETE" });
+}
+
+// ── Saved Jobs (artisan) ───────────────────────────────────────
+export function getSavedJobs() {
+  return request<any[]>("/artisan/dashboard/saved-jobs");
+}
+export function saveJob(jobId: string) {
+  return request<any>(`/artisan/dashboard/saved-jobs/${jobId}`, { method: "POST" });
+}
+export function unsaveJob(jobId: string) {
+  return request<any>(`/artisan/dashboard/saved-jobs/${jobId}`, { method: "DELETE" });
 }

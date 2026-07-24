@@ -2,13 +2,15 @@
 
 import Header from "@/components/header"
 
-import { useEffect, useMemo, useState } from "react"
+import { Suspense, useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
 import {
   Search,
   MapPin,
   Briefcase,
+  Bookmark,
   Clock,
   Wallet,
   RefreshCcw,
@@ -19,6 +21,13 @@ import {
   ChevronDown,
   SlidersHorizontal,
   X,
+  Building2,
+  Globe,
+  Users,
+  Repeat2,
+  CalendarDays,
+  DollarSign,
+  ExternalLink,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -41,29 +50,130 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 
+import { useRouter } from "next/navigation"
 import {
   getAuth,
   getJobById,
   listJobs,
+  listChatRooms,
   searchJobs,
+  sendMessageRequest,
+  getReviewsForUser,
   normalizePaginatedResponse,
+  saveJob,
+  unsaveJob,
+  getSavedJobs,
   type JobRecord,
   type PaginationMeta,
 } from "@/lib/api"
 import { PaginationControl } from "@/components/pagination-control"
 
 const serviceCategories = [
-  "Plumbing",
-  "Carpentry",
-  "Hair Styling",
-  "Electrical",
-  "Painting",
-  "Auto Repair",
-  "House Cleaning",
-  "Tech Support",
-  "Landscaping",
-  "Moving Services",
+  // Physical / Local
+  "plumbing",
+  "carpentry",
+  "electrical",
+  "painting",
+  "cleaning",
+  "hairstyling",
+  "autorepair",
+  "techsupport",
+  "landscaping",
+  "moving",
+  "hvac",
+  "roofing",
+  "flooring",
+  "pestcontrol",
+  "interiordesign",
+  "masonry",
+  "poolmaintenance",
+  "appliancerepair",
+  "welding",
+  "securitycctv",
+  "photography",
+  "catering",
+  "personaltraining",
+  "childcare",
+  "elderlycare",
+  "tailoring",
+  "laundry",
+  "windowcleaning",
+  "furnitureassembly",
+  "homeinspection",
+  "tiling",
+  // Digital / Remote
+  "webdevelopment",
+  "mobiledev",
+  "graphicdesign",
+  "logodesign",
+  "videoediting",
+  "socialmedia",
+  "contentwriting",
+  "seomarketing",
+  "virtualassistant",
+  "bookkeeping",
+  "translation",
+  "tutoring",
+  "musicproduction",
+  "animation",
+  "uiuxdesign",
+  "cybersecurity",
+  "qatesting",
+  "voiceover",
 ]
+
+const SERVICE_LABEL: Record<string, string> = {
+  general: "Home Service",
+  plumbing: "Plumbing",
+  carpentry: "Carpentry",
+  electrical: "Electrical",
+  painting: "Painting",
+  cleaning: "House Cleaning",
+  hairstyling: "Hair Styling",
+  autorepair: "Auto Repair",
+  techsupport: "Tech Support",
+  landscaping: "Landscaping",
+  moving: "Moving Services",
+  hvac: "HVAC (Heating & Cooling)",
+  roofing: "Roofing",
+  flooring: "Flooring",
+  pestcontrol: "Pest Control",
+  interiordesign: "Interior Design",
+  masonry: "Masonry & Concrete",
+  poolmaintenance: "Pool Maintenance",
+  appliancerepair: "Appliance Repair",
+  welding: "Welding & Fabrication",
+  securitycctv: "Security & CCTV",
+  photography: "Photography",
+  catering: "Catering & Cooking",
+  personaltraining: "Personal Training",
+  childcare: "Childcare & Babysitting",
+  elderlycare: "Elderly Care",
+  tailoring: "Tailoring & Alterations",
+  laundry: "Laundry & Dry Cleaning",
+  windowcleaning: "Window Cleaning",
+  furnitureassembly: "Furniture Assembly",
+  homeinspection: "Home Inspection",
+  tiling: "Tiling",
+  webdevelopment: "Web Development",
+  mobiledev: "Mobile App Development",
+  graphicdesign: "Graphic Design",
+  logodesign: "Logo & Brand Design",
+  videoediting: "Video Editing",
+  socialmedia: "Social Media Management",
+  contentwriting: "Content Writing & Copywriting",
+  seomarketing: "SEO & Digital Marketing",
+  virtualassistant: "Virtual Assistant",
+  bookkeeping: "Bookkeeping & Accounting",
+  translation: "Translation & Interpretation",
+  tutoring: "Tutoring & Academic Help",
+  musicproduction: "Music Production",
+  animation: "Animation & Motion Graphics",
+  uiuxdesign: "UI/UX Design",
+  cybersecurity: "Cybersecurity",
+  qatesting: "Software QA & Testing",
+  voiceover: "Voice Over",
+}
 
 const ratingOptions = [
   { value: "all", label: "No rating preference" },
@@ -74,7 +184,7 @@ const ratingOptions = [
 
 const radiusOptions = ["5 km", "10 km", "20 km", "50 km"]
 
-const JOB_IMAGE =
+const DEFAULT_JOB_IMAGE =
   "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&w=900&q=80"
 
 function money(value: string | number | null | undefined) {
@@ -96,19 +206,11 @@ function formatDate(value?: string | null) {
 
 function normalizeCategory(category?: string | null) {
   if (!category) return "General"
-  return category
+  return SERVICE_LABEL[category] ?? category
     .split(/[-_\s]+/)
     .filter(Boolean)
     .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
     .join(" ")
-}
-
-function getEmployerRating(job: JobRecord) {
-  const reviews = job.employer?.receivedReviews || []
-  if (!reviews.length) return null
-
-  const total = reviews.reduce((sum, item) => sum + Number(item.rating || 0), 0)
-  return total / reviews.length
 }
 
 function statusBadge(status?: string) {
@@ -140,6 +242,7 @@ function shortText(value?: string | null, fallback = "Untitled job") {
 
 function mapJobForCard(raw: any) {
   const employer = raw?.employer || raw?.Employer || {}
+  const ep = employer?.EmployerProfile || employer?.employerProfile || {}
 
   return {
     ...raw,
@@ -156,11 +259,23 @@ function mapJobForCard(raw: any) {
       id: String(employer?.id || ""),
       name: employer?.name || "Employer",
       avatar_url: employer?.avatar_url || null,
+      cover_image: ep?.cover_image || null,
+      company_name: ep?.company_name || null,
+      industry: ep?.industry || null,
+      company_size: ep?.company_size || null,
+      company_description: ep?.company_description || null,
+      website: ep?.website || null,
+      state: ep?.state || null,
+      city: ep?.city || null,
+      address: ep?.address || null,
+      hiring_frequency: ep?.hiring_frequency || null,
     },
   }
 }
 
-export default function ArtisanJobsPage() {
+function ArtisanJobsInner() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
   const [token, setToken] = useState<string | null>(null)
 
   const [jobs, setJobs] = useState<JobRecord[]>([])
@@ -168,8 +283,8 @@ export default function ArtisanJobsPage() {
   const [pagination, setPagination] = useState<PaginationMeta | null>(null)
   const [selectedJob, setSelectedJob] = useState<JobRecord | null>(null)
 
-  const [searchText, setSearchText] = useState("")
-  const [category, setCategory] = useState("Plumbing")
+  const [searchText, setSearchText] = useState(() => searchParams.get("q") ?? "")
+  const [category, setCategory] = useState("")
   const [city, setCity] = useState("")
   const [stateValue, setStateValue] = useState("")
   const [rating, setRating] = useState("all")
@@ -179,11 +294,53 @@ export default function ArtisanJobsPage() {
 
   const [loading, setLoading] = useState(true)
   const [detailLoading, setDetailLoading] = useState(false)
+  const [msgLoading, setMsgLoading] = useState(false)
+  const [requestedEmployers, setRequestedEmployers] = useState<Set<string>>(new Set())
+  const [employerRating, setEmployerRating] = useState<number | null>(null)
+  const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
+  const [savingJobId, setSavingJobId] = useState<string | null>(null)
 
   useEffect(() => {
     const auth = getAuth()
     setToken(auth?.token || null)
   }, [])
+
+  useEffect(() => {
+    getSavedJobs()
+      .then((rows: any[]) => {
+        const ids = new Set<string>(rows.map((r: any) => r.job_id ?? r.job?.id).filter(Boolean))
+        setSavedJobIds(ids)
+      })
+      .catch(() => {})
+  }, [])
+
+  async function handleToggleSaveJob(jobId: string) {
+    const isSaved = savedJobIds.has(jobId)
+    setSavingJobId(jobId)
+    setSavedJobIds((prev) => {
+      const next = new Set(prev)
+      isSaved ? next.delete(jobId) : next.add(jobId)
+      return next
+    })
+    try {
+      if (isSaved) {
+        await unsaveJob(jobId)
+        toast.success("Job removed from saved")
+      } else {
+        await saveJob(jobId)
+        toast.success("Job Saved")
+      }
+    } catch {
+      setSavedJobIds((prev) => {
+        const next = new Set(prev)
+        isSaved ? next.add(jobId) : next.delete(jobId)
+        return next
+      })
+      toast.error("Could not save job")
+    } finally {
+      setSavingJobId(null)
+    }
+  }
 
   const activeLocation = useMemo(() => {
     const combined = [city.trim(), stateValue.trim()].filter(Boolean).join(", ")
@@ -273,15 +430,32 @@ export default function ArtisanJobsPage() {
 
   const handleViewJob = async (job: JobRecord) => {
     setSelectedJob(job)
+    setEmployerRating(null)
 
     try {
       setDetailLoading(true)
       const fresh = await getJobById(job.id)
+      const freshMapped = mapJobForCard(fresh)
       setSelectedJob({
         ...job,
-        ...fresh,
-        employer: fresh.employer || job.employer,
+        ...freshMapped,
+        employer: {
+          ...(job.employer as any),
+          ...(freshMapped.employer as any),
+        },
       })
+
+      const employerId = String((fresh as any).employer_id || fresh.employer?.id || job.employer?.id || "")
+      if (employerId) {
+        getReviewsForUser(employerId)
+          .then((reviews) => {
+            const list = Array.isArray(reviews) ? reviews : []
+            if (!list.length) { setEmployerRating(null); return }
+            const avg = list.reduce((sum, r) => sum + Number(r.rating || 0), 0) / list.length
+            setEmployerRating(avg)
+          })
+          .catch(() => {})
+      }
     } catch (err) {
       console.error("[ArtisanJobs] Failed to fetch job details:", err)
     } finally {
@@ -291,12 +465,49 @@ export default function ArtisanJobsPage() {
 
   const resetFilters = () => {
     setSearchText("")
-    setCategory("Plumbing")
+    setCategory("")
     setCity("")
     setStateValue("")
     setRating("all")
     setOpenOnly(true)
     setSortBy("latest")
+  }
+
+  const handleMessageEmployer = async (job: JobRecord) => {
+    const employerId = String((job as any).employer_id || job.employer?.id || "")
+    if (!employerId) {
+      toast.error("Employer information not available")
+      return
+    }
+    setMsgLoading(true)
+    try {
+      const rooms = await listChatRooms()
+      const roomList: any[] = Array.isArray(rooms) ? rooms : (rooms as any)?.data || []
+      const existing = roomList.find((room: any) => {
+        const parts: any[] = room.participants || room.participantLinks || room.participant_links || room.ChatParticipants || []
+        return parts.some((p: any) => {
+          const uid = p?.id || p?.user_id || p?.userId || p?.participantUser?.id || p?.user?.id || p?.User?.id
+          return String(uid) === employerId
+        })
+      })
+      if (existing) {
+        router.push("/messages")
+      } else {
+        await sendMessageRequest({ recipient_id: employerId, job_id: job.id })
+        setRequestedEmployers((prev) => new Set(prev).add(employerId))
+        toast.success("Message request sent to the employer")
+      }
+    } catch (err: any) {
+      const msg = err?.message || ""
+      if (msg.includes("already") || msg.includes("pending")) {
+        setRequestedEmployers((prev) => new Set(prev).add(employerId))
+        toast.info("You already have a pending request with this employer")
+      } else {
+        toast.error(msg || "Failed to send message request")
+      }
+    } finally {
+      setMsgLoading(false)
+    }
   }
 
   const FilterPanel = () => (
@@ -311,12 +522,14 @@ export default function ArtisanJobsPage() {
         </button>
 
         <div className="mt-3 flex flex-wrap gap-2">
-          <Badge variant="outline" className="rounded-sm font-normal">
-            {category || "Home cleaning"}
-            <button type="button" onClick={() => setCategory("")} className="ml-1">
-              ×
-            </button>
-          </Badge>
+          {category && (
+            <Badge variant="outline" className="rounded-sm font-normal">
+              {SERVICE_LABEL[category] ?? category}
+              <button type="button" onClick={() => setCategory("")} className="ml-1">
+                ×
+              </button>
+            </Badge>
+          )}
 
           {activeLocation && (
             <Badge variant="outline" className="rounded-sm font-normal">
@@ -348,15 +561,15 @@ export default function ArtisanJobsPage() {
       <div>
         <p className="mb-4 text-xs font-medium text-slate-500">Service type</p>
 
-        <div className="space-y-3">
-          {serviceCategories.slice(0, 4).map((item) => (
+        <div className="max-h-60 space-y-3 overflow-y-auto pr-1">
+          {serviceCategories.map((item) => (
             <label key={item} className="flex items-center gap-2 text-xs text-slate-700">
               <Checkbox
                 checked={category === item}
                 onCheckedChange={(checked) => setCategory(checked ? item : "")}
                 className="h-5 w-5 rounded-[3px]"
               />
-              {item}
+              {SERVICE_LABEL[item] ?? item}
             </label>
           ))}
         </div>
@@ -499,12 +712,19 @@ export default function ArtisanJobsPage() {
             {loading ? (
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {[1, 2, 3, 4, 5, 6].map((item) => (
-                  <Card key={item} className="overflow-hidden rounded-xl border-slate-100 shadow-sm">
+                  <Card key={item} className="overflow-hidden rounded-xl border-slate-100 bg-white shadow-sm">
                     <div className="h-[110px] animate-pulse bg-slate-100" />
                     <CardContent className="p-3">
-                      <div className="mb-3 h-4 w-3/4 animate-pulse rounded bg-slate-100" />
-                      <div className="mb-2 h-3 w-1/2 animate-pulse rounded bg-slate-100" />
-                      <div className="h-5 w-24 animate-pulse rounded bg-slate-100" />
+                      <div className="mb-3 h-5 w-3/4 animate-pulse rounded bg-slate-100" />
+                      <div className="mt-3 space-y-1.5">
+                        <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+                        <div className="h-3 w-2/5 animate-pulse rounded bg-slate-100" />
+                      </div>
+                      <div className="mt-3 h-5 w-20 animate-pulse rounded-md bg-slate-100" />
+                      <div className="mt-5 flex items-center justify-between">
+                        <div className="h-5 w-24 animate-pulse rounded bg-slate-100" />
+                        <div className="h-4 w-12 animate-pulse rounded bg-slate-100" />
+                      </div>
                     </CardContent>
                   </Card>
                 ))}
@@ -524,6 +744,10 @@ export default function ArtisanJobsPage() {
               </Card>
             ) : (
               <>
+              <p className="mb-3 text-xs text-slate-500">
+                {pagination && pagination.total > 0 ? `${pagination.total} job${pagination.total !== 1 ? "s" : ""} found` : ""}
+                {pagination && pagination.totalPages > 1 ? ` · page ${pagination.page} of ${pagination.totalPages}` : ""}
+              </p>
               <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredJobs.map((job) => {
                   const categoryLabel = normalizeCategory(job.category)
@@ -534,48 +758,63 @@ export default function ArtisanJobsPage() {
                       key={job.id}
                       className="overflow-hidden rounded-xl border-slate-100 bg-white shadow-sm transition hover:shadow-md"
                     >
-                      <div className="h-[105px] overflow-hidden sm:h-[110px]">
+                      <div className="h-[92px] overflow-hidden sm:h-[96px]">
                         <img
-                          src={JOB_IMAGE}
+                          src={(job.employer as any)?.cover_image || DEFAULT_JOB_IMAGE}
                           alt={job.title || "Job image"}
-                          className="h-full w-full object-cover grayscale"
+                          className="h-full w-full object-cover"
                         />
                       </div>
 
                       <CardContent className="p-3">
-                        <h3 className="line-clamp-1 text-[15px] font-semibold text-slate-950">
+                        <h3 className="line-clamp-1 text-sm font-semibold text-slate-950">
                           {shortText(job.title, "Job request")}
                         </h3>
 
-                        <div className="mt-3 space-y-1">
+                        <div className="mt-2 space-y-0.5">
                           <p className="text-xs font-medium text-slate-700">
                             {job.employer?.name || "Employer"}
                           </p>
 
-                          <p className="text-[11px] text-slate-500">
+                          <p className="text-xs text-slate-500">
                             {job.location || "Location not specified"}
                           </p>
                         </div>
 
                         <Badge
                           variant="outline"
-                          className="mt-3 rounded-md border-slate-200 bg-slate-50 px-2 py-1 text-[10px] font-normal text-slate-700"
+                          className="mt-2 rounded-md border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-normal text-slate-700"
                         >
                           {categoryLabel}
                         </Badge>
 
-                        <div className="mt-5 flex items-center justify-between">
-                          <p className="text-base font-semibold tracking-tight text-slate-900">
+                        <div className="mt-3 flex items-center justify-between">
+                          <p className="text-sm font-semibold tracking-tight text-slate-900">
                             {budget}
                           </p>
 
-                          <button
-                            type="button"
-                            onClick={() => handleViewJob(job)}
-                            className="text-xs font-medium text-primary hover:underline"
-                          >
-                            Job details
-                          </button>
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              disabled={savingJobId === job.id}
+                              onClick={() => handleToggleSaveJob(job.id)}
+                              className={`transition ${savedJobIds.has(job.id) ? "text-primary" : "text-slate-400 hover:text-primary"}`}
+                              title={savedJobIds.has(job.id) ? "Unsave job" : "Save job"}
+                            >
+                              <Bookmark
+                                className="h-4 w-4"
+                                fill={savedJobIds.has(job.id) ? "currentColor" : "none"}
+                              />
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleViewJob(job)}
+                              className="text-xs font-medium text-primary hover:underline"
+                            >
+                              Job details
+                            </button>
+                          </div>
                         </div>
                       </CardContent>
                     </Card>
@@ -618,86 +857,273 @@ export default function ArtisanJobsPage() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={Boolean(selectedJob)} onOpenChange={(open) => !open && setSelectedJob(null)}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">
-              {detailLoading ? "Loading job..." : selectedJob?.title}
-            </DialogTitle>
-          </DialogHeader>
+      {/* Backdrop */}
+      {selectedJob && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300"
+          onClick={() => { setSelectedJob(null); setEmployerRating(null) }}
+        />
+      )}
 
-          {selectedJob && (
-            <div className="space-y-5">
-              <div className="h-44 overflow-hidden rounded-xl">
-                <img
-                  src={JOB_IMAGE}
-                  alt={selectedJob.title || "Job image"}
-                  className="h-full w-full object-cover grayscale"
-                />
+      {/* Slide-in job detail panel */}
+      <div
+        className={`fixed right-0 top-0 z-50 flex h-full w-full max-w-[720px] flex-col bg-white shadow-2xl transition-transform duration-300 ease-in-out ${
+          selectedJob ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        {selectedJob && (
+          <>
+            {/* Panel header */}
+            <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div className="min-w-0 flex-1 pr-4">
+                {detailLoading ? (
+                  <div className="space-y-1.5">
+                    <div className="h-5 w-3/4 animate-pulse rounded bg-slate-100" />
+                    <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+                  </div>
+                ) : (
+                  <>
+                    <h2 className="line-clamp-2 text-base font-semibold text-slate-950">
+                      {selectedJob.title || "Job details"}
+                    </h2>
+                    <p className="mt-0.5 text-xs text-slate-500">
+                      Posted {formatDate(selectedJob.created_at || (selectedJob as any).createdAt)}
+                    </p>
+                  </>
+                )}
               </div>
-
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge className={statusBadge(selectedJob.status)}>
-                  {String(selectedJob.status || "open").replace("_", " ")}
-                </Badge>
-                <Badge variant="secondary">{normalizeCategory(selectedJob.category)}</Badge>
-                <Badge variant="outline">
-                  {formatDate(selectedJob.created_at || selectedJob.createdAt)}
-                </Badge>
-              </div>
-
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-                <div className="rounded-xl border p-3">
-                  <p className="mb-1 text-xs text-slate-500">Budget</p>
-                  <p className="font-semibold text-slate-950">{jobBudgetLabel(selectedJob)}</p>
-                </div>
-
-                <div className="rounded-xl border p-3">
-                  <p className="mb-1 text-xs text-slate-500">Location</p>
-                  <p className="truncate font-semibold text-slate-950">
-                    {selectedJob.location || "Not specified"}
-                  </p>
-                </div>
-
-                <div className="rounded-xl border p-3">
-                  <p className="mb-1 text-xs text-slate-500">Employer</p>
-                  <p className="truncate font-semibold text-slate-950">
-                    {selectedJob.employer?.name || "Employer"}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <h4 className="mb-2 font-semibold text-slate-950">Job Description</h4>
-                <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-700">
-                  {selectedJob.description || "No description was provided for this job."}
-                </p>
-              </div>
-
-              <div className="flex items-center gap-1">
-                <Star className="h-4 w-4 fill-yellow-500 text-yellow-500" />
-                <span className="text-sm font-medium text-slate-700">
-                  {getEmployerRating(selectedJob)
-                    ? `${getEmployerRating(selectedJob)?.toFixed(1)} employer rating`
-                    : "No employer rating yet"}
-                </span>
-              </div>
-
-              <div className="flex flex-col gap-3 border-t pt-3 sm:flex-row">
-                <Button asChild className="flex-1">
-                  <Link href={`/messages?employerId=${selectedJob.employer_id}`}>
-                    Message Employer
-                  </Link>
-                </Button>
-
-                <Button variant="outline" className="flex-1" onClick={() => setSelectedJob(null)}>
-                  Close
-                </Button>
-              </div>
+              <button
+                type="button"
+                onClick={() => { setSelectedJob(null); setEmployerRating(null) }}
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+              >
+                <X className="h-4 w-4" />
+              </button>
             </div>
-          )}
-        </DialogContent>
-      </Dialog>
+
+            {/* Scrollable content */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {detailLoading ? (
+                <div className="space-y-5 p-5">
+                  <div className="h-44 animate-pulse rounded-xl bg-slate-100" />
+                  <div className="grid grid-cols-3 gap-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="h-16 animate-pulse rounded-xl bg-slate-100" />
+                    ))}
+                  </div>
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-4 animate-pulse rounded bg-slate-100" style={{ width: `${95 - i * 8}%` }} />
+                  ))}
+                </div>
+              ) : (
+                <div className="p-5">
+                  {/* Cover image */}
+                  <div className="h-44 overflow-hidden rounded-xl">
+                    <img
+                      src={(selectedJob.employer as any)?.cover_image || DEFAULT_JOB_IMAGE}
+                      alt={selectedJob.title || "Job"}
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+
+                  {/* Status badges */}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Badge className={statusBadge(selectedJob.status)}>
+                      {String(selectedJob.status || "open").replace(/_/g, " ")}
+                    </Badge>
+                    <Badge variant="secondary">{normalizeCategory(selectedJob.category)}</Badge>
+                  </div>
+
+                  {/* Stat tiles */}
+                  <div className="mt-4 grid grid-cols-3 gap-3">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                      <div className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        <DollarSign className="h-3 w-3" /> Budget
+                      </div>
+                      <p className="text-sm font-semibold text-slate-950">{jobBudgetLabel(selectedJob)}</p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                      <div className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        <MapPin className="h-3 w-3" /> Location
+                      </div>
+                      <p className="truncate text-sm font-semibold text-slate-950">
+                        {selectedJob.location || "Not specified"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 p-3">
+                      <div className="mb-1.5 flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-slate-400">
+                        <CalendarDays className="h-3 w-3" /> Posted
+                      </div>
+                      <p className="text-sm font-semibold text-slate-950">
+                        {formatDate(selectedJob.created_at || (selectedJob as any).createdAt)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Job description */}
+                  <div className="mt-6">
+                    <h3 className="mb-2 text-sm font-semibold text-slate-950">Job Description</h3>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed text-slate-600">
+                      {selectedJob.description || "No description was provided for this job."}
+                    </p>
+                  </div>
+
+                  {/* Divider */}
+                  <div className="my-6 border-t border-slate-100" />
+
+                  {/* Employer info section */}
+                  <div>
+                    <h3 className="mb-4 text-sm font-semibold text-slate-950">About the Employer</h3>
+
+                    <div className="space-y-4">
+                      {/* Employer name + rating */}
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
+                            {String(selectedJob.employer?.name || "E").charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-950">
+                              {(selectedJob.employer as any)?.company_name || selectedJob.employer?.name || "Employer"}
+                            </p>
+                            <div className="flex items-center gap-1 text-xs text-slate-500">
+                              <Star className="h-3 w-3 fill-yellow-400 text-yellow-400" />
+                              {employerRating !== null ? employerRating.toFixed(1) : "—"}
+                              <span>rating</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Company detail rows */}
+                      {[
+                        {
+                          icon: <Building2 className="h-4 w-4 text-slate-400" />,
+                          label: "Industry",
+                          value: (selectedJob.employer as any)?.industry,
+                        },
+                        {
+                          icon: <Users className="h-4 w-4 text-slate-400" />,
+                          label: "Company Size",
+                          value: (selectedJob.employer as any)?.company_size,
+                        },
+                        {
+                          icon: <Repeat2 className="h-4 w-4 text-slate-400" />,
+                          label: "Hiring Frequency",
+                          value: (selectedJob.employer as any)?.hiring_frequency,
+                        },
+                        {
+                          icon: <MapPin className="h-4 w-4 text-slate-400" />,
+                          label: "Service Area",
+                          value: [
+                            (selectedJob.employer as any)?.city,
+                            (selectedJob.employer as any)?.state,
+                          ].filter(Boolean).join(", ") || null,
+                        },
+                        {
+                          icon: <MapPin className="h-4 w-4 text-slate-400" />,
+                          label: "Address",
+                          value: (selectedJob.employer as any)?.address,
+                        },
+                        {
+                          icon: <Globe className="h-4 w-4 text-slate-400" />,
+                          label: "Website",
+                          value: (selectedJob.employer as any)?.website,
+                          isLink: true,
+                        },
+                      ]
+                        .filter((row) => row.value)
+                        .map((row) => (
+                          <div key={row.label} className="flex items-start gap-3">
+                            <div className="mt-0.5 shrink-0">{row.icon}</div>
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                                {row.label}
+                              </p>
+                              {row.isLink ? (
+                                <a
+                                  href={
+                                    String(row.value).startsWith("http")
+                                      ? String(row.value)
+                                      : `https://${row.value}`
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="flex items-center gap-1 truncate text-sm text-primary hover:underline"
+                                >
+                                  {row.value}
+                                  <ExternalLink className="h-3 w-3 shrink-0" />
+                                </a>
+                              ) : (
+                                <p className="text-sm text-slate-700">{row.value}</p>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+
+                      {/* Company description */}
+                      {(selectedJob.employer as any)?.company_description && (
+                        <div>
+                          <p className="mb-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">
+                            About the Company
+                          </p>
+                          <p className="text-sm leading-relaxed text-slate-600">
+                            {(selectedJob.employer as any).company_description}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Sticky footer actions */}
+            <div className="shrink-0 border-t border-slate-100 bg-white p-4">
+              {(() => {
+                const empId = String((selectedJob as any).employer_id || selectedJob.employer?.id || "")
+                const requested = requestedEmployers.has(empId)
+                return (
+                  <div className="flex gap-3">
+                    <Button
+                      className="flex-1"
+                      disabled={msgLoading || requested || detailLoading}
+                      onClick={() => handleMessageEmployer(selectedJob)}
+                    >
+                      {msgLoading ? "Please wait…" : requested ? "Request Sent" : "Message Employer"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      className="px-5"
+                      onClick={() => { setSelectedJob(null); setEmployerRating(null) }}
+                    >
+                      Close
+                    </Button>
+                  </div>
+                )
+              })()}
+            </div>
+          </>
+        )}
+      </div>
     </>
+  )
+}
+
+export default function ArtisanJobsPage() {
+  return (
+    <Suspense fallback={
+      <div className="mx-auto max-w-[1280px] px-4 pb-12 pt-7 sm:px-6 lg:px-8">
+        <div className="mb-5 h-4 w-24 animate-pulse rounded bg-slate-100" />
+        <div className="mb-5 h-8 w-40 animate-pulse rounded bg-slate-100" />
+        <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="h-52 animate-pulse rounded-xl border border-slate-100 bg-white" />
+          ))}
+        </div>
+      </div>
+    }>
+      <ArtisanJobsInner />
+    </Suspense>
   )
 }

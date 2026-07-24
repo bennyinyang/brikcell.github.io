@@ -451,9 +451,30 @@ export default function EmployerSettingsPage() {
     return (
       <>
         <Header />
-        <div className="p-8 text-center text-sm text-slate-500">
-          Loading settings...
-        </div>
+        <main className="min-h-[calc(100vh-64px)] bg-white">
+          <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6 lg:px-8">
+            <EmployerSidebar />
+            <section className="min-w-0 flex-1">
+              <div className="border-b border-slate-100 pb-5">
+                <div className="h-7 w-28 animate-pulse rounded bg-slate-100" />
+              </div>
+              <div className="mt-5 hidden grid-cols-5 gap-1 rounded-lg border border-slate-100 bg-white p-1 sm:grid">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="h-9 animate-pulse rounded-md bg-slate-100" />
+                ))}
+              </div>
+              <div className="mt-8 max-w-4xl space-y-6">
+                {[1, 2, 3, 4, 5].map((i) => (
+                  <div key={i} className="grid gap-4 md:grid-cols-[160px_1fr] md:items-center">
+                    <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+                    <div className="h-10 w-full animate-pulse rounded-md bg-slate-100" />
+                  </div>
+                ))}
+                <div className="h-10 w-28 animate-pulse rounded-md bg-slate-100" />
+              </div>
+            </section>
+          </div>
+        </main>
       </>
     )
   }
@@ -1139,11 +1160,11 @@ export default function EmployerSettingsPage() {
                     <table className="min-w-full border-separate border-spacing-y-2 text-xs">
                       <thead>
                         <tr className="text-left text-slate-500">
-                          <th className="px-3 py-2">Invoice</th>
+                          <th className="px-3 py-2">#</th>
+                          <th className="px-3 py-2">Artisan</th>
                           <th className="px-3 py-2">Date</th>
                           <th className="px-3 py-2">Rating</th>
-                          <th className="px-3 py-2">Feedback</th>
-                          <th className="px-3 py-2">Action</th>
+                          <th className="px-3 py-2">Comment</th>
                         </tr>
                       </thead>
 
@@ -1154,7 +1175,7 @@ export default function EmployerSettingsPage() {
                               colSpan={5}
                               className="px-3 py-8 text-center text-slate-500"
                             >
-                              No feedback found.
+                              No reviews found.
                             </td>
                           </tr>
                         ) : (
@@ -1163,8 +1184,12 @@ export default function EmployerSettingsPage() {
                               key={review.id || index}
                               className="rounded-lg border border-slate-100 bg-white shadow-sm"
                             >
-                              <td className="px-3 py-3">
+                              <td className="px-3 py-3 text-slate-400">
                                 #{String(index + 1).padStart(4, "0")}
+                              </td>
+
+                              <td className="px-3 py-3 font-medium text-slate-700">
+                                {review.reviewee?.name || "Artisan"}
                               </td>
 
                               <td className="px-3 py-3">
@@ -1187,11 +1212,7 @@ export default function EmployerSettingsPage() {
                               </td>
 
                               <td className="max-w-[260px] truncate px-3 py-3">
-                                {review.comment || review.feedback || "-"}
-                              </td>
-
-                              <td className="px-3 py-3">
-                                <button className="text-primary">Edit</button>
+                                {review.comment || "-"}
                               </td>
                             </tr>
                           ))

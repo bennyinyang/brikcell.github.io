@@ -30,13 +30,13 @@ import {
   Settings,
   Headphones,
   Search,
-  CreditCard,
 } from "lucide-react"
 import Link from "next/link"
 import {
   CustomerDashboardAPI,
   searchArtisans,
   getContractState,
+  fundMilestone,
   releaseMilestone,
   partialReleaseMilestone,
   refundMilestone,
@@ -47,6 +47,7 @@ import {
 } from "@/lib/api"
 import { WithdrawalCard } from "@/components/withdrawal-card"
 import { PaginationControl } from "@/components/pagination-control"
+import { ReviewDialog } from "@/components/review/review-dialog"
 
 type DashboardStats = {
   totalJobs: number
@@ -90,6 +91,9 @@ type MilestonePhase = {
   id: string
   name: string
   amount: number
+  labour_cost: number
+  material_cost: number
+  initial_release_done: boolean
   status: string
   description?: string
   dueDate?: string
@@ -122,10 +126,11 @@ function toNumber(value: any) {
   return Number.isFinite(n) ? n : 0
 }
 
-const PAYSTACK_FEE_RATE = 0.02
-
+// Official Paystack rate: 1.5% + ₦100 flat, capped at ₦2,000
 function withPaystackFee(desiredAmount: number): number {
-  return Math.ceil(desiredAmount / (1 - PAYSTACK_FEE_RATE))
+  if (desiredAmount <= 0) return 0
+  const uncapped = Math.ceil((desiredAmount + 100) / (1 - 0.015))
+  return uncapped - desiredAmount >= 2000 ? desiredAmount + 2000 : uncapped
 }
 
 function normalizeMilestoneStatus(raw: any): string {
@@ -215,20 +220,76 @@ function mapRawJob(raw: any): DashboardJob {
   }
 }
 
+// Priority order for the card status badge — only non-terminal, actionable states.
+// Terminal states (RELEASED, PARTIAL_RELEASED, REFUNDED, CANCELLED) are intentionally
+// excluded so an active contract with some settled milestones shows its in-progress state.
+const MILESTONE_STATUS_PRIORITY: Record<string, number> = {
+  SUBMITTED: 5,        // artisan submitted work, employer needs to act
+  APPROVAL_PENDING: 4, // waiting on approval
+  ACTIVE: 3,           // milestone in progress
+  FUNDED: 2,           // escrow funded, work not started
+  APPROVED: 1,         // approved, awaiting release
+}
+
+const TERMINAL_MILESTONE_STATUSES = new Set(["RELEASED", "PARTIAL_RELEASED", "REFUNDED", "CANCELLED"])
+
+function derivedContractStatus(milestones: any[]): string | null {
+  if (!Array.isArray(milestones) || milestones.length === 0) return null
+  let best: { status: string; priority: number } | null = null
+  for (const m of milestones) {
+    const s = String(m?.status || "").toUpperCase()
+    const p = MILESTONE_STATUS_PRIORITY[s] ?? 0
+    if (p > 0 && (!best || p > best.priority)) {
+      best = { status: s, priority: p }
+    }
+  }
+  return best?.status ?? null
+}
+
 function mapContractToDashboardJob(raw: any): ContractJobCard {
   const job = raw?.job || {}
   const artisan = raw?.artisan || {}
+  const milestones: any[] = Array.isArray(raw?.milestones) ? raw.milestones : []
+
+  // The artisan fills in a "Project Title" on the milestone creation form in the chat.
+  // That value is stored as milestone.title — match the artisan dashboard which reads raw.title
+  // where raw is a milestone. Here raw is a contract, so we read from the first milestone.
+  // Fall back to the contract's own title column, then the job posting title.
+  const firstMilestoneTitle = milestones.length > 0
+    ? (milestones[0].title || milestones[0].name || "")
+    : ""
+  const title = firstMilestoneTitle || raw?.title || job?.title || `Service with ${artisan?.name || "Artisan"}`
+
+  // The history endpoint stamps _displayStatus server-side (authoritative).
+  // For active contracts the server doesn't stamp it, so we derive locally.
+  let displayStatus: string
+
+  if (raw?._displayStatus) {
+    // Server already computed the correct label — use it directly.
+    displayStatus = String(raw._displayStatus)
+  } else {
+    const contractStatus = String(raw?.status || "").toUpperCase()
+
+    if (["COMPLETED", "CANCELLED"].includes(contractStatus)) {
+      displayStatus = contractStatus
+    } else if (contractStatus === "ACTIVE") {
+      // Surface the most actionable non-terminal milestone state for active contracts.
+      displayStatus = derivedContractStatus(milestones) || "ACTIVE"
+    } else {
+      displayStatus = contractStatus
+    }
+  }
 
   return {
     id: String(raw?.id || ""),
-    jobId: String(job?.id || raw?.job_id || raw?.id || ""),
-    title: job?.title || "Custom Furniture Design",
+    jobId: String(job?.id || raw?.job_id || ""),
+    title,
     description: job?.description || null,
     category: job?.category || null,
     location: job?.location || null,
     budget_min: job?.budget_min ?? null,
     budget_max: job?.budget_max ?? null,
-    status: String(raw?.status || ""),
+    status: displayStatus,
     createdAt: raw?.createdAt || raw?.created_at || job?.createdAt || job?.created_at,
     updatedAt: raw?.updatedAt || raw?.updated_at || job?.updatedAt || job?.updated_at,
     artisanId: String(artisan?.id || ""),
@@ -236,7 +297,12 @@ function mapContractToDashboardJob(raw: any): ContractJobCard {
     artisanEmail: artisan?.email || "",
     artisanImage: artisan?.profileImage || artisan?.profile_image || null,
     chatRoomId: raw?.chat_room_id || undefined,
-    milestones: [],
+    milestones: milestones.map((m: any) => ({
+      id: String(m.id),
+      name: m.title || m.name || "",
+      amount: toNumber(m.amount),
+      status: String(m.status || ""),
+    })),
     totalAmount: toNumber(raw?.totalAmount || 0),
     escrowFunded: 0,
   }
@@ -251,6 +317,12 @@ function formatStatusText(status: string) {
   if (n === "in_review") return "In review"
   if (n === "in_dispute") return "In dispute"
   if (n === "accepted") return "Accepted"
+  if (n === "submitted") return "Pending Review"
+  if (n === "approval_pending") return "Approval Pending"
+  if (n === "funded") return "Funded"
+  if (n === "partial_released") return "Partially Released"
+  if (n === "released") return "Released"
+  if (n === "refunded") return "Refunded"
 
   return String(status || "")
     .split("_")
@@ -261,10 +333,11 @@ function formatStatusText(status: string) {
 function getStatusColor(status: string) {
   const n = String(status || "").toLowerCase()
 
-  if (["in_progress", "active", "accepted"].includes(n)) return "bg-orange-50 text-orange-700 border border-orange-100"
-  if (["open", "in_review"].includes(n)) return "bg-blue-50 text-blue-700 border border-blue-100"
-  if (n === "completed") return "bg-green-50 text-green-700 border border-green-100"
-  if (["cancelled", "in_dispute"].includes(n)) return "bg-red-50 text-red-700 border border-red-100"
+  if (["in_progress", "active", "accepted", "funded"].includes(n)) return "bg-orange-50 text-orange-700 border border-orange-100"
+  if (["open", "in_review", "submitted", "approval_pending"].includes(n)) return "bg-blue-50 text-blue-700 border border-blue-100"
+  if (["completed", "released"].includes(n)) return "bg-green-50 text-green-700 border border-green-100"
+  if (["cancelled", "in_dispute", "refunded"].includes(n)) return "bg-red-50 text-red-700 border border-red-100"
+  if (n === "partial_released") return "bg-purple-50 text-purple-700 border border-purple-100"
 
   return "bg-gray-50 text-gray-700 border border-gray-100"
 }
@@ -445,23 +518,16 @@ function ContractActionPanel({
         if (cancelled) return
 
         if (stateRes?.contract?.phases) {
-          setMilestones(
-            stateRes.contract.phases.map((p: any) => ({
-              id: String(p.id),
-              name: p.name,
-              amount: toNumber(p.amount),
-              status: p.status,
-              description: p.description,
-              dueDate: p.dueDate,
-            }))
-          )
+          setMilestones(stateRes.contract.phases.map(remapPhase))
         }
 
-        const paid = (Array.isArray(txs) ? txs : [])
+        const successful = (Array.isArray(txs) ? txs : [])
           .filter((t: any) => String(t?.status || "").toLowerCase() === "success")
+        const releaseTotal = successful
+          .filter((t: any) => !["deposit", "milestone_refund"].includes(String(t?.type || "").toLowerCase()))
           .reduce((s: number, t: any) => s + toNumber(t?.amount), 0)
 
-        setTotalPaid(paid)
+        setTotalPaid(releaseTotal)
       } catch {}
     }
 
@@ -472,10 +538,44 @@ function ContractActionPanel({
     }
   }, [contract.id])
 
+  const remapPhase = (p: any): MilestonePhase => ({
+    id: String(p.id),
+    name: p.name,
+    amount: toNumber(p.amount),
+    labour_cost: toNumber(p.labour_cost),
+    material_cost: toNumber(p.material_cost),
+    initial_release_done: Boolean(p.initial_release_done),
+    status: p.status,
+    description: p.description,
+    dueDate: p.dueDate,
+  })
+
+  const refreshMilestones = async () => {
+    const stateRes = await getContractState(contract.id)
+    if (stateRes?.contract?.phases) {
+      setMilestones(stateRes.contract.phases.map(remapPhase))
+    }
+  }
+
   const updateMilestoneStatus = (id: string, status: string) => {
     setMilestones((prev) =>
       prev.map((m) => (String(m.id) === String(id) ? { ...m, status } : m))
     )
+  }
+
+  async function handleFund(milestoneId: string) {
+    const toastId = toast.loading("Funding milestone…")
+    setLoadingMilestone(milestoneId)
+    try {
+      await fundMilestone(milestoneId)
+      await refreshMilestones()
+      toast.success("Milestone funded — advance payment released to artisan!", { id: toastId })
+      onMilestoneUpdated(contract.id)
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to fund milestone", { id: toastId })
+    } finally {
+      setLoadingMilestone(null)
+    }
   }
 
   async function handleRelease(milestoneId: string) {
@@ -537,14 +637,22 @@ function ContractActionPanel({
   }
 
   const totalContract = milestones.reduce((s, m) => s + m.amount, 0)
-  const remaining = Math.max(0, totalContract - totalPaid)
+  const allPhasesReleased =
+    milestones.length > 0 &&
+    milestones.every((m) =>
+      ["released", "paid"].includes(normalizeMilestoneStatus(m.status).toLowerCase())
+    )
+  const effectivePaid = allPhasesReleased
+    ? totalContract
+    : Math.min(totalPaid, totalContract)
+  const remaining = Math.max(0, totalContract - effectivePaid)
 
   return (
     <div className="mt-4 space-y-4 border-t border-slate-100 pt-4">
       <div className="grid grid-cols-3 gap-2 text-center">
         {[
           { label: "Total", value: totalContract },
-          { label: "Paid", value: totalPaid, color: "text-green-600" },
+          { label: "Paid", value: effectivePaid, color: "text-green-600" },
           { label: "Remaining", value: remaining, color: "text-amber-600" },
         ].map(({ label, value, color }) => (
           <div key={label} className="rounded-lg bg-slate-50 px-1 py-2">
@@ -567,8 +675,16 @@ function ContractActionPanel({
 
         {milestones.map((ms, idx) => {
           const isLoading = loadingMilestone === String(ms.id)
-          const canAct = canEmployerActOnMilestone(ms.status)
+          const canFund = normalizeMilestoneStatus(ms.status) === "ACTIVE" && !ms.initial_release_done
+          const canAct  = canEmployerActOnMilestone(ms.status)
           const isPartialOpen = partialOpenFor === String(ms.id)
+          const msNormStatus = normalizeMilestoneStatus(ms.status)
+          const isFullyPaid  = msNormStatus === "RELEASED" || msNormStatus === "PAID" || msNormStatus === "COMPLETED"
+
+          // After Phase 1 only remaining 90% labour can be released/refunded
+          const phase2Max = ms.initial_release_done
+            ? ms.labour_cost * 0.9
+            : ms.amount
 
           return (
             <div key={ms.id} className="space-y-2 rounded-lg border border-slate-100 bg-white p-3">
@@ -588,6 +704,52 @@ function ContractActionPanel({
                 </div>
               </div>
 
+              {/* Phase 1 advance breakdown — shown after initial release */}
+              {ms.initial_release_done && (
+                <div className="rounded-lg border border-emerald-100 bg-emerald-50/70 p-2 space-y-1">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                      <CheckCircle className="h-3 w-3" />
+                      Advance Released
+                    </span>
+                    <span className="font-semibold text-emerald-700">
+                      ₦{(ms.material_cost + ms.labour_cost * 0.1).toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-xs">
+                    {isFullyPaid ? (
+                      <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                        <CheckCircle className="h-3 w-3" />
+                        Final Payment Released
+                      </span>
+                    ) : (
+                      <span className="text-slate-500">Pending approval</span>
+                    )}
+                    <span className={`font-semibold ${isFullyPaid ? "text-emerald-700" : "text-slate-700"}`}>
+                      ₦{(ms.labour_cost * 0.9).toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Fund & Advance Pay — employer action before artisan starts */}
+              {canFund && (
+                <Button
+                  size="sm"
+                  className="w-full bg-primary hover:bg-primary/90 text-white"
+                  disabled={isLoading}
+                  onClick={() => handleFund(String(ms.id))}
+                >
+                  {isLoading ? (
+                    <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                  ) : (
+                    <DollarSign className="mr-1 h-3 w-3" />
+                  )}
+                  {isLoading ? "Processing…" : "Fund & Advance Pay"}
+                </Button>
+              )}
+
+              {/* Release / Partial / Refund — after artisan submits */}
               {canAct && (
                 <div className="space-y-2 pt-1">
                   <div className="grid grid-cols-2 gap-2">
@@ -622,12 +784,17 @@ function ContractActionPanel({
 
                   {isPartialOpen && (
                     <div className="space-y-2 rounded-lg border bg-slate-50 p-2">
+                      {ms.initial_release_done && (
+                        <p className="text-[10px] text-slate-400">
+                          Advance already released. Max: ₦{Math.round(phase2Max).toLocaleString()}
+                        </p>
+                      )}
                       <Input
                         type="number"
                         min="1"
-                        max={ms.amount}
+                        max={phase2Max}
                         step="0.01"
-                        placeholder={`Max ₦${ms.amount.toLocaleString()}`}
+                        placeholder={`Max ₦${Math.round(phase2Max).toLocaleString()}`}
                         value={partialAmounts[String(ms.id)] || ""}
                         onChange={(e) =>
                           setPartialAmounts((prev) => ({
@@ -644,7 +811,7 @@ function ContractActionPanel({
                           size="sm"
                           className="h-8 flex-1"
                           disabled={isLoading}
-                          onClick={() => handlePartialRelease(String(ms.id), ms.amount)}
+                          onClick={() => handlePartialRelease(String(ms.id), phase2Max)}
                         >
                           {isLoading ? <Loader2 className="h-3 w-3 animate-spin" /> : "Confirm"}
                         </Button>
@@ -675,7 +842,7 @@ function ContractActionPanel({
                     onClick={() => handleRefund(String(ms.id))}
                   >
                     <XCircle className="mr-1 h-3 w-3" />
-                    Refund
+                    {ms.initial_release_done ? "Refund Remaining" : "Refund"}
                   </Button>
                 </div>
               )}
@@ -773,29 +940,29 @@ function MiniWalletCard({
 }) {
   return (
     <Card className="rounded-2xl border border-slate-100 shadow-sm">
-      <CardHeader className="pb-3">
-        <CardTitle className="text-base">My wallet</CardTitle>
+      <CardHeader className="p-4 pb-2">
+        <CardTitle className="text-base font-[family-name:var(--font-manrope)]">My Wallet</CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-4 text-sm">
         <div className="space-y-2 border-b border-slate-100 pb-3">
           <div className="flex justify-between">
-            <span className="text-slate-500">Wallet balance</span>
+            <span className="text-slate-500">Wallet Balance</span>
             <span className="font-medium text-slate-950">₦{stats.walletBalance.toLocaleString()}</span>
           </div>
 
           <div className="flex justify-between">
-            <span className="text-slate-500">Total spendings</span>
+            <span className="text-slate-500">Total Spendings</span>
             <span className="font-medium text-slate-950">₦{stats.totalSpent.toLocaleString()}</span>
           </div>
 
           <div className="flex justify-between">
-            <span className="text-slate-500">Funds in escrow</span>
+            <span className="text-slate-500">Funds in Escrow</span>
             <span className="font-medium text-slate-950">₦{stats.escrowBalance.toLocaleString()}</span>
           </div>
         </div>
 
-        <div className="space-y-1 border-b border-slate-100 pb-3">
+        {/* <div className="space-y-1 border-b border-slate-100 pb-3">
           <p className="text-slate-500">Payment method</p>
           <div className="flex items-center gap-2">
             <CreditCard className="h-4 w-4 text-slate-500" />
@@ -809,7 +976,7 @@ function MiniWalletCard({
             <Wallet className="h-4 w-4 text-slate-500" />
             <span className="text-xs text-slate-700">**** **** 1234</span>
           </div>
-        </div>
+        </div> */}
 
         <div className="grid grid-cols-2 gap-2 pt-2">
           <Button size="sm" variant="outline" onClick={onShowFunding}>
@@ -834,7 +1001,13 @@ function EmployerServiceCard({
   history?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
+  const [reviewOpen, setReviewOpen] = useState(false)
   const isActionable = ["active", "accepted", "ACTIVE", "ACCEPTED"].includes(job.status)
+  const hasReleasedMilestone = job.milestones.some((m) =>
+    ["RELEASED", "PARTIAL_RELEASED"].includes(String(m.status).toUpperCase())
+  )
+  const TERMINAL_STATUSES = ["released", "partial_released", "refunded", "completed", "cancelled"]
+  const canCancel = !TERMINAL_STATUSES.includes(String(job.status).toLowerCase())
 
   return (
     <Card className="rounded-2xl border border-slate-100 shadow-sm">
@@ -887,7 +1060,7 @@ function EmployerServiceCard({
             {expanded ? <ChevronUp className="ml-1 h-3 w-3" /> : <ChevronDown className="ml-1 h-3 w-3" />}
           </Button>
 
-          {!history && (
+          {!history && canCancel && (
             <Button size="sm" className="bg-red-600 hover:bg-red-700">
               Cancel service
             </Button>
@@ -898,10 +1071,32 @@ function EmployerServiceCard({
               Request revision
             </Button>
           )}
+
+          {hasReleasedMilestone && job.artisanId && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="border-yellow-400 text-yellow-700 hover:bg-yellow-50"
+              onClick={() => setReviewOpen(true)}
+            >
+              ⭐ Leave Review
+            </Button>
+          )}
         </div>
 
         {expanded && (
           <ContractActionPanel contract={job} onMilestoneUpdated={onMilestoneUpdated} />
+        )}
+
+        {job.artisanId && (
+          <ReviewDialog
+            open={reviewOpen}
+            onClose={() => setReviewOpen(false)}
+            revieweeId={job.artisanId}
+            revieweeName={job.artisanName || "Artisan"}
+            jobId={job.jobId || undefined}
+            jobTitle={job.title}
+          />
         )}
       </CardContent>
     </Card>
@@ -1023,7 +1218,84 @@ const [historyPagination, setHistoryPagination] =
   }, [overviewPage, activePage, historyPage])
 
   if (loading) {
-    return <div className="p-8 text-center text-sm text-slate-500">Loading dashboard…</div>
+    return (
+      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6 lg:px-8">
+        <EmployerSidebar />
+
+        <main className="min-w-0 flex-1">
+          <div className="grid gap-6 xl:grid-cols-[1fr_280px]">
+            <section>
+              {/* Header */}
+              <div className="border-b border-slate-100 pb-6">
+                <div className="h-8 w-56 animate-pulse rounded bg-slate-100" />
+                <div className="mt-2 h-4 w-72 animate-pulse rounded bg-slate-100" />
+                <div className="mt-6 flex flex-wrap gap-x-10 gap-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                  ))}
+                </div>
+              </div>
+
+              {/* Tab bar */}
+              <div className="mt-8 grid grid-cols-3 gap-1 rounded-lg border border-slate-100 bg-white p-1">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="h-9 animate-pulse rounded-md bg-slate-100" />
+                ))}
+              </div>
+
+              {/* Service cards */}
+              <div className="mt-5 space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i} className="rounded-2xl border border-slate-100 shadow-sm">
+                    <CardContent className="p-4">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1 space-y-2">
+                          <div className="h-5 w-2/5 animate-pulse rounded bg-slate-100" />
+                          <div className="flex items-center gap-2">
+                            <div className="h-6 w-6 animate-pulse rounded-full bg-slate-100" />
+                            <div className="h-3 w-36 animate-pulse rounded bg-slate-100" />
+                          </div>
+                        </div>
+                        <div className="h-6 w-16 animate-pulse rounded-full bg-slate-100" />
+                      </div>
+                      <div className="mt-3 flex gap-6">
+                        <div className="h-3 w-36 animate-pulse rounded bg-slate-100" />
+                        <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                      </div>
+                      <div className="mt-4 flex justify-end gap-2">
+                        <div className="h-8 w-24 animate-pulse rounded-md bg-slate-100" />
+                        <div className="h-8 w-24 animate-pulse rounded-md bg-slate-100" />
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </section>
+
+            {/* Wallet aside */}
+            <aside>
+              <Card className="rounded-2xl border border-slate-100 shadow-sm">
+                <CardHeader className="pb-3">
+                  <div className="h-5 w-24 animate-pulse rounded bg-slate-100" />
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-3 border-b border-slate-100 pb-3">
+                    {[1, 2, 3].map((i) => (
+                      <div key={i} className="flex justify-between">
+                        <div className="h-4 w-28 animate-pulse rounded bg-slate-100" />
+                        <div className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="h-9 w-full animate-pulse rounded-md bg-slate-100" />
+                  <div className="h-9 w-full animate-pulse rounded-md bg-slate-100" />
+                </CardContent>
+              </Card>
+            </aside>
+          </div>
+        </main>
+      </div>
+    )
   }
 
   return (
@@ -1045,6 +1317,7 @@ const [historyPagination, setHistoryPagination] =
                 <Link href="/post-job">Post a job</Link>
                 <Link href="/search">Book a service</Link>
                 <Link href="/search">View services</Link>
+                <Link href="/dashboard/customer/favourites">Favourite artisans</Link>
               </div>
             </div>
 
@@ -1076,12 +1349,21 @@ const [historyPagination, setHistoryPagination] =
               <TabsList className="grid w-full grid-cols-3 rounded-lg border border-slate-100 bg-white p-1">
                 <TabsTrigger value="active" className="rounded-md text-xs">
                   Active services
+                  <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                    {activePagination?.total ?? activeJobs.length}
+                  </span>
                 </TabsTrigger>
                 <TabsTrigger value="upcoming" className="rounded-md text-xs">
                   Upcoming services
+                  <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                    0
+                  </span>
                 </TabsTrigger>
                 <TabsTrigger value="history" className="rounded-md text-xs">
                   Service history
+                  <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                    {historyPagination?.total ?? completedJobs.length}
+                  </span>
                 </TabsTrigger>
               </TabsList>
 

@@ -6,7 +6,7 @@ export async function GET(
     console.log("NEXT VERIFY ROUTE HIT:", params.reference);
 
     const backendUrl =
-      process.env.BACKEND_URL || "https://brickcell-production.up.railway.app";
+      process.env.BACKEND_URL || "http://localhost:8080";
 
     console.log("BACKEND URL:", backendUrl);
 

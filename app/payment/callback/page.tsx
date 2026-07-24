@@ -20,9 +20,33 @@ type VerifyResponse = {
 
 type UiState = "loading" | "success" | "failed" | "missing"
 
+function PaymentPageSkeleton() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-slate-50 p-4">
+      <div className="w-full max-w-md rounded-2xl border border-slate-100 bg-white p-8 shadow-sm">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-16 w-16 animate-pulse rounded-full bg-slate-100" />
+          <div className="h-6 w-48 animate-pulse rounded bg-slate-100" />
+          <div className="h-4 w-64 animate-pulse rounded bg-slate-100" />
+          <div className="mt-2 h-px w-full bg-slate-100" />
+          <div className="w-full space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex justify-between">
+                <div className="h-4 w-24 animate-pulse rounded bg-slate-100" />
+                <div className="h-4 w-28 animate-pulse rounded bg-slate-100" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 h-11 w-full animate-pulse rounded-md bg-slate-100" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function PaymentCallbackPage() {
   return (
-    <Suspense fallback={<div>Loading...</div>}>
+    <Suspense fallback={<PaymentPageSkeleton />}>
       <InnerPage />
     </Suspense>
   );
@@ -139,7 +163,7 @@ export function InnerPage() {
             <CardTitle className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Shield className="h-5 w-5 text-primary" />
-                <span className="text-base sm:text-lg">Payment Callback</span>
+                <span className="text-base sm:text-lg">Payment Verification</span>
               </div>
               {badge}
             </CardTitle>

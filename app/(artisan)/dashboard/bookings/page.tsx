@@ -1,3 +1,4 @@
+//artisan bookings
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
@@ -18,6 +19,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { BookingModal } from "@/components/modals/booking-modal"
 import {
   getAuth,
   listArtisanBookings,
@@ -25,8 +27,6 @@ import {
   type BookingRecord,
   updateBookingStatusArtisan,
 } from "@/lib/api"
-
-
 import { Header } from "@/components/header"
 
 type BookingTab = "current" | "history"
@@ -66,7 +66,7 @@ function getClientName(booking: BookingRecord) {
 
 function getBookingTitle(booking: BookingRecord) {
   const job = getJob(booking)
-  return job?.title || booking.details?.title || "Custom Furniture Design"
+  return job?.title || "Custom Furniture Design"
 }
 
 function getBookingLocation(booking: BookingRecord) {
@@ -132,11 +132,13 @@ function EmptyBookingsState() {
 function BookingCard({
   booking,
   onView,
+  onEdit,
   onCancel,
   isCancelling,
 }: {
   booking: BookingRecord
   onView: (booking: BookingRecord) => void
+  onEdit: (booking: BookingRecord) => void
   onCancel: (booking: BookingRecord) => void
   isCancelling: boolean
 }) {
@@ -200,6 +202,18 @@ function BookingCard({
             View Details
           </Button>
 
+          {booking.status === "scheduled" && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-primary/40 text-primary hover:bg-primary/5"
+                onClick={() => onEdit(booking)}
+              >
+                Edit schedule
+              </Button>
+            )}
+
           {booking.status !== "cancelled" && booking.status !== "completed" && (
             <Button
               type="button"
@@ -210,6 +224,7 @@ function BookingCard({
               {isCancelling ? "Cancelling..." : "Cancel service"}
             </Button>
           )}
+
         </div>
       </div>
     </div>
@@ -312,6 +327,10 @@ export default function ArtisanBookingsPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedBooking, setSelectedBooking] = useState<BookingRecord | null>(null)
   const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [editingBooking, setEditingBooking] =
+  useState<BookingRecord | null>(null)
+
+  const auth = getAuth()
 
   useEffect(() => {
     const auth = getAuth()
@@ -357,7 +376,7 @@ export default function ArtisanBookingsPage() {
     try {
       setCancellingId(booking.id)
 
-      await updateBookingStatusArtisan(booking.id, "", token, "cancelled")
+      await updateBookingStatusArtisan(booking.id,  "cancelled")
 
       toast.success("Booking cancelled")
 
@@ -379,35 +398,35 @@ export default function ArtisanBookingsPage() {
           {/* Sidebar - desktop only */}
           <aside className="hidden lg:block">
             <nav className="space-y-2 text-sm text-slate-700">
-              <Link href="/dashboard/artisan" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <Link href="/dashboard/artisan" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Dashboard
               </Link>
 
-              <Link href="/dashboard/jobs" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <Link href="/dashboard/jobs" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Browse Gigs
               </Link>
 
               <Link
                 href="/dashboard/bookings"
-                className="block rounded-md bg-slate-50 px-3 py-2 font-medium text-slate-950"
+                className="block rounded-md bg-slate-50 px-4 py-3 font-medium text-slate-950"
               >
                 <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
                 My Bookings
               </Link>
 
-              <Link href="/dashboard/services/post" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <Link href="/dashboard/services/post" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Post Service
               </Link>
 
-              <Link href="/dashboard/wallet" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <Link href="/dashboard/wallet" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Wallet
               </Link>
 
-              <Link href="/dashboard/settings" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <Link href="/dashboard/settings" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Settings
               </Link>
 
-              <Link href="/support" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <Link href="/support" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Support
               </Link>
             </nav>
@@ -462,8 +481,22 @@ export default function ArtisanBookingsPage() {
             </div>
 
             {isLoading ? (
-              <div className="flex min-h-[300px] items-center justify-center text-sm text-slate-500">
-                Loading bookings...
+              <div className="space-y-4">
+                {[1, 2, 3].map((i) => (
+                  <div key={i} className="rounded-xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="flex-1 space-y-2.5">
+                        <div className="h-5 w-2/5 animate-pulse rounded bg-slate-100" />
+                        <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+                        <div className="h-3 w-1/2 animate-pulse rounded bg-slate-100" />
+                      </div>
+                      <div className="flex gap-2">
+                        <div className="h-9 w-24 animate-pulse rounded-md bg-slate-100" />
+                        <div className="h-9 w-24 animate-pulse rounded-md bg-slate-100" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
             ) : visibleBookings.length === 0 ? (
               <EmptyBookingsState />
@@ -474,6 +507,7 @@ export default function ArtisanBookingsPage() {
                     key={booking.id}
                     booking={booking}
                     onView={setSelectedBooking}
+                    onEdit={setEditingBooking}
                     onCancel={handleCancel}
                     isCancelling={cancellingId === booking.id}
                   />
@@ -485,6 +519,32 @@ export default function ArtisanBookingsPage() {
       </main>
 
       <BookingDetailsModal booking={selectedBooking} onClose={() => setSelectedBooking(null)} />
+      <BookingModal
+        open={Boolean(editingBooking)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingBooking(null)
+          }
+        }}
+        currentUser={auth?.user}
+        participant={
+          editingBooking?.customer
+            ? {
+                id: editingBooking.customer.id,
+                name: editingBooking.customer.name,
+                email: editingBooking.customer.email,
+              }
+            : null
+        }
+        initialBooking={editingBooking}
+        onSaved={async () => {
+          setEditingBooking(null)
+
+          if (token) {
+            await fetchBookings(token)
+          }
+        }}
+      />
     </>
   )
 }

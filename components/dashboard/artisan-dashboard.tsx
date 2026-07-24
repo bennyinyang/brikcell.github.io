@@ -3,26 +3,20 @@
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
-  Briefcase,
-  Calendar,
   ChevronDown,
   CircleUserRound,
   CreditCard,
   LayoutDashboard,
   Search,
-  Settings,
-  ShieldQuestion,
   Star,
   User,
-  Wallet,
-  X,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
   Dialog,
@@ -40,6 +34,7 @@ import {
   type PaginationMeta,
 } from "@/lib/api"
 import { PaginationControl } from "@/components/pagination-control"
+import { ReviewDialog } from "@/components/review/review-dialog"
 
 type DashboardRequestCard = {
   id: string
@@ -345,6 +340,10 @@ function ServiceCard({
 }) {
   const isHistory = type === "history"
   const status = isHistory ? "RELEASED" : (item as DashboardActiveJobCard).status
+  const [reviewOpen, setReviewOpen] = useState(false)
+  const canReview =
+    isHistory ||
+    ["RELEASED", "PARTIAL_RELEASED"].includes(String(status).toUpperCase())
   
   return (
     <div className="rounded-xl border border-slate-100 bg-white px-4 py-4 shadow-sm">
@@ -358,7 +357,7 @@ function ServiceCard({
                 {getInitials(item.customer.name)}
               </AvatarFallback>
             </Avatar>
-            <span>User: {item.customer.name}</span>
+            <span>Employer: {item.customer.name}</span>
           </div>
         </div>
 
@@ -401,7 +400,28 @@ function ServiceCard({
             Cancel service
           </Button>
         )}
+
+        {canReview && item.customer.id && (
+          <Button
+            variant="outline"
+            className="border-yellow-400 text-yellow-700 hover:bg-yellow-50 sm:min-w-[110px]"
+            onClick={() => setReviewOpen(true)}
+          >
+            ⭐ Review Client
+          </Button>
+        )}
       </div>
+
+      {item.customer.id && (
+        <ReviewDialog
+          open={reviewOpen}
+          onClose={() => setReviewOpen(false)}
+          revieweeId={item.customer.id}
+          revieweeName={item.customer.name}
+          jobId={item.jobId || undefined}
+          jobTitle={item.title}
+        />
+      )}
     </div>
   )
 }
@@ -520,9 +540,7 @@ export function ArtisanDashboard() {
   const [activeJobs, setActiveJobs] = useState<DashboardActiveJobCard[]>([])
   const [completedJobs, setCompletedJobs] = useState<DashboardHistoryCard[]>([])
   const [loading, setLoading] = useState(true)
-  const [showProfileModal, setShowProfileModal] = useState(false)
-  const [showPublicProfileModal, setShowPublicProfileModal] = useState(false)
-  const [selectedActiveJob, setSelectedActiveJob] =
+const [selectedActiveJob, setSelectedActiveJob] =
   useState<DashboardActiveJobCard | null>(null)
 
   const [selectedHistoryJob, setSelectedHistoryJob] =
@@ -660,7 +678,6 @@ export function ArtisanDashboard() {
               href="/dashboard/jobs"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              <Briefcase className="h-4 w-4" />
               Browse Jobs
             </Link>
 
@@ -668,7 +685,6 @@ export function ArtisanDashboard() {
               href="/dashboard/bookings"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              <Calendar className="h-4 w-4" />
               My bookings
             </Link>
 
@@ -676,7 +692,6 @@ export function ArtisanDashboard() {
               href="/dashboard/services/post"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              <Briefcase className="h-4 w-4" />
               Post Service
             </Link>
 
@@ -684,7 +699,6 @@ export function ArtisanDashboard() {
               href="/dashboard/wallet"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              <Wallet className="h-4 w-4" />
               Wallet
             </Link>
 
@@ -692,15 +706,13 @@ export function ArtisanDashboard() {
               href="/dashboard/settings"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              <Settings className="h-4 w-4" />
               Settings
             </Link>
 
             <Link
-              href="#"
+              href="/support"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
-              <ShieldQuestion className="h-4 w-4" />
               Support
             </Link>
           </nav>
@@ -718,18 +730,17 @@ export function ArtisanDashboard() {
           </div>
 
           <div className="mb-7 flex flex-wrap gap-x-10 gap-y-4 border-b border-slate-100 pb-6 text-sm font-medium text-primary">
-            <button 
-           
-            type="button" onClick={() => setShowProfileModal(true)}>
+            <Link href="/profile/setup">
               Manage profile
-            </button>
+            </Link>
 
-            <button type="button" onClick={() => setShowPublicProfileModal(true)}>
+            <Link href={`/artisan/${artisan.artisanId}`}>
               View public profile
-            </button>
+            </Link>
 
             <Link href="/dashboard/services/post">View my services</Link>
             <Link href="/dashboard/jobs">Top clients</Link>
+            <Link href="/dashboard/saved-jobs">Saved jobs</Link>
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
@@ -760,10 +771,19 @@ export function ArtisanDashboard() {
               {loading ? (
                 <div className="space-y-4">
                   {[1, 2].map((item) => (
-                    <div
-                      key={item}
-                      className="h-32 animate-pulse rounded-xl border bg-slate-50"
-                    />
+                    <div key={item} className="rounded-xl border border-slate-100 bg-white px-4 py-4 shadow-sm">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="flex-1 space-y-2">
+                          <div className="h-5 w-1/2 animate-pulse rounded bg-slate-100" />
+                          <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+                        </div>
+                        <div className="h-6 w-16 animate-pulse rounded-full bg-slate-100" />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
+                        <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : activeJobs.length ? (
@@ -802,10 +822,19 @@ export function ArtisanDashboard() {
               {loading ? (
                 <div className="space-y-4">
                   {[1, 2].map((item) => (
-                    <div
-                      key={item}
-                      className="h-32 animate-pulse rounded-xl border bg-slate-50"
-                    />
+                    <div key={item} className="rounded-xl border border-slate-100 bg-white px-4 py-4 shadow-sm">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="flex-1 space-y-2">
+                          <div className="h-5 w-1/2 animate-pulse rounded bg-slate-100" />
+                          <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+                        </div>
+                        <div className="h-6 w-16 animate-pulse rounded-full bg-slate-100" />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
+                        <div className="h-3 w-20 animate-pulse rounded bg-slate-100" />
+                      </div>
+                    </div>
                   ))}
                 </div>
               ) : completedJobs.length ? (
@@ -865,14 +894,13 @@ export function ArtisanDashboard() {
                 )}
               </div>
 
-              <button
-                type="button"
-                onClick={() => setShowProfileModal(true)}
+              <Link
+                href="/profile/setup"
                 className="mt-4 flex items-center gap-2 text-xs font-medium text-primary"
               >
-                View all
+                Complete profile
                 <ChevronDown className="h-3 w-3" />
-              </button>
+              </Link>
             </CardContent>
           </Card>
 
@@ -943,107 +971,7 @@ export function ArtisanDashboard() {
       />
 
       {/* Manage Profile Modal */}
-      <Dialog open={showProfileModal} onOpenChange={setShowProfileModal}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>Manage profile</DialogTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowProfileModal(false)}
-                className="h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </DialogHeader>
 
-          <div className="space-y-4">
-            <div className="flex items-center gap-4 rounded-xl border p-4">
-              <Avatar className="h-14 w-14">
-                <AvatarImage src={profileImage || undefined} />
-                <AvatarFallback>{getInitials(artisanName)}</AvatarFallback>
-              </Avatar>
-
-              <div>
-                <h3 className="font-semibold text-slate-950">{artisanName}</h3>
-                <p className="text-sm text-slate-500">
-                  {artisan?.location || "No location added"}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-xl border p-4">
-              <p className="mb-2 text-sm font-medium text-slate-950">
-                Profile completion
-              </p>
-              <Progress value={profileProgress} className="h-2" />
-              <p className="mt-2 text-xs text-slate-500">
-                Your profile is {profileProgress}% complete.
-              </p>
-            </div>
-
-            <Button asChild className="w-full">
-              <Link href="/profile/setup">Edit profile details</Link>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Public Profile Modal */}
-      <Dialog open={showPublicProfileModal} onOpenChange={setShowPublicProfileModal}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <div className="flex items-center justify-between">
-              <DialogTitle>Public profile preview</DialogTitle>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setShowPublicProfileModal(false)}
-                className="h-8 w-8"
-              >
-                <X className="h-4 w-4" />
-              </Button>
-            </div>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            <div className="rounded-2xl border p-5 text-center">
-              <Avatar className="mx-auto h-20 w-20">
-                <AvatarImage src={profileImage || undefined} />
-                <AvatarFallback>{getInitials(artisanName)}</AvatarFallback>
-              </Avatar>
-
-              <h3 className="mt-3 text-lg font-semibold text-slate-950">
-                {artisanName}
-              </h3>
-              <p className="text-sm text-primary">
-                {artisan?.service_type || artisan?.primaryService || "Artisan"}
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                {artisan?.location || "Location not added"}
-              </p>
-
-              <div className="mt-4 flex items-center justify-center gap-2 text-sm text-slate-600">
-                <Star className="h-4 w-4 fill-yellow-400 text-yellow-400" />
-                <span>{Number(artisan?.rating || 0).toFixed(1)} rating</span>
-              </div>
-            </div>
-
-            <div className="rounded-xl border p-4">
-              <p className="mb-2 text-sm font-medium text-slate-950">Bio</p>
-              <p className="text-sm leading-relaxed text-slate-600">
-                {artisan?.bio || "No bio has been added yet."}
-              </p>
-            </div>
-
-            <Button asChild variant="outline" className="w-full">
-              <Link href="/profile/setup">Update public profile</Link>
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </main>
   )
 }

@@ -24,16 +24,62 @@ import {
 } from "@/lib/api"
 
 const serviceCategories = [
-  "Plumbing",
-  "Carpentry",
-  "Hair Styling",
-  "Electrical",
-  "Painting",
-  "Auto Repair",
+  // Trades & Construction
+  "AC & HVAC Services",
+  "Aluminium & Burglary Proof Works",
+  "Carpentry & Furniture Making",
+  "Electrical Installation & Repair",
+  "Flooring & Tiling",
+  "Generator Installation & Repair",
+  "Glass & Glazing",
+  "Interior Design & Decor",
+  "Masonry & Bricklaying",
+  "Painting & Decoration",
+  "POP Ceiling & Plastering",
+  "Plumbing & Pipe Fitting",
+  "Roofing & Waterproofing",
+  "Solar Panel Installation",
+  "Wallpaper & Wall Art",
+  "Welding & Metal Fabrication",
+  "Window & Door Installation",
+  // Home Services
+  "Deep Cleaning & Sanitation",
+  "Fumigation & Pest Control",
   "House Cleaning",
-  "Tech Support",
-  "Landscaping",
-  "Moving Services",
+  "Laundry & Dry Cleaning",
+  "Landscaping & Gardening",
+  "Moving & Relocation",
+  "Pool Cleaning & Maintenance",
+  "Smart Home & CCTV Installation",
+  // Automotive
+  "Auto Body & Panel Beating",
+  "Auto Detailing & Car Wash",
+  "Auto Electrician",
+  "Mechanic & Engine Repair",
+  "Tyre & Wheel Services",
+  // Beauty & Personal Care
+  "Barbing & Men's Grooming",
+  "Gele Tying & Event Styling",
+  "Hair Braiding & Styling",
+  "Lash & Brow Artistry",
+  "Makeup & Bridal Beauty",
+  "Massage & Spa Therapy",
+  "Nail Technician & Manicure",
+  // Technology & IT
+  "Computer & Laptop Repair",
+  "CCTV & Security Systems",
+  "Graphic Design",
+  "Network & Internet Setup",
+  "Phone & Gadget Repair",
+  "Web Design & Development",
+  // Professional & Creative
+  "Catering & Food Services",
+  "Event Planning & Decoration",
+  "Fashion Design & Tailoring",
+  "Fitness Training & Coaching",
+  "Music & DJ Services",
+  "Photography & Videography",
+  "Printing & Branding",
 ]
 
 const experienceLevels = [
@@ -43,15 +89,70 @@ const experienceLevels = [
   { value: "expert", label: "Expert (10+ years)" },
 ]
 
-const certificationTypes = [
-  "Licensed Professional",
-  "Insured",
-  "Background Checked",
-  "Trade Certification",
-  "Safety Training",
-  "First Aid Certified",
-  "Business License",
-  "Bonded",
+const POPULAR_CERTS: { category: string; items: string[] }[] = [
+  {
+    category: "Trade & Regulatory",
+    items: [
+      "COREN Registered Engineer",
+      "CORBON Registered Builder",
+      "NABTEB Trade Certificate",
+      "City & Guilds Certificate",
+      "Vocational Training Certificate (VTC)",
+      "NEMSA Electrical License",
+      "SON Certified",
+    ],
+  },
+  {
+    category: "Business & Legal",
+    items: [
+      "CAC Business Registration",
+      "Licensed Professional",
+      "Insured & Liability Covered",
+      "Bonded",
+      "Background Checked",
+      "NAFDAC Certified",
+      "FIRS Tax Clearance",
+    ],
+  },
+  {
+    category: "Safety & Health",
+    items: [
+      "First Aid Certified",
+      "Safety Training Certificate",
+      "Fire Safety Certificate",
+      "Occupational Health & Safety (OHSAS)",
+      "OSHA Certification",
+      "Environmental Safety Certified",
+    ],
+  },
+  {
+    category: "Beauty & Wellness",
+    items: [
+      "CIBTAC Beauty Therapy Diploma",
+      "Cosmetology & Skin Care Certificate",
+      "Nail Technology Certification",
+      "Massage Therapy Diploma",
+    ],
+  },
+  {
+    category: "Technology",
+    items: [
+      "CompTIA A+ Certified",
+      "Cisco CCNA",
+      "Google IT Support Certificate",
+      "Microsoft Certified Professional",
+      "AWS Cloud Practitioner",
+      "Cybersecurity Certificate",
+    ],
+  },
+  {
+    category: "Automotive",
+    items: [
+      "NATA Automotive Technician",
+      "Vehicle Inspection Officer License",
+      "Automotive Electrician Certificate",
+    ],
+  },
 ]
 
 type ContactMethod = "platform" | "direct"
@@ -60,6 +161,8 @@ export function ArtisanProfileSetup() {
   const [token, setToken] = useState<string | null>(null)
   const [userId, setUserId] = useState<string | null>(null)
   const [profileImagePublicId, setProfileImagePublicId] = useState("")
+  const [coverImageUrl, setCoverImageUrl] = useState("")
+  const [coverImagePublicId, setCoverImagePublicId] = useState("")
   const [portfolioGallery, setPortfolioGallery] = useState<any[]>([])
   const router = useRouter()
 
@@ -73,6 +176,8 @@ export function ArtisanProfileSetup() {
 
   const [currentStep, setCurrentStep] = useState(1)
   const [isSaving, setIsSaving] = useState(false)
+  const [certInput, setCertInput] = useState("")
+  const [servicePickerValue, setServicePickerValue] = useState("")
   const [isLoading, setIsLoading] = useState(() => {
   const auth = getAuth()
     return !!auth?.user?.id  
@@ -114,7 +219,8 @@ export function ArtisanProfileSetup() {
 
     minimumJobValue: "",
     preferredContactMethod: "platform" as ContactMethod,
-    instantBooking: false,
+    currentStatus: "available",
+    responseTime: "within_few_hours",
   })
 
   useEffect(() => {
@@ -153,12 +259,15 @@ export function ArtisanProfileSetup() {
           certifications: Array.isArray(data.profile?.certifications) ? data.profile.certifications : [],
           minimumJobValue: data.profile?.minimumJobValue != null ? String(data.profile.minimumJobValue) : "",
           preferredContactMethod: (data.profile?.preferredContactMethod as ContactMethod) || "platform",
-          instantBooking: Boolean(data.profile?.instantBooking),
+          currentStatus: data.profile?.currentStatus || "available",
+          responseTime: data.profile?.responseTime || "within_few_hours",
           profileImage: null,
           workExperience: "",
         }))
 
         setProfileImageUrl(data.profile?.profileImage || "")
+        setCoverImageUrl(data.profile?.cover_image || data.profile?.coverImage || "")
+        setCoverImagePublicId(data.profile?.cover_image_public_id || "")
       } catch (error) {
         console.error("Failed to load artisan profile:", error)
       } finally {
@@ -235,6 +344,26 @@ export function ArtisanProfileSetup() {
     }
   }
 
+  const handleCoverImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+    const toastId = toast.loading("Uploading cover image...")
+    try {
+      const uploaded = await uploadProfileImage(file)
+      setCoverImageUrl(uploaded.url)
+      setCoverImagePublicId(uploaded.public_id)
+      // Persist immediately so navigating away doesn't lose the image
+      await updateMyArtisanProfile({
+        cover_image: uploaded.url,
+        cover_image_public_id: uploaded.public_id,
+      })
+      toast.success("Cover image saved", { id: toastId })
+    } catch (error: any) {
+      toast.error(error?.message || "Failed to upload cover image", { id: toastId })
+    }
+  }
+
   const removePortfolioImage = (index: number) => {
     setFormData((prev) => ({
       ...prev,
@@ -295,14 +424,17 @@ export function ArtisanProfileSetup() {
           profileImage: profileImageUrl || undefined,
           profile_image_public_id: profileImagePublicId || undefined,
           profileImagePublicId: profileImagePublicId || undefined,
+          cover_image: coverImageUrl || undefined,
+          cover_image_public_id: coverImagePublicId || undefined,
           portfolio_gallery: portfolioGallery,
           portfolioGallery: portfolioGallery,
           certifications: formData.certifications,
           serviceRadius: formData.serviceRadius ? Number(formData.serviceRadius) : undefined,
           isRemoteAvailable: formData.isRemoteAvailable,
           preferredContactMethod: formData.preferredContactMethod,
-          instantBooking: formData.instantBooking,
           minimumJobValue: formData.minimumJobValue ? Number(formData.minimumJobValue) : undefined,
+         currentStatus: formData.currentStatus,
+          responseTime: formData.responseTime,
           skills: formData.services,
         },
         
@@ -327,14 +459,31 @@ export function ArtisanProfileSetup() {
 
   if (isLoading) {
     return (
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
-        <p className="text-sm text-gray-600">Loading profile...</p>
+      <div className="max-w-4xl">
+        <div className="mb-8 text-center">
+          <div className="mx-auto h-8 w-72 animate-pulse rounded bg-slate-100" />
+          <div className="mx-auto mt-2 h-4 w-80 animate-pulse rounded bg-slate-100" />
+        </div>
+        <div className="mb-8">
+          <div className="h-2 w-full animate-pulse rounded-full bg-slate-100" />
+        </div>
+        <div className="space-y-6">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="space-y-2">
+              <div className="h-4 w-28 animate-pulse rounded bg-slate-100" />
+              <div className="h-11 w-full animate-pulse rounded-md bg-slate-100" />
+            </div>
+          ))}
+          <div className="flex justify-end">
+            <div className="h-11 w-32 animate-pulse rounded-md bg-slate-100" />
+          </div>
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="max-w-4xl">
       <div className="text-center mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">Complete Your Artisan Profile</h1>
         <p className="text-gray-600">Help customers find and hire you by showcasing your skills and experience</p>
@@ -364,6 +513,40 @@ export function ArtisanProfileSetup() {
           <CardContent className="space-y-6">
             {currentStep === 1 && (
               <div className="space-y-6">
+                {/* Cover image */}
+                <div className="space-y-2">
+                  <Label className="text-sm font-medium text-gray-700">Cover Image</Label>
+                  <div
+                    className="relative h-32 w-full overflow-hidden rounded-xl border border-dashed border-gray-300 bg-gray-50 cursor-pointer hover:bg-gray-100 transition-colors"
+                    onClick={() => document.getElementById("cover-image")?.click()}
+                  >
+                    {coverImageUrl ? (
+                      <>
+                        <img src={coverImageUrl} alt="Cover" className="h-full w-full object-cover" />
+                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
+                          <span className="text-white text-xs font-medium flex items-center gap-1">
+                            <Upload className="h-3.5 w-3.5" /> Change cover
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center h-full gap-1.5 text-gray-400">
+                        <Upload className="h-5 w-5" />
+                        <span className="text-xs">Click to upload a cover image</span>
+                        <span className="text-[10px]">Shown as the card banner when employers browse artisans</span>
+                      </div>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleCoverImageUpload}
+                    className="hidden"
+                    id="cover-image"
+                  />
+                </div>
+
+                {/* Profile photo */}
                 <div className="flex flex-col items-center space-y-4">
                   <Avatar className="h-24 w-24">
                     <AvatarImage src={profileImageUrl || undefined} />
@@ -477,40 +660,45 @@ export function ArtisanProfileSetup() {
 
                 <div className="space-y-2">
                   <Label>Additional Services (Optional)</Label>
+                  <p className="text-xs text-gray-500">Add other services you offer alongside your primary service</p>
 
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {formData.services.map((service) => (
-                      <Badge key={service} variant="secondary" className="flex items-center space-x-1">
-                        <span>{service}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeService(service)}
-                          className="ml-1 hover:text-red-500"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
-                  </div>
+                  <Select
+                    value={servicePickerValue}
+                    onValueChange={(value) => {
+                      addService(value)
+                      setServicePickerValue("")
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a service to add…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {serviceCategories
+                        .filter((cat) => cat !== formData.primaryService && !formData.services.includes(cat))
+                        .map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
 
-                  <div className="flex flex-wrap gap-2">
-                    {serviceCategories
-                      .filter(
-                        (cat) => cat !== formData.primaryService && !formData.services.includes(cat)
-                      )
-                      .map((service) => (
-                        <Button
-                          key={service}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addService(service)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {service}
-                        </Button>
+                  {formData.services.length > 0 && (
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {formData.services.map((service) => (
+                        <Badge key={service} variant="secondary" className="flex items-center gap-1 py-1 pl-2 pr-1">
+                          <span>{service}</span>
+                          <button
+                            type="button"
+                            onClick={() => removeService(service)}
+                            className="rounded-full p-0.5 hover:bg-red-100 hover:text-red-500"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </Badge>
                       ))}
-                  </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -617,39 +805,90 @@ export function ArtisanProfileSetup() {
                   )}
                 </div>
 
-                <div className="space-y-2">
-                  <Label>Certifications & Credentials</Label>
-
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {formData.certifications.map((cert) => (
-                      <Badge key={cert} variant="secondary" className="flex items-center space-x-1">
-                        <span>{cert}</span>
-                        <button
-                          type="button"
-                          onClick={() => removeCertification(cert)}
-                          className="ml-1 hover:text-red-500"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </Badge>
-                    ))}
+                <div className="space-y-4">
+                  <div>
+                    <Label>Certifications & Credentials</Label>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      Add licences, trade certificates, safety training, or any credential that builds trust with clients. These appear on your public profile.
+                    </p>
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    {certificationTypes
-                      .filter((c) => !formData.certifications.includes(c))
-                      .map((cert) => (
-                        <Button
-                          key={cert}
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => addCertification(cert)}
-                        >
-                          <Plus className="h-3 w-3 mr-1" />
-                          {cert}
-                        </Button>
-                      ))}
+                  {/* Custom input */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Type a certification or credential name…"
+                      value={certInput}
+                      onChange={(e) => setCertInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault()
+                          const trimmed = certInput.trim()
+                          if (trimmed) { addCertification(trimmed); setCertInput("") }
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => {
+                        const trimmed = certInput.trim()
+                        if (trimmed) { addCertification(trimmed); setCertInput("") }
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+
+                  {/* Added certifications */}
+                  {formData.certifications.length > 0 && (
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+                      <p className="text-xs font-medium text-slate-600 mb-2">Added ({formData.certifications.length})</p>
+                      <div className="flex flex-wrap gap-2">
+                        {formData.certifications.map((cert) => (
+                          <Badge key={cert} className="flex items-center gap-1 bg-primary/10 text-primary border-primary/20 hover:bg-primary/15 py-1 pl-2.5 pr-1">
+                            <Check className="h-3 w-3 shrink-0" />
+                            <span>{cert}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeCertification(cert)}
+                              className="ml-0.5 rounded-full p-0.5 hover:bg-red-100 hover:text-red-500"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Popular suggestions by category */}
+                  <div className="space-y-4">
+                    <p className="text-xs font-medium text-slate-700">Popular Certifications: Click To Add</p>
+                    {POPULAR_CERTS.map((group) => {
+                      const available = group.items.filter((c) => !formData.certifications.includes(c))
+                      if (available.length === 0) return null
+                      return (
+                        <div key={group.category}>
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mb-1.5">
+                            {group.category}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {available.map((cert) => (
+                              <button
+                                key={cert}
+                                type="button"
+                                onClick={() => addCertification(cert)}
+                                className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs text-slate-700 hover:border-primary/40 hover:bg-primary/5 hover:text-primary transition-colors"
+                              >
+                                <Plus className="h-3 w-3" />
+                                {cert}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
 
@@ -668,6 +907,42 @@ export function ArtisanProfileSetup() {
 
             {currentStep === 4 && (
               <div className="space-y-6">
+                <div className="space-y-2">
+                  <Label htmlFor="currentStatus">Current Status</Label>
+                  <Select
+                    value={formData.currentStatus}
+                    onValueChange={(value) => setFormData((p) => ({ ...p, currentStatus: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="available">Available</SelectItem>
+                      <SelectItem value="busy">Busy</SelectItem>
+                      <SelectItem value="on_leave">On Leave</SelectItem>
+                      <SelectItem value="unavailable">Unavailable</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="responseTime">Response Time</Label>
+                  <Select
+                    value={formData.responseTime}
+                    onValueChange={(value) => setFormData((p) => ({ ...p, responseTime: value }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="within_1_hour">Within 1 hour</SelectItem>
+                      <SelectItem value="within_few_hours">Within a few hours</SelectItem>
+                      <SelectItem value="within_1_day">Within a day</SelectItem>
+                      <SelectItem value="within_few_days">Within a few days</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
                 <div className="space-y-2">
                   <Label htmlFor="serviceRadius">Service Radius</Label>
                   <Select
@@ -714,17 +989,6 @@ export function ArtisanProfileSetup() {
                   <p className="text-sm text-gray-600">
                     Set a minimum job value to filter out small projects
                   </p>
-                </div>
-
-                <div className="flex items-center space-x-2">
-                  <Checkbox
-                    id="instantBooking"
-                    checked={formData.instantBooking}
-                    onCheckedChange={(checked) =>
-                      setFormData((p) => ({ ...p, instantBooking: checked as boolean }))
-                    }
-                  />
-                  <Label htmlFor="instantBooking">Allow instant booking for simple jobs</Label>
                 </div>
 
                 <div className="space-y-2">

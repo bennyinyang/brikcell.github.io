@@ -1,55 +1,48 @@
 import { Card, CardContent } from "@/components/ui/card"
-import { Wrench, Hammer, Scissors, Zap, Paintbrush, Car, Home, Laptop } from "lucide-react"
+import {
+  Wrench, Hammer, Scissors, Zap, Paintbrush, Car, Home, Laptop,
+  Trees, Truck, Wind, Layers, Bug, Sofa, Waves, CookingPot,
+  Dumbbell, Baby, Shirt, Camera, Shield,
+  Code2, Smartphone, Palette, Film, Share2, PenLine, BarChart2,
+  Headphones, BookOpen, Music, MonitorSmartphone, Lock,
+} from "lucide-react"
 
 const categories = [
-  {
-    name: "Plumbing",
-    icon: Wrench,
-    description: "Pipes, fixtures, and water systems",
-    count: "1,234 artisans",
-  },
-  {
-    name: "Carpentry",
-    icon: Hammer,
-    description: "Custom furniture and woodwork",
-    count: "856 artisans",
-  },
-  {
-    name: "Hair Styling",
-    icon: Scissors,
-    description: "Cuts, colors, and treatments",
-    count: "2,145 artisans",
-  },
-  {
-    name: "Electrical",
-    icon: Zap,
-    description: "Wiring, lighting, and repairs",
-    count: "967 artisans",
-  },
-  {
-    name: "Painting",
-    icon: Paintbrush,
-    description: "Interior and exterior painting",
-    count: "743 artisans",
-  },
-  {
-    name: "Auto Repair",
-    icon: Car,
-    description: "Vehicle maintenance and fixes",
-    count: "612 artisans",
-  },
-  {
-    name: "Home Cleaning",
-    icon: Home,
-    description: "Deep cleaning and maintenance",
-    count: "1,876 artisans",
-  },
-  {
-    name: "Tech Support",
-    icon: Laptop,
-    description: "Computer and device repairs",
-    count: "534 artisans",
-  },
+  // ── Physical / Local ───────────────────────────────────────────
+  { name: "Plumbing", icon: Wrench, description: "Pipes, fixtures, and water systems", count: "1,234 artisans" },
+  { name: "Carpentry", icon: Hammer, description: "Custom furniture and woodwork", count: "856 artisans" },
+  { name: "Hair Styling", icon: Scissors, description: "Cuts, colors, and treatments", count: "2,145 artisans" },
+  { name: "Electrical", icon: Zap, description: "Wiring, lighting, and repairs", count: "967 artisans" },
+  { name: "Painting", icon: Paintbrush, description: "Interior and exterior painting", count: "743 artisans" },
+  { name: "Auto Repair", icon: Car, description: "Vehicle maintenance and fixes", count: "612 artisans" },
+  { name: "House Cleaning", icon: Home, description: "Deep cleaning and maintenance", count: "1,876 artisans" },
+  { name: "Tech Support", icon: Laptop, description: "Computer and device repairs", count: "534 artisans" },
+  { name: "Landscaping", icon: Trees, description: "Gardens, lawns, and outdoor spaces", count: "428 artisans" },
+  { name: "Moving Services", icon: Truck, description: "Packing, loading, and relocation", count: "312 artisans" },
+  { name: "HVAC", icon: Wind, description: "Heating, cooling, and ventilation", count: "287 artisans" },
+  { name: "Roofing", icon: Layers, description: "Roof installation and repairs", count: "198 artisans" },
+  { name: "Pest Control", icon: Bug, description: "Eliminate pests and rodents", count: "245 artisans" },
+  { name: "Interior Design", icon: Sofa, description: "Transform your living spaces", count: "391 artisans" },
+  { name: "Pool Maintenance", icon: Waves, description: "Cleaning and pool upkeep", count: "143 artisans" },
+  { name: "Catering & Cooking", icon: CookingPot, description: "Events, meal prep, and catering", count: "567 artisans" },
+  { name: "Personal Training", icon: Dumbbell, description: "Fitness coaching and workout plans", count: "432 artisans" },
+  { name: "Childcare", icon: Baby, description: "Babysitting and childcare services", count: "678 artisans" },
+  { name: "Tailoring", icon: Shirt, description: "Alterations and custom clothing", count: "321 artisans" },
+  { name: "Photography", icon: Camera, description: "Portraits, events, and product shots", count: "512 artisans" },
+  { name: "Security & CCTV", icon: Shield, description: "Installation and monitoring", count: "189 artisans" },
+  // ── Digital / Remote ───────────────────────────────────────────
+  { name: "Web Development", icon: Code2, description: "Websites, apps, and web tools", count: "1,102 artisans" },
+  { name: "Mobile App Dev", icon: Smartphone, description: "iOS and Android applications", count: "743 artisans" },
+  { name: "Graphic Design", icon: Palette, description: "Visuals, layouts, and branding", count: "892 artisans" },
+  { name: "Video Editing", icon: Film, description: "Cuts, effects, and post-production", count: "534 artisans" },
+  { name: "Social Media Mgmt", icon: Share2, description: "Grow your online presence", count: "621 artisans" },
+  { name: "Content Writing", icon: PenLine, description: "Articles, copy, and blog posts", count: "478 artisans" },
+  { name: "SEO & Marketing", icon: BarChart2, description: "Rankings, ads, and growth", count: "356 artisans" },
+  { name: "Virtual Assistant", icon: Headphones, description: "Admin, scheduling, and support", count: "412 artisans" },
+  { name: "Tutoring", icon: BookOpen, description: "Academic help and coaching", count: "687 artisans" },
+  { name: "Music Production", icon: Music, description: "Beats, mixing, and mastering", count: "234 artisans" },
+  { name: "UI/UX Design", icon: MonitorSmartphone, description: "User interfaces and experiences", count: "398 artisans" },
+  { name: "Cybersecurity", icon: Lock, description: "Security audits and protection", count: "167 artisans" },
 ]
 
 export function ServiceCategories() {

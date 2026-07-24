@@ -1,13 +1,28 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Search, MapPin } from "lucide-react"
+import { getAuth } from "@/lib/api"
 
 export function HeroSection() {
+  const router = useRouter()
   const [searchQuery, setSearchQuery] = useState("")
   const [location, setLocation] = useState("")
+
+  const handleSearch = () => {
+    const auth = getAuth()
+    if (!auth?.token) {
+      router.push("/auth/signup")
+      return
+    }
+    const params = new URLSearchParams()
+    if (searchQuery.trim()) params.set("q", searchQuery.trim())
+    if (location.trim()) params.set("location", location.trim())
+    router.push(`/search${params.toString() ? `?${params}` : ""}`)
+  }
 
   return (
     <section className="relative bg-gradient-to-br from-primary/5 via-white to-accent/5 py-24 overflow-hidden">
@@ -18,7 +33,7 @@ export function HeroSection() {
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-8 leading-tight">
-            Connecting You with{" "}
+            Connecting You With{" "}
             <span className="text-primary bg-gradient-to-r from-primary to-primary/80 bg-clip-text text-transparent">
               Trusted Local Artisans
             </span>
@@ -36,6 +51,7 @@ export function HeroSection() {
                   placeholder="What service do you need?"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   className="pl-12 h-14 text-lg rounded-xl border-gray-200 focus:border-primary focus:ring-primary/20"
                 />
               </div>
@@ -45,11 +61,13 @@ export function HeroSection() {
                   placeholder="Enter your location"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                   className="pl-12 h-14 text-lg rounded-xl border-gray-200 focus:border-primary focus:ring-primary/20"
                 />
               </div>
               <Button
                 size="lg"
+                onClick={handleSearch}
                 className="h-14 px-10 text-lg rounded-xl bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary hover:shadow-xl transition-all duration-300 shadow-none"
               >
                 Search Artisans

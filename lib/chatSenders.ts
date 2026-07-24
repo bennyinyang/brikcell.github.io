@@ -1,46 +1,29 @@
-import { API_BASE, getAuth } from "./api";
+import { API_BASE } from "./api";
 
-export async function sendContract(roomId: string, payload: any) {
-  const auth = getAuth();
-  if (!auth) {
-    throw new Error("Authentication required");
-  }
-  return fetch(`${API_BASE}/chat/${roomId}/contract`, {
+async function postJson(path: string, payload: any) {
+  const res = await fetch(`${API_BASE}${path}`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.token}`
-    },
-    body: JSON.stringify(payload)
-  }).then(res => res.json());
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify(payload),
+  });
+
+  if (!res.ok) {
+    const data = await res.json().catch(() => ({}));
+    throw new Error(data?.message || `HTTP ${res.status}`);
+  }
+
+  return res.json();
 }
 
-export async function sendPhaseUpdate(roomId: string, payload: any) {
-  const auth = getAuth();
-  if (!auth) {
-    throw new Error("Authentication required");
-  }
-  return fetch(`${API_BASE}/chat/${roomId}/phase-update`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.token}`
-    },
-    body: JSON.stringify(payload)
-  }).then(res => res.json());
+export function sendContract(roomId: string, payload: any) {
+  return postJson(`/chat/${roomId}/contract`, payload);
 }
 
-export async function sendPaymentPrompt(roomId: string, payload: any) {
-  const auth = getAuth();
-  if (!auth) {
-    throw new Error("Authentication required");
-  }
-  return fetch(`${API_BASE}/chat/${roomId}/payment-prompt`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${auth.token}`
-    },
-    body: JSON.stringify(payload)
-  }).then(res => res.json());
+export function sendPhaseUpdate(roomId: string, payload: any) {
+  return postJson(`/chat/${roomId}/phase-update`, payload);
+}
+
+export function sendPaymentPrompt(roomId: string, payload: any) {
+  return postJson(`/chat/${roomId}/payment-prompt`, payload);
 }

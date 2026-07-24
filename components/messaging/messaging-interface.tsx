@@ -12,21 +12,27 @@ import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import { ContractCreationModal } from "@/components/modals/contract-creation-modal"
+import { BookingModal } from "@/components/modals/booking-modal"
 import { type Socket } from "socket.io-client"
 import { sendContract } from "@/lib/chatSenders"
 import { useRouter } from "next/navigation"
-import { 
-  listChatRooms, listChatMessages, API_BASE, getAuth,
+import {
+  listChatRooms, listChatMessages, markChatRoomRead, editChatMessage, API_BASE, getAuth,
   acceptContract,
   sendChatMessageWithFile,
   declineContract,
   requestContractChanges,
   listContractTransactions,
+  fundMilestone,
   submitMilestone,
   releaseMilestone,
   partialReleaseMilestone,
   refundMilestone,
   getContractState,
+  getIncomingMessageRequests,
+  acceptMessageRequest,
+  declineMessageRequest,
+  type MessageRequestDTO,
 } from "@/lib/api"
 import { getSocket } from "@/lib/socket-client"
 
@@ -71,6 +77,9 @@ interface Phase {
   description: string
   deliverables: string[]
   amount: number
+  labour_cost?: number
+  material_cost?: number
+  initial_release_done?: boolean
   status:
     | "pending"
     | "in-progress"
@@ -105,6 +114,7 @@ interface Contract {
   phases: Phase[]
   materials: Material[]
   status: "draft" | "in_review" | "accepted" | "active" | "completed"| "cancelled"
+  payment_mode?: 'FULL' | 'MILESTONE'
   createdAt: string
   acceptedAt?: string
 }
@@ -122,6 +132,7 @@ interface Message {
   contract?: Contract
   phaseUpdate?: { phaseId: number; status: string; message: string }
   paymentPrompt?: { phaseId: number; amount: number }
+  isEdited?: boolean
 }
 
 interface ConversationParticipant {
@@ -162,14 +173,18 @@ export function MessagingInterface() {
   const [showJobSummary, setShowJobSummary] = useState(true)
   const [activeContract, setActiveContract] = useState<Contract | null>(null)
   const [showContractModal, setShowContractModal] = useState(false)
+  const [showBookingModal, setShowBookingModal] = useState(false)
   const [roomsLoaded, setRoomsLoaded] = useState(false)
   const [contractActionLoading, setContractActionLoading] = useState<string | null>(null)
-  const [contractTxTotalPaid, setContractTxTotalPaid] = useState<number>(0)
+  const [contractTxReleasedTotal, setContractTxReleasedTotal] = useState<number>(0)
+  const [contractTxDepositPaid, setContractTxDepositPaid] = useState<number>(0)
   const [contractTxLoading, setContractTxLoading] = useState<boolean>(false)
   const [milestoneActionLoading, setMilestoneActionLoading] = useState<string | null>(null)
   const [partialReleaseOpenFor, setPartialReleaseOpenFor] = useState<string | null>(null)
   const [partialReleaseAmount, setPartialReleaseAmount] = useState<Record<string, string>>({})
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
+  const [editText, setEditText] = useState("")
   const [isSendingFile, setIsSendingFile] = useState(false)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -177,6 +192,10 @@ export function MessagingInterface() {
   const socketRef = useRef<Socket | null>(null)
   const selectedRoomIdRef = useRef<string | null>(null)
   const scrollAreaRef = useRef<HTMLDivElement | null>(null)
+  const messagesScrollRef = useRef<HTMLDivElement | null>(null)
+
+  const [pendingRequests, setPendingRequests] = useState<MessageRequestDTO[]>([])
+  const [requestActionLoading, setRequestActionLoading] = useState<string | null>(null)
 
   const searchParams = useSearchParams()
   const incomingArtisanId = searchParams.get("artisanId")
@@ -193,14 +212,28 @@ export function MessagingInterface() {
   const canStartFromUrl = Boolean(incomingArtisanId || incomingArtisanEmail)
   const canType = Boolean(selectedConversation?.id || canStartFromUrl)
 
-  const totalPaid = contractTxTotalPaid
+  // contractTxReleasedTotal = escrow outflows only (milestone releases).
+  // contractTxDepositPaid   = Paystack deposit transactions (wallet top-ups).
   const totalContract = Number(activeContract?.totalAmount ?? 0)
+
+  // When every phase is fully released the contract is complete — use phase amounts
+  // so that platform-fee rounding never creates a phantom "remaining" balance.
+  const allPhasesReleased =
+    (activeContract?.phases ?? []).length > 0 &&
+    (activeContract?.phases ?? []).every((p) =>
+      ["released", "paid"].includes(String(p.status || "").toLowerCase())
+    )
+  const totalPaid = allPhasesReleased
+    ? totalContract
+    : Math.min(contractTxReleasedTotal, totalContract)
   const remaining = Math.max(0, totalContract - totalPaid)
 
-  // deposit is considered fully paid when totalPaid covers depositAmount
   const depositRequired = Number(activeContract?.depositAmount ?? 0)
-  const depositFullyPaid = totalPaid >= depositRequired 
-  const depositPaidAmount = Math.min(depositRequired, totalPaid)
+  // Deposit is considered paid when we have a real deposit transaction OR any release happened
+  const depositFullyPaid = contractTxDepositPaid > 0 || totalPaid > 0
+  const depositPaidAmount = contractTxDepositPaid > 0
+    ? Math.min(depositRequired, contractTxDepositPaid)
+    : Math.min(depositRequired, totalPaid)
 
 
 
@@ -211,6 +244,7 @@ export function MessagingInterface() {
   totalAmount: Number(contract.totalAmount || 0),
   depositAmount: Number(contract.depositAmount || 0),
   depositPaid: Boolean(contract.depositPaid),
+  payment_mode: contract.payment_mode ?? undefined,
   materials: Array.isArray(contract.materials) ? contract.materials : [],
   phases: Array.isArray(contract.phases)
     ? contract.phases.map((p: any) => ({
@@ -219,6 +253,9 @@ export function MessagingInterface() {
         description: p.description || "",
         deliverables: Array.isArray(p.deliverables) ? p.deliverables : [],
         amount: Number(p.amount || 0),
+        labour_cost: Number(p.labour_cost || 0),
+        material_cost: Number(p.material_cost || 0),
+        initial_release_done: Boolean(p.initial_release_done),
         status: normalizePhaseStatus(p.status),
         dueDate: p.dueDate || undefined,
         completedDate: p.completedDate || undefined,
@@ -344,15 +381,58 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
     )
   }, [conversations, searchQuery])
 
-  const calcTotalPaidFromTransactions = (txs: any[]) => {
-    return (txs || [])
-      .filter((t) => String(t?.status || "").toLowerCase() === "success")
+  const bookingContractCandidates = useMemo(() => {
+    const candidates = messages
+      .filter(
+        (message) =>
+          message.type === "contract" &&
+          message.contract?.id
+      )
+      .map((message) => ({
+        id: String(message.contract!.id),
+        title:
+          message.contract?.title || "Contract",
+      }))
+
+    const unique = new Map<
+      string,
+      {
+        id: string
+        title: string
+      }
+    >()
+
+    candidates.forEach((candidate) => {
+      if (!unique.has(candidate.id)) {
+        unique.set(candidate.id, candidate)
+      }
+    })
+
+    return Array.from(unique.values())
+  }, [messages])
+
+  const calcTxTotals = (txs: any[]) => {
+    const successful = (txs || []).filter(
+      (t) => String(t?.status || "").toLowerCase() === "success"
+    )
+    // Separate deposit (wallet top-up) from escrow release records so they don't
+    // inflate "Total Paid". After the backend user_id filter each user sees only
+    // their own records, so employer gets: deposit + employer-side release rows.
+    // Artisan gets: artisan-side release rows only (no deposit).
+    const depositTotal = successful
+      .filter((t) => String(t?.type || "").toLowerCase() === "deposit")
       .reduce((sum, t) => sum + Number(t?.amount || 0), 0)
+
+    const releaseTotal = successful
+      .filter((t) => !["deposit", "milestone_refund"].includes(String(t?.type || "").toLowerCase()))
+      .reduce((sum, t) => sum + Number(t?.amount || 0), 0)
+
+    return { depositTotal, releaseTotal }
   }
 
   const scrollToBottom = () => {
     try {
-      const el = scrollAreaRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null
+      const el = messagesScrollRef.current?.querySelector("[data-radix-scroll-area-viewport]") as HTMLElement | null
       if (el) el.scrollTop = el.scrollHeight
     } catch (_) {}
   }
@@ -557,7 +637,7 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
   // - a User
   // - a ChatParticipant row containing participantUser/user/User
   // - a ChatParticipant row containing user_id/userId
-  function normalizeUser(p: any): { id: string; name: string; email: string } | null {
+  function normalizeUser(p: any): { id: string; name: string; email: string; avatar_url: string | null } | null {
     if (!p) return null
 
     // try common nested shapes first
@@ -570,6 +650,7 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
       id: String(id),
       name: u?.name || u?.userName || u?.username || "User",
       email: u?.email || "",
+      avatar_url: u?.avatar_url || u?.ArtisanProfile?.profile_image || u?.artisanProfile?.profile_image || null,
     }
   }
     
@@ -635,7 +716,7 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
             id: String(other.id),
             name: other.name,
             email: other.email,
-            avatar: null,
+            avatar: other.avatar_url || null,
             service: null,
             isOnline: false,
             lastSeen: "",
@@ -683,6 +764,7 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
             status: normalizeContractStatus(m.contract_data?.status ?? m.contract_data?.contractStatus),
           }
         : undefined,
+      isEdited: m.is_edited === true,
       phaseUpdate: m.type === "phase-update" ? m.phase_update_data : undefined,
       paymentPrompt: m.type === "payment-prompt" ? m.payment_prompt_data : undefined,
       attachments:
@@ -832,7 +914,8 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
 
     ;(async () => {
       if (!activeContract?.id) {
-        setContractTxTotalPaid(0)
+        setContractTxReleasedTotal(0)
+        setContractTxDepositPaid(0)
         return
       }
 
@@ -842,11 +925,15 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
         const txs = await listContractTransactions(String(activeContract.id))
         if (cancelled) return
 
-        const totalPaid = calcTotalPaidFromTransactions(txs)
-        setContractTxTotalPaid(totalPaid)
+        const { depositTotal, releaseTotal } = calcTxTotals(txs)
+        setContractTxDepositPaid(depositTotal)
+        setContractTxReleasedTotal(releaseTotal)
       } catch (err) {
         console.error("[JobSummary] Failed to load contract transactions:", err)
-        if (!cancelled) setContractTxTotalPaid(0)
+        if (!cancelled) {
+          setContractTxReleasedTotal(0)
+          setContractTxDepositPaid(0)
+        }
       } finally {
         if (!cancelled) setContractTxLoading(false)
       }
@@ -888,193 +975,217 @@ useEffect(() => {
     const socket = getSocket(auth.token)
     socketRef.current = socket
 
-    socket.on("connect", () => console.log("Socket connected", socket.id))
+    const handleConnect = () => {
+      console.log("Socket connected/reconnected", socket.id)
+      // Rejoin the current room on reconnect so broadcasts still reach this socket
+      const currentRoomId = selectedRoomIdRef.current
+      if (currentRoomId) {
+        socket.emit("chat:join", { roomId: currentRoomId })
+      }
+    }
+    socket.on("connect", handleConnect)
     socket.on("disconnect", () => console.log("Socket disconnected"))
 
-    socket.on(
-      "chat:new-message",
-      (payload: {
-        id: string
-        room_id: string
-        sender_id: string
-        message: string
-        created_at: string
-        type?: string
-        contract?: Contract
-        file_url?: string | null
-        file_original_name?: string | null
-        file_mime_type?: string | null
-        file_resource_type?: string | null
-        file_size?: number | null
-        contractStatus?: {
-          contractId: string
-          status: Contract["status"]
-        }
-      }) => {
+    const handleChatNewMessage = (payload: {
+      id: string
+      room_id: string
+      sender_id: string
+      message: string
+      created_at: string
+      type?: string
+      contract?: Contract
+      file_url?: string | null
+      file_original_name?: string | null
+      file_mime_type?: string | null
+      file_resource_type?: string | null
+      file_size?: number | null
+      contractStatus?: {
+        contractId: string
+        status: Contract["status"]
+      }
+    }) => {
+      // Handle contract status broadcasts
+      if (payload.type === "contract-status" && payload.contractStatus) {
+        const { contractId } = payload.contractStatus
+        const status = normalizeContractStatus(payload.contractStatus.status)
 
-        // Handle contract status broadcasts
-        if (payload.type === "contract-status" && payload.contractStatus) {
-          const { contractId } = payload.contractStatus
-          const status = normalizeContractStatus(payload.contractStatus.status)
+        setMessages((prev) =>
+          prev.map((m) => {
+            if (m.type !== "contract" || !m.contract) return m
+            if (String(m.contract.id) !== String(contractId)) return m
+            return { ...m, contract: { ...m.contract, status } }
+          }),
+        )
 
-          // Update contract message inside chat history
-          setMessages((prev) =>
-            prev.map((m) => {
-              if (m.type !== "contract" || !m.contract) return m
-              if (String(m.contract.id) !== String(contractId)) return m
-              return {
-                ...m,
-                contract: {
-                  ...m.contract,
-                  status,
-                },
-              }
-            }),
-          )
-
-          if (status === "accepted") {
-            setActiveContract((prev) => {
-              if (prev) return prev
-              const found = messages.find(
-                (m) => m.type === "contract" && String(m.contract?.id) === String(contractId)
-              )
-              return found?.contract || prev
-            })
-          }
-
-          // Update right-side contract panel
+        if (status === "accepted") {
           setActiveContract((prev) => {
-            if (!prev) return prev
-            if (String(prev.id) !== String(contractId)) return prev
-            return {
-              ...prev,
-              status,
-            }
-          })
-
-          // Update sidebar preview text
-          setConversations((prev) =>
-            prev.map((conv) => {
-              if (conv.id !== payload.room_id) return conv
-
-              const previewText =
-                status === "accepted"
-                  ? "Contract accepted"
-                  : status === "in_review"
-                  ? "Contract updated"
-                  : status === "cancelled"
-                  ? "Contract declined"
-                  : "Contract status changed"
-
-              return {
-                ...conv,
-                lastMessage: {
-                  text: previewText,
-                  timestamp: payload.created_at,
-                  isRead: true,
-                  sender: payload.sender_id === currentUserId ? "me" : "them",
-                  type: "contract",
-                },
-              }
-            }),
-          )
-
-          return 
-        }
-
-        const currentRoomId = selectedRoomIdRef.current
-        const msgType = (payload.type as Message["type"]) || "text"
-
-        if (msgType === "system") {
-            applySystemMilestoneUpdate(payload.message)
-
-            if (payload.room_id === selectedRoomIdRef.current && activeContract?.id) {
-              refreshActiveContractState(activeContract.id)
-            }
-        }
-
-        if (currentRoomId && payload.room_id === currentRoomId) {
-          setMessages((prev) => {
-            if (prev.some((m) => m.id === payload.id)) return prev
-
-            const normalized = prev.map((m) =>
-              m.id.toString().startsWith("temp-") && m.text === payload.message && m.sender === "me"
-                ? { ...m, status: "delivered" as const }
-                : m,
+            if (prev) return prev
+            const found = messages.find(
+              (m) => m.type === "contract" && String(m.contract?.id) === String(contractId)
             )
-
-            const mapped: Message = {
-              id: payload.id,
-              text: payload.message,
-              timestamp: payload.created_at,
-              sender: payload.sender_id === currentUserId ? "me" : "them",
-              status: "delivered",
-              type: msgType,
-              contract: msgType === "contract" ? payload.contract : undefined,
-              attachments:
-                msgType === "file"
-                  ? [
-                      {
-                        type: payload.file_mime_type || payload.file_resource_type || "file",
-                        url: payload.file_url || "",
-                        name: payload.file_original_name || payload.message || "Attachment",
-                      },
-                    ].filter((file) => Boolean(file.url))
-                  : undefined,
-            }
-
-            return [...normalized, mapped]
+            return found?.contract || prev
           })
         }
 
-        setConversations((prev) => {
-          const updated: Conversation[] = prev.map((conv) => {
+        setActiveContract((prev) => {
+          if (!prev) return prev
+          if (String(prev.id) !== String(contractId)) return prev
+          return { ...prev, status }
+        })
+
+        setConversations((prev) =>
+          prev.map((conv) => {
             if (conv.id !== payload.room_id) return conv
-
-            const isMe = payload.sender_id === currentUserId
-            const isActive = currentRoomId === conv.id
-
             const previewText =
-              msgType === "contract"
-                ? "Contract Proposal"
-                : msgType === "payment-prompt"
-                ? "Payment Request"
-                : msgType === "phase-update"
-                ? "Phase Update"
-                : msgType === "file"
-                ? "File attachment"
-                : payload.message
-
+              status === "accepted" ? "Contract accepted"
+              : status === "in_review" ? "Contract updated"
+              : status === "cancelled" ? "Contract declined"
+              : "Contract status changed"
             return {
               ...conv,
               lastMessage: {
                 text: previewText,
                 timestamp: payload.created_at,
-                isRead: isMe || isActive,
-                sender: (isMe ? "me" : "them") as "me" | "them",
-                type: msgType,
+                isRead: true,
+                sender: payload.sender_id === currentUserId ? "me" : "them",
+                type: "contract",
               },
-              unreadCount: !isMe && !isActive ? (conv.unreadCount || 0) + 1 : conv.unreadCount,
             }
-          })
+          }),
+        )
 
-          return updated
+        return
+      }
+
+      const currentRoomId = selectedRoomIdRef.current
+      const msgType = (payload.type as Message["type"]) || "text"
+
+      if (msgType === "system") {
+        applySystemMilestoneUpdate(payload.message)
+        if (payload.room_id === selectedRoomIdRef.current && activeContract?.id) {
+          refreshActiveContractState(activeContract.id)
+        }
+      }
+
+      if (currentRoomId && payload.room_id === currentRoomId) {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === payload.id)) return prev
+          const normalized = prev.map((m) =>
+            m.id.toString().startsWith("temp-") && m.text === payload.message && m.sender === "me"
+              ? { ...m, status: "delivered" as const }
+              : m,
+          )
+          const mapped: Message = {
+            id: payload.id,
+            text: payload.message,
+            timestamp: payload.created_at,
+            sender: payload.sender_id === currentUserId ? "me" : "them",
+            status: "delivered",
+            type: msgType,
+            contract: msgType === "contract" ? payload.contract : undefined,
+            attachments:
+              msgType === "file"
+                ? [
+                    {
+                      type: payload.file_mime_type || payload.file_resource_type || "file",
+                      url: payload.file_url || "",
+                      name: payload.file_original_name || payload.message || "Attachment",
+                    },
+                  ].filter((file) => Boolean(file.url))
+                : undefined,
+          }
+          return [...normalized, mapped]
         })
-      },
-    )
+        setTimeout(() => scrollToBottom(), 50)
+      }
 
-    socket.on("chat:read", ({ roomId }: { roomId: string; readerId?: string }) => {
+      setConversations((prev) =>
+        prev.map((conv) => {
+          if (conv.id !== payload.room_id) return conv
+          const isMe = payload.sender_id === currentUserId
+          const isActive = currentRoomId === conv.id
+          const previewText =
+            msgType === "contract" ? "Contract Proposal"
+            : msgType === "payment-prompt" ? "Payment Request"
+            : msgType === "phase-update" ? "Phase Update"
+            : msgType === "file" ? "File attachment"
+            : payload.message
+          return {
+            ...conv,
+            lastMessage: {
+              text: previewText,
+              timestamp: payload.created_at,
+              isRead: isMe || isActive,
+              sender: (isMe ? "me" : "them") as "me" | "them",
+              type: msgType,
+            },
+            unreadCount: !isMe && !isActive ? (conv.unreadCount || 0) + 1 : conv.unreadCount,
+          }
+        }),
+      )
+    }
+
+    const handleChatRead = ({ roomId }: { roomId: string; readerId?: string }) => {
       const currentRoomId = selectedRoomIdRef.current
       if (roomId !== currentRoomId) return
-
       setMessages((prev) => prev.map((m) => (m.sender === "me" ? { ...m, status: "read" } : m)))
-    })
+    }
+
+    const handleConnectError = (err: Error) => {
+      console.error("[Socket] connect_error:", err.message)
+    }
+
+    const handleChatError = (msg: string) => {
+      console.error("[Socket] chat:error:", msg)
+    }
+
+    const handleError = (msg: string) => {
+      console.error("[Socket] error:", msg)
+    }
+
+    const handleMessageEdited = (payload: { id: string; message: string; is_edited: boolean }) => {
+      setMessages((prev) =>
+        prev.map((m) =>
+          String(m.id) === String(payload.id)
+            ? { ...m, text: payload.message, isEdited: true }
+            : m
+        )
+      )
+    }
+
+    const handleMessageRequestNew = () => {
+      if (currentUserRole === "employer") {
+        getIncomingMessageRequests()
+          .then((reqs) => setPendingRequests(reqs))
+          .catch(() => {})
+      }
+    }
+
+    socket.on("chat:new-message", handleChatNewMessage)
+    socket.on("chat:read", handleChatRead)
+    socket.on("chat:message-edited", handleMessageEdited)
+    socket.on("connect_error", handleConnectError)
+    socket.on("chat:error", handleChatError)
+    socket.on("error", handleError)
+    socket.on("message_request:new", handleMessageRequestNew)
 
     return () => {
-      socket.off("chat:new-message")
-      socket.off("chat:read")
+      socket.off("connect", handleConnect)
+      socket.off("chat:new-message", handleChatNewMessage)
+      socket.off("chat:read", handleChatRead)
+      socket.off("chat:message-edited", handleMessageEdited)
+      socket.off("connect_error", handleConnectError)
+      socket.off("chat:error", handleChatError)
+      socket.off("error", handleError)
+      socket.off("message_request:new", handleMessageRequestNew)
     }
   }, [auth?.token, currentUserId])
+
+  // Broadcast total unread count to the header badge whenever conversations update
+  useEffect(() => {
+    const total = conversations.reduce((sum, conv) => sum + (conv.unreadCount || 0), 0)
+    window.dispatchEvent(new CustomEvent("brikcell:unread-total", { detail: { total } }))
+  }, [conversations])
 
   // PATCH 2: prevent re-creating chat rooms on refresh (only initiate if no existing conversation with that user)
   useEffect(() => {
@@ -1092,6 +1203,14 @@ useEffect(() => {
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [incomingArtisanId, conversations.length, currentUserId])
+
+  // Load pending message requests for employer on mount
+  useEffect(() => {
+    if (currentUserRole !== "employer") return
+    getIncomingMessageRequests()
+      .then((reqs) => setPendingRequests(reqs))
+      .catch(() => {})
+  }, [currentUserRole])
 
   // Load messages whenever selected conversation changes
   useEffect(() => {
@@ -1141,6 +1260,7 @@ useEffect(() => {
         )
 
         socketRef.current?.emit("chat:read", { roomId: selectedConversation.id })
+        markChatRoomRead(selectedConversation.id).catch(() => {})
         setTimeout(() => scrollToBottom(), 50)
       } catch (err) {
         console.error("Failed to load messages for room", selectedConversation.id, err)
@@ -1330,6 +1450,43 @@ useEffect(() => {
     }
   }
 
+  const handleAcceptMessageRequest = async (req: MessageRequestDTO) => {
+    try {
+      setRequestActionLoading(req.id)
+      const result = await acceptMessageRequest(req.id)
+      setPendingRequests((prev) => prev.filter((r) => r.id !== req.id))
+      const newRoomId = result?.room?.id
+      if (newRoomId) {
+        const rooms = await listChatRooms()
+        const mapped = mapRoomsToConversations(rooms as any[])
+        setConversations(mapped)
+        setRoomsLoaded(true)
+        const target = mapped.find((c) => c.id === newRoomId)
+        if (target) {
+          setSelectedConversation(target)
+          setShowConversationList(false)
+        }
+      }
+      toast.success(`Started conversation with ${req.sender?.name || "artisan"}`)
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to accept request")
+    } finally {
+      setRequestActionLoading(null)
+    }
+  }
+
+  const handleDeclineMessageRequest = async (req: MessageRequestDTO) => {
+    try {
+      setRequestActionLoading(req.id)
+      await declineMessageRequest(req.id)
+      setPendingRequests((prev) => prev.filter((r) => r.id !== req.id))
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to decline request")
+    } finally {
+      setRequestActionLoading(null)
+    }
+  }
+
   const handleRequestChanges = async (contract: Contract) => {
     const id = String(contract.id)
     try {
@@ -1369,6 +1526,19 @@ useEffect(() => {
   //     setMilestoneActionLoading(null)
   //   }
   // }
+
+  const handleFundMilestone = async (phaseId: string | number) => {
+    try {
+      setMilestoneActionLoading(String(phaseId))
+      await fundMilestone(String(phaseId))
+      toast.success("Milestone funded — advance payment released to artisan")
+      await refreshActiveContractState(activeContract?.id)
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to fund milestone")
+    } finally {
+      setMilestoneActionLoading(null)
+    }
+  }
 
   const handleSubmitPhase = async (phaseId: string | number) => {
     console.log("[Messaging][debug] submit clicked", {
@@ -1514,6 +1684,261 @@ useEffect(() => {
       .reduce((sum, p) => sum + Number(p.amount || 0), 0)
   }
 
+  function downloadContractPDF(contract: Contract) {
+    const statusLabel =
+      contract.status === "accepted" ? "Accepted"
+      : contract.status === "in_review" ? "Pending"
+      : contract.status === "draft" ? "Draft"
+      : contract.status
+
+    const createdDate = contract.createdAt
+      ? new Date(contract.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })
+      : "—"
+
+    const acceptedDate = contract.acceptedAt
+      ? new Date(contract.acceptedAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })
+      : null
+
+    const myName = auth?.user?.name || "—"
+    const otherName = selectedConversation?.participant?.name || "—"
+    const employerName = currentUserRole === "employer" ? myName : otherName
+    const artisanName  = currentUserRole === "artisan"  ? myName : otherName
+
+    const phasesHTML = contract.phases.map((phase, i) => `
+      <div class="phase">
+        <div class="phase-header">
+          <span class="phase-title">Phase ${i + 1}: ${phase.name}</span>
+          <span class="phase-amount">₦${Number(phase.amount).toLocaleString()}</span>
+        </div>
+        ${phase.description ? `<p class="phase-desc">${phase.description}</p>` : ""}
+        ${phase.deliverables?.length ? `
+          <ul class="deliverables">
+            ${phase.deliverables.map((d) => `<li>${d}</li>`).join("")}
+          </ul>
+        ` : ""}
+      </div>
+    `).join("")
+
+    const materialsHTML = contract.materials?.length ? `
+      <section>
+        <h3>Materials &amp; Tools</h3>
+        <table>
+          <thead><tr><th>Item</th><th>Cost</th><th>Covered By</th></tr></thead>
+          <tbody>
+            ${contract.materials.map((m) => `
+              <tr>
+                <td>${m.name}</td>
+                <td>₦${Number(m.cost).toLocaleString()}</td>
+                <td>${m.coveredBy === "client" ? "Client" : "Artisan"}</td>
+              </tr>
+            `).join("")}
+          </tbody>
+        </table>
+      </section>
+    ` : ""
+
+    const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Contract — ${contract.title}</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 13px;
+      color: #1a1a2e;
+      background: #fff;
+      padding: 48px 56px;
+      max-width: 820px;
+      margin: 0 auto;
+    }
+    /* header */
+    .doc-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid #7c3aed;
+      padding-bottom: 16px;
+      margin-bottom: 24px;
+    }
+    .brand { font-size: 22px; font-weight: 800; color: #7c3aed; letter-spacing: -0.5px; }
+    .doc-label { font-size: 11px; color: #6b7280; margin-top: 2px; }
+    .status-badge {
+      display: inline-block;
+      padding: 3px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 600;
+      background: ${contract.status === "accepted" ? "#d1fae5" : contract.status === "draft" ? "#e5e7eb" : "#fef3c7"};
+      color: ${contract.status === "accepted" ? "#065f46" : contract.status === "draft" ? "#374151" : "#92400e"};
+    }
+    /* meta row */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px 24px;
+      margin-bottom: 24px;
+      background: #f9fafb;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 14px 18px;
+      font-size: 12px;
+    }
+    .meta-grid .label { color: #6b7280; margin-bottom: 2px; }
+    .meta-grid .value { font-weight: 600; }
+    /* sections */
+    h2 { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    h3 { font-size: 13px; font-weight: 700; color: #374151; margin: 20px 0 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+    p { line-height: 1.6; color: #374151; }
+    section { margin-bottom: 20px; }
+    hr { border: none; border-top: 1px solid #e5e7eb; margin: 18px 0; }
+    /* amounts */
+    .amounts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin: 16px 0;
+    }
+    .amount-box {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px 16px;
+      text-align: center;
+    }
+    .amount-box .lbl { font-size: 11px; color: #6b7280; margin-bottom: 4px; }
+    .amount-box .val { font-size: 20px; font-weight: 800; color: #7c3aed; }
+    /* phases */
+    .phase {
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 10px;
+      page-break-inside: avoid;
+    }
+    .phase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 4px;
+    }
+    .phase-title { font-weight: 600; font-size: 13px; }
+    .phase-amount { font-weight: 700; color: #7c3aed; white-space: nowrap; margin-left: 12px; }
+    .phase-desc { font-size: 12px; color: #6b7280; margin: 4px 0 6px; }
+    .deliverables { padding-left: 18px; margin-top: 6px; }
+    .deliverables li { font-size: 12px; color: #374151; margin-bottom: 3px; }
+    /* materials table */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    th { text-align: left; padding: 6px 10px; background: #f3f4f6; font-weight: 600; border-bottom: 1px solid #e5e7eb; }
+    td { padding: 7px 10px; border-bottom: 1px solid #f3f4f6; }
+    /* escrow note */
+    .escrow-note {
+      border: 1px solid #bfdbfe;
+      background: #eff6ff;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-size: 12px;
+      color: #1e40af;
+      margin-top: 20px;
+    }
+    /* signatures */
+    .signatures {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+      margin-top: 36px;
+      page-break-inside: avoid;
+    }
+    .sig-box {
+      border-top: 1px solid #6b7280;
+      padding-top: 8px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+    .sig-name {
+      font-size: 14px;
+      font-weight: 700;
+      color: #1a1a2e;
+      margin-bottom: 4px;
+    }
+    /* print */
+    @media print {
+      body { padding: 32px 40px; }
+      @page { margin: 10mm; size: A4; }
+    }
+  </style>
+</head>
+<body>
+  <div class="doc-header">
+    <div>
+      <div class="brand">Brikcell</div>
+      <div class="doc-label">Contract Agreement</div>
+    </div>
+    <span class="status-badge">${statusLabel}</span>
+  </div>
+
+  <div class="meta-grid">
+    <div><div class="label">Date Issued</div><div class="value">${createdDate}</div></div>
+    ${acceptedDate ? `<div><div class="label">Date Accepted</div><div class="value">${acceptedDate}</div></div>` : "<div></div>"}
+    <div><div class="label">Contract ID</div><div class="value">#${contract.id}</div></div>
+    <div><div class="label">Payment Mode</div><div class="value">${contract.payment_mode ?? "MILESTONE"}</div></div>
+  </div>
+
+  <section>
+    <h2>${contract.title}</h2>
+    <p>${contract.description || ""}</p>
+  </section>
+
+  <div class="amounts">
+    <div class="amount-box">
+      <div class="lbl">Total Contract Value</div>
+      <div class="val">₦${Number(contract.totalAmount).toLocaleString()}</div>
+    </div>
+    <div class="amount-box">
+      <div class="lbl">Deposit Required</div>
+      <div class="val">₦${Number(contract.depositAmount).toLocaleString()}</div>
+    </div>
+  </div>
+
+  <hr />
+
+  <section>
+    <h3>Project Phases (${contract.phases.length})</h3>
+    ${phasesHTML}
+  </section>
+
+  ${materialsHTML}
+
+  <div class="escrow-note">
+    <strong>Escrow Protection:</strong> All payments are held securely in Brikcell escrow and released to the artisan
+    only upon your explicit approval of each completed phase. This document serves as a legally binding agreement
+    between both parties.
+  </div>
+
+  <div class="signatures">
+    <div class="sig-box">
+      <div class="sig-name">${employerName}</div>
+      Client / Employer — Signature &amp; Date
+    </div>
+    <div class="sig-box">
+      <div class="sig-name">${artisanName}</div>
+      Artisan — Signature &amp; Date
+    </div>
+  </div>
+</body>
+</html>`
+
+    const blob = new Blob([html], { type: "text/html" })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement("a")
+    a.href = url
+    a.download = `Brikcell-Contract-${contract.id}.html`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+  }
+
   const ContractCard = ({ contract, sender }: { contract: Contract; sender: "me" | "them" }) => {
     const isAccepted = contract.status === "accepted"
     const isDraft = contract.status === "draft"
@@ -1528,29 +1953,38 @@ useEffect(() => {
               <FileText className="h-5 w-5 text-primary" />
               <CardTitle className="text-lg">Contract Proposal</CardTitle>
             </div>
-            {/* VERSION BADGE — ADD HERE */}
-            {"version" in contract && (
-              <Badge variant="secondary" className="text-xs">
-                v{(contract as any).version}
+            <div className="flex items-center gap-2">
+              {"version" in contract && (
+                <Badge variant="secondary" className="text-xs">
+                  v{(contract as any).version}
+                </Badge>
+              )}
+              <Badge
+                className={
+                  isAccepted
+                    ? "bg-green-500"
+                    : isDraft
+                    ? "bg-gray-500"
+                    : "bg-yellow-500"
+                }
+              >
+                {isAccepted
+                ? "Accepted"
+                : isInReview
+                ? "Pending"
+                : isDraft
+                ? "Draft"
+                : contract.status}
               </Badge>
-            )}
-            <Badge
-              className={
-                isAccepted
-                  ? "bg-green-500"
-                  : isDraft
-                  ? "bg-gray-500"
-                  : "bg-yellow-500"
-              }
-            >
-              {isAccepted
-              ? "Accepted"
-              : isInReview
-              ? "Pending"
-              : isDraft
-              ? "Draft"
-              : contract.status}
-            </Badge>
+              <button
+                onClick={() => downloadContractPDF(contract)}
+                title="Download PDF"
+                className="flex items-center gap-1 rounded-md border border-primary/30 bg-white px-2 py-1 text-xs font-medium text-primary hover:bg-primary/5 transition-colors"
+              >
+                <Download className="h-3.5 w-3.5" />
+                PDF
+              </button>
+            </div>
           </div>
         </CardHeader>
         <CardContent className="space-y-4 pt-4">
@@ -1698,19 +2132,58 @@ useEffect(() => {
             </div>
           )}
           
-          {/* EMPLOYER: PROCEED TO CHECKOUT (deposit funding) */}
+          {/* EMPLOYER: CHECKOUT (before deposit) or FUND & ADVANCE PAY (after deposit) */}
           {sender === "them" && contract.status === "accepted" && (
-            <div className="pt-2">
-              <Button
-                className="w-full bg-green-600 hover:bg-green-700"
-                onClick={() => {
-                  // pass contract via URL query (simple + reliable)
-                  const payload = encodeURIComponent(JSON.stringify(contract))
-                  router.push(`/checkout?contract=${payload}`)
-                }}
-              >
-                Proceed to Checkout
-              </Button>
+            <div className="pt-2 space-y-2">
+              {(() => {
+                // depositFullyPaid is computed from real transactions in MessagingInterface.
+                // initial_release_done on any phase is a fallback signal that checkout already ran
+                // even before the tx list has loaded.
+                const hasDepositBeenPaid =
+                  depositFullyPaid || contract.phases.some((p) => p.initial_release_done)
+
+                if (!hasDepositBeenPaid) {
+                  return (
+                    <Button
+                      className="w-full bg-green-600 hover:bg-green-700"
+                      onClick={() => {
+                        const payload = encodeURIComponent(JSON.stringify(contract))
+                        router.push(`/checkout?contract=${payload}`)
+                      }}
+                    >
+                      Proceed to Checkout
+                    </Button>
+                  )
+                }
+
+                // Deposit paid — render one "Fund & Advance Pay" button per unfunded milestone
+                const unfunded = contract.phases.filter(
+                  (p) => !p.initial_release_done && normalizePhaseStatus(p.status) === "in-progress"
+                )
+                if (unfunded.length === 0) return null
+
+                return unfunded.map((phase) => {
+                  const phaseIdx = contract.phases.findIndex(
+                    (p) => String(p.id) === String(phase.id)
+                  )
+                  const isLoading = milestoneActionLoading === String(phase.id)
+                  return (
+                    <Button
+                      key={phase.id}
+                      className="w-full bg-primary hover:bg-primary/90"
+                      disabled={isLoading}
+                      onClick={() => handleFundMilestone(phase.id)}
+                    >
+                      <DollarSign className="h-4 w-4 mr-2" />
+                      {isLoading
+                        ? "Processing..."
+                        : contract.phases.length > 1
+                          ? `Fund & Advance Pay · Phase ${phaseIdx + 1}`
+                          : "Fund & Advance Pay"}
+                    </Button>
+                  )
+                })
+              })()}
             </div>
           )}
         </CardContent>
@@ -1800,40 +2273,63 @@ useEffect(() => {
     }
 
     try {
-      const res = await sendContract(roomId, contract)
+      const created = await sendContract(roomId, contract)
 
-      console.log("[Messaging][debug] sendContract response", res)
-      console.log("[Messaging][debug] sendContract phases from response", res?.contract?.phases)
-
-      const message: Message = {
-        id: res.message?.id ?? Date.now().toString(),
+      // Optimistically insert the contract message using the server response so
+      // the sender sees it immediately — same pattern as file messages.
+      // When the socket broadcast arrives, the dedup check (m.id === created.id)
+      // prevents a duplicate from being added.
+      const contractData = created.contract_data || contract
+      const optimisticMessage: Message = {
+        id: created.id,
         text: "",
-        timestamp: new Date().toISOString(),
+        timestamp: created.createdAt || created.created_at || new Date().toISOString(),
         sender: "me",
         status: "sent",
         type: "contract",
-        contract: {
-          ...(res.contract || contract),
-          id: res.contractId ?? res.contract?.id,
-          status: "in_review",
-        },
+        contract: mapBackendContractToUI({
+          ...contractData,
+          id: contractData.id ?? created.id,
+          status: contractData.status ?? "in_review",
+          depositPaid: contractData.depositPaid ?? false,
+        }),
       }
 
-      setMessages((prev) => [...prev, message])
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === created.id)) return prev
+        return [...prev, optimisticMessage]
+      })
+
+      setConversations((prev) =>
+        prev.map((conv) =>
+          conv.id === roomId
+            ? {
+                ...conv,
+                lastMessage: {
+                  text: "Contract Proposal",
+                  timestamp: optimisticMessage.timestamp,
+                  isRead: true,
+                  sender: "me",
+                  type: "contract",
+                },
+              }
+            : conv
+        )
+      )
+
       setTimeout(() => scrollToBottom(), 50)
-      //console.log("Contract ID being accepted:", contract.id)
-      console.log("Contract sent:", res)
     } catch (err: any) {
-      if (err?.status === 409) {
-      toast.error("There is already an active contract in this conversation.")
-      return
-    }
+      if (err?.message?.includes("409") || err?.status === 409) {
+        toast.error("There is already an active contract in this conversation.")
+        return
+      }
+      toast.error(err?.message || "Failed to send contract proposal")
       console.error("Failed to send contract:", err)
     }
   }
 
   return (
-    <div className="max-w-[1800px] mx-auto px-2 sm:px-4 lg:px-8 py-2 sm:py-4 lg:py-8">
+    <div className="max-w-[1800px] mx-auto px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6 bg-gray-50/30 min-h-[calc(100vh-4rem)]">
       <ContractCreationModal
         open={showContractModal}
         onOpenChange={setShowContractModal}
@@ -1841,13 +2337,36 @@ useEffect(() => {
         initialContract={typeof window !== "undefined" ? (window as any).__editingContract || null : null}
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-2 sm:gap-4 lg:gap-6 h-[calc(100vh-6rem)] sm:h-[calc(100vh-8rem)] lg:h-[calc(100vh-12rem)]">
+      <BookingModal
+        open={showBookingModal}
+        onOpenChange={setShowBookingModal}
+        currentUser={auth?.user}
+        participant={
+          selectedConversation
+            ? {
+                id: selectedConversation.participant.id,
+                name: selectedConversation.participant.name,
+                email:
+                  selectedConversation.participant.email,
+              }
+            : null
+        }
+        contractCandidates={bookingContractCandidates}
+        onSaved={(booking) => {
+          console.log(
+            "[Messaging] Booking saved:",
+            booking.id
+          )
+        }}
+      />
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 h-[calc(100vh-5.5rem)] sm:h-[calc(100vh-7rem)] lg:h-[calc(100vh-9.5rem)]">
         {/* Conversations List - Left Panel */}
-        <Card className={`lg:col-span-3 py-0 ${showConversationList ? "block" : "hidden"} lg:block`}>
-          <CardHeader className="pb-2 sm:pb-3 px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
-            <CardTitle className="flex items-center justify-between">
-              <span className="text-base sm:text-lg lg:text-xl">Messages</span>
-              <Badge variant="secondary" className="text-xs sm:text-sm">
+        <Card className={`lg:col-span-3 py-0 flex flex-col overflow-hidden border-gray-100/80 shadow-sm ${showConversationList ? "flex" : "hidden"} lg:flex`}>
+          <CardHeader className="flex-shrink-0 pb-3 px-4 pt-5 border-b border-gray-50/80">
+            <CardTitle className="flex items-center justify-between mb-3">
+              <span className="text-base font-semibold text-gray-900">Messages</span>
+              <Badge variant="secondary" className="text-xs bg-gray-100 text-gray-500 border-0">
                 {conversations.length}
               </Badge>
             </CardTitle>
@@ -1857,16 +2376,58 @@ useEffect(() => {
                 placeholder="Search..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 h-10 sm:h-11 text-sm sm:text-base"
+                className="pl-10 h-9 text-sm bg-gray-50/80 border-gray-200/80 rounded-xl focus-visible:ring-primary/30"
               />
             </div>
           </CardHeader>
-          <CardContent className="p-0">
+          <CardContent className="p-0 flex-1 overflow-hidden">
             <ScrollArea
               ref={scrollAreaRef}
               className="h-[calc(100vh-16rem)] sm:h-[calc(100vh-18rem)] lg:h-[calc(100vh-20rem)]"
             >
-              <div className="space-y-1 sm:space-y-2 p-2 sm:p-3">
+              <div className="py-2">
+                {/* Pending message requests — employer only */}
+                {currentUserRole === "employer" && pendingRequests.length > 0 && (
+                  <div className="mx-2 mb-3">
+                    <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400">
+                      Message Requests ({pendingRequests.length})
+                    </p>
+                    {pendingRequests.map((req) => (
+                      <div
+                        key={req.id}
+                        className="mb-1.5 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2.5"
+                      >
+                        <p className="text-sm font-medium text-slate-800 truncate">
+                          {req.sender?.name || "Artisan"}
+                        </p>
+                        {req.message && (
+                          <p className="mt-0.5 text-xs text-slate-500 line-clamp-1">{req.message}</p>
+                        )}
+                        <div className="mt-2 flex gap-2">
+                          <Button
+                            size="sm"
+                            className="h-7 flex-1 text-xs"
+                            disabled={requestActionLoading === req.id}
+                            onClick={() => handleAcceptMessageRequest(req)}
+                          >
+                            {requestActionLoading === req.id ? "..." : "Accept"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-7 flex-1 text-xs"
+                            disabled={requestActionLoading === req.id}
+                            onClick={() => handleDeclineMessageRequest(req)}
+                          >
+                            Decline
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Separator className="mt-2 mb-1" />
+                  </div>
+                )}
+
                 {filteredConversations.map((conversation) => (
                   <div
                     key={conversation.id}
@@ -1874,20 +2435,20 @@ useEffect(() => {
                       setSelectedConversation(conversation)
                       setShowConversationList(false)
                     }}
-                    className={`cursor-pointer rounded-xl p-3 transition-all ${
+                    className={`cursor-pointer px-3 py-3 mx-2 rounded-xl transition-all mb-0.5 border-l-[3px] ${
                       selectedConversation?.id === conversation.id
-                        ? "bg-primary/10 border-2 border-primary/30"
-                        : "bg-gray-50 hover:bg-gray-100 border-2 border-transparent"
+                        ? "bg-primary/5 border-l-primary"
+                        : "border-l-transparent hover:bg-gray-50/80"
                     }`}
                   >
                     <div className="flex items-start space-x-3">
                       <div className="relative flex-shrink-0">
-                        <Avatar className="h-12 w-12">
+                        <Avatar className={`h-10 w-10 ${selectedConversation?.id === conversation.id ? "ring-2 ring-primary/20 ring-offset-1" : ""}`}>
                           <AvatarImage
                             src={conversation.participant.avatar || "/placeholder.svg"}
                             alt={conversation.participant.name}
                           />
-                          <AvatarFallback>
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                             {conversation.participant.name
                               .split(" ")
                               .map((n) => n[0])
@@ -1895,34 +2456,49 @@ useEffect(() => {
                           </AvatarFallback>
                         </Avatar>
                         {conversation.participant.isOnline && (
-                          <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 bg-green-500 border-2 border-white rounded-full" />
+                          <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-emerald-500 border-2 border-white rounded-full" />
+                        )}
+                        {conversation.unreadCount > 0 && (
+                          <div className="absolute -top-0.5 -right-0.5 h-3 w-3 bg-primary border-2 border-white rounded-full" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between mb-1">
-                          <h3 className="font-semibold text-sm truncate">{conversation.participant.name}</h3>
-                          <span className="text-xs text-gray-500">
+                        <div className="flex items-center justify-between mb-0.5">
+                          <h3 className={`text-sm truncate ${
+                            selectedConversation?.id === conversation.id
+                              ? "font-semibold text-gray-900"
+                              : conversation.unreadCount > 0
+                              ? "font-bold text-gray-900"
+                              : "font-medium text-gray-800"
+                          }`}>
+                            {conversation.participant.name}
+                          </h3>
+                          <span className={`text-[11px] flex-shrink-0 ml-2 ${conversation.unreadCount > 0 ? "text-primary font-medium" : "text-gray-400"}`}>
                             {conversation.lastMessage ? formatTime(conversation.lastMessage.timestamp) : ""}
                           </span>
                         </div>
                         <div className="flex items-center space-x-2 mb-1">
                           {conversation.participant.service && (
-                            <Badge variant="secondary" className="text-xs">
+                            <Badge variant="secondary" className="text-[10px] py-0 px-1.5 h-4 bg-gray-100/80 text-gray-500 border-0">
                               {conversation.participant.service}
                             </Badge>
                           )}
                           {conversation.hasActiveContract && (
-                            <Badge className="text-xs bg-green-100 text-green-800">
-                              <FileText className="h-3 w-3 mr-1" />
+                            <Badge className="text-[10px] py-0 px-1.5 h-4 bg-emerald-50 text-emerald-700 border-0">
+                              <FileText className="h-2.5 w-2.5 mr-1" />
                               Active
                             </Badge>
                           )}
                         </div>
-                        <p className="text-xs text-gray-600 line-clamp-1">
+                        <p className={`text-xs line-clamp-1 ${conversation.unreadCount > 0 ? "text-gray-800 font-medium" : "text-gray-500"}`}>
                           {getConversationPreview(conversation.lastMessage)}
                         </p>
                         {conversation.unreadCount > 0 && (
-                          <Badge className="mt-1 bg-primary text-white text-xs">{conversation.unreadCount} new</Badge>
+                          <div className="mt-1 flex items-center justify-end">
+                            <span className="h-5 min-w-[20px] px-1.5 bg-primary text-white text-[10px] font-semibold rounded-full flex items-center justify-center">
+                              {conversation.unreadCount}
+                            </span>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1930,7 +2506,9 @@ useEffect(() => {
                 ))}
 
                 {filteredConversations.length === 0 && (
-                  <div className="text-xs text-gray-500 px-2 py-4">No conversations yet.</div>
+                  <div className="text-center py-10 px-4">
+                    <p className="text-sm text-gray-400">No conversations yet.</p>
+                  </div>
                 )}
               </div>
             </ScrollArea>
@@ -1939,30 +2517,30 @@ useEffect(() => {
 
         {/* FIX: Chat Interface panel is ALWAYS rendered (no outer selectedConversation conditional) */}
         <Card
-          className={`lg:col-span-6 flex flex-col py-0 ${
-            showConversationList && conversations.length > 0 ? "hidden" : "block"
-          } lg:block ${!showJobSummary ? "lg:col-span-9" : ""}`}
+          className={`lg:col-span-6 flex flex-col py-0 overflow-hidden border-gray-100/80 shadow-sm ${
+            showConversationList && conversations.length > 0 ? "hidden" : "flex"
+          } lg:flex ${!showJobSummary ? "lg:col-span-9" : ""}`}
         >
-          <CardHeader className="pb-2 sm:pb-3 border-b px-3 sm:px-4 lg:px-6 py-3 sm:py-4 lg:py-6">
+          <CardHeader className="flex-shrink-0 pb-0 border-b border-gray-50/80 px-4 py-3.5">
             {selectedConversation ? (
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2 sm:space-x-3 min-w-0 flex-1">
+                <div className="flex items-center space-x-3 min-w-0 flex-1">
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="lg:hidden h-9 w-9 p-0 flex-shrink-0"
+                    className="lg:hidden h-8 w-8 p-0 flex-shrink-0 text-gray-400 hover:text-gray-600 rounded-lg"
                     onClick={() => setShowConversationList(true)}
                   >
                     ←
                   </Button>
 
                   <div className="relative flex-shrink-0">
-                    <Avatar className="h-10 w-10 lg:h-12 lg:w-12">
+                    <Avatar className="h-9 w-9">
                       <AvatarImage
                         src={selectedConversation.participant.avatar || "/placeholder.svg"}
                         alt={selectedConversation.participant.name}
                       />
-                      <AvatarFallback>
+                      <AvatarFallback className="bg-primary/10 text-primary text-xs font-medium">
                         {selectedConversation.participant.name
                           .split(" ")
                           .map((n) => n[0])
@@ -1970,31 +2548,48 @@ useEffect(() => {
                       </AvatarFallback>
                     </Avatar>
                     {selectedConversation.participant.isOnline && (
-                      <div className="absolute -bottom-0.5 -right-0.5 h-3 w-3 bg-green-500 border-2 border-white rounded-full" />
+                      <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 bg-emerald-500 border-2 border-white rounded-full" />
                     )}
                   </div>
 
                   <div className="min-w-0 flex-1">
-                    <h3 className="font-semibold text-sm lg:text-base truncate">{selectedConversation.participant.name}</h3>
-                    <p className="text-xs text-gray-600 truncate">
+                    <h3 className="font-semibold text-sm text-gray-900 truncate">{selectedConversation.participant.name}</h3>
+                    <p className="text-xs truncate">
                       {selectedConversation.participant.isOnline
-                        ? "Online"
+                        ? <span className="text-emerald-500 font-medium">Online</span>
                         : selectedConversation.participant.lastSeen
-                        ? `Last seen ${selectedConversation.participant.lastSeen}`
+                        ? <span className="text-gray-400">Last seen {selectedConversation.participant.lastSeen}</span>
                         : ""}
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center space-x-2 flex-shrink-0">
-                  <Button variant="outline" size="sm" className="h-9 w-9 p-0 hidden sm:flex bg-transparent">
+                <div className="flex items-center space-x-1 flex-shrink-0">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg"
+                    onClick={() => setShowBookingModal(true)}
+                    disabled={
+                      !selectedConversation?.participant?.id ||
+                      !["employer", "artisan"].includes(
+                        String(currentUserRole)
+                      )
+                    }
+                    title={
+                      currentUserRole === "employer"
+                        ? "Create or edit booking"
+                        : "View or edit booking"
+                    }
+                  >
                     <Phone className="h-4 w-4" />
                   </Button>
 
                   <Button
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
-                    className="h-9 w-9 p-0 lg:hidden bg-transparent"
+                    className="h-8 w-8 p-0 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-lg lg:hidden"
                     onClick={() => setShowJobSummary(!showJobSummary)}
                   >
                     <FileText className="h-4 w-4" />
@@ -2002,7 +2597,7 @@ useEffect(() => {
 
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="outline" size="sm" className="h-9 w-9 p-0 bg-transparent">
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded-lg">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -2040,8 +2635,8 @@ useEffect(() => {
             ) : (
               <div className="flex items-center justify-between">
                 <div className="min-w-0">
-                  <h3 className="font-semibold text-sm lg:text-base">Messages</h3>
-                  <p className="text-xs text-gray-600">
+                  <h3 className="font-semibold text-sm text-gray-900">Messages</h3>
+                  <p className="text-xs text-gray-400">
                     {incomingArtisanName ? `Start a new chat with ${incomingArtisanName}` : "Start a new chat"}
                   </p>
                 </div>
@@ -2049,9 +2644,9 @@ useEffect(() => {
             )}
           </CardHeader>
 
-          <CardContent className="flex-1 p-0">
-            <ScrollArea className="h-[calc(100vh-18rem)] sm:h-[calc(100vh-22rem)] lg:h-[calc(100vh-28rem)] p-3 sm:p-4 lg:p-6">
-              <div className="space-y-4">
+          <CardContent className="flex-1 p-0 overflow-hidden min-h-0">
+            <ScrollArea ref={messagesScrollRef} className="h-full">
+              <div className="space-y-3 px-4 py-4">
                 {selectedConversation ? (
                   <>
                     {/* FIX: restored message rendering logic */}
@@ -2059,27 +2654,112 @@ useEffect(() => {
                       const isMine = message.sender === "me"
                       const alignLeft = !isMine
 
+                      const isEditing = editingMessageId === String(message.id)
+
                       return (
                         <div key={message.id} className={`flex ${alignLeft ? "justify-start" : "justify-end"}`}>
                           {/* TEXT */}
                           {message.type === "text" && (
-                            <div
-                              className={`max-w-[80%] rounded-2xl px-4 py-3 border ${
-                                alignLeft ? "bg-white" : "bg-primary/10"
-                              }`}
-                            >
-                              <div className="text-sm text-gray-900 whitespace-pre-wrap">{message.text || ""}</div>
-                              <div className="mt-1 flex items-center justify-end space-x-2 text-[11px] text-gray-500">
-                                <span>{formatTime(message.timestamp)}</span>
-                                {message.sender === "me" ? getMessageStatus(message.status) : null}
-                              </div>
+                            <div className={`relative group max-w-[75%] sm:max-w-[65%] ${alignLeft ? "" : "flex flex-col items-end"}`}>
+                              {isEditing ? (
+                                <div className="w-full min-w-[220px]">
+                                  <textarea
+                                    autoFocus
+                                    className="w-full rounded-2xl rounded-tr-sm bg-primary/10 border border-primary/30 text-gray-900 text-sm px-4 py-2.5 resize-none outline-none focus:ring-2 focus:ring-primary/30"
+                                    rows={Math.max(1, (editText.match(/\n/g) || []).length + 1)}
+                                    value={editText}
+                                    onChange={(e) => setEditText(e.target.value)}
+                                    onKeyDown={async (e) => {
+                                      if (e.key === "Escape") {
+                                        setEditingMessageId(null)
+                                        setEditText("")
+                                      }
+                                      if (e.key === "Enter" && !e.shiftKey) {
+                                        e.preventDefault()
+                                        if (!editText.trim() || !selectedConversation) return
+                                        try {
+                                          await editChatMessage(selectedConversation.id, String(message.id), editText)
+                                          setMessages((prev) =>
+                                            prev.map((m) =>
+                                              String(m.id) === String(message.id)
+                                                ? { ...m, text: editText.trim(), isEdited: true }
+                                                : m
+                                            )
+                                          )
+                                        } catch { toast.error("Failed to edit message") }
+                                        setEditingMessageId(null)
+                                        setEditText("")
+                                      }
+                                    }}
+                                  />
+                                  <div className="flex items-center gap-2 mt-1.5 justify-end">
+                                    <button
+                                      className="text-[11px] text-gray-400 hover:text-gray-600"
+                                      onClick={() => { setEditingMessageId(null); setEditText("") }}
+                                    >
+                                      Cancel
+                                    </button>
+                                    <button
+                                      className="text-[11px] font-medium text-primary hover:text-primary/80"
+                                      onClick={async () => {
+                                        if (!editText.trim() || !selectedConversation) return
+                                        try {
+                                          await editChatMessage(selectedConversation.id, String(message.id), editText)
+                                          setMessages((prev) =>
+                                            prev.map((m) =>
+                                              String(m.id) === String(message.id)
+                                                ? { ...m, text: editText.trim(), isEdited: true }
+                                                : m
+                                            )
+                                          )
+                                        } catch { toast.error("Failed to edit message") }
+                                        setEditingMessageId(null)
+                                        setEditText("")
+                                      }}
+                                    >
+                                      Save
+                                    </button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <div
+                                    className={`px-4 py-2.5 shadow-sm ${
+                                      alignLeft
+                                        ? "bg-white border border-gray-100 rounded-2xl rounded-tl-sm text-gray-900"
+                                        : "bg-primary text-white rounded-2xl rounded-tr-sm"
+                                    }`}
+                                  >
+                                    <div className="text-sm leading-relaxed whitespace-pre-wrap">{message.text || ""}</div>
+                                    <div className={`mt-1 flex items-center justify-end space-x-1.5 text-[10px] ${isMine ? "text-white/60" : "text-gray-400"}`}>
+                                      {message.isEdited && <span className="italic">edited</span>}
+                                      <span>{formatTime(message.timestamp)}</span>
+                                      {isMine ? getMessageStatus(message.status) : null}
+                                    </div>
+                                  </div>
+                                  {isMine && (
+                                    <button
+                                      className="absolute -left-7 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600"
+                                      title="Edit message"
+                                      onClick={() => {
+                                        setEditingMessageId(String(message.id))
+                                        setEditText(message.text || "")
+                                      }}
+                                    >
+                                      <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                      </svg>
+                                    </button>
+                                  )}
+                                </>
+                              )}
                             </div>
                           )}
 
                           {/* System */}
                           {message.type === "system" && (
-                            <div className="w-full flex justify-center my-2">
-                              <div className="text-xs text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+                            <div className="w-full flex justify-center my-1">
+                              <div className="text-[11px] text-gray-400 bg-gray-100/80 px-3.5 py-1 rounded-full">
                                 {message.text}
                               </div>
                             </div>
@@ -2088,34 +2768,36 @@ useEffect(() => {
                           {/* FILE */}
                           {message.type === "file" && (
                             <div
-                              className={`max-w-[80%] rounded-2xl px-4 py-3 border ${
-                                alignLeft ? "bg-white" : "bg-primary/10"
+                              className={`max-w-[75%] px-4 py-3 shadow-sm ${
+                                alignLeft
+                                  ? "bg-white border border-gray-100 rounded-2xl rounded-tl-sm"
+                                  : "bg-primary/5 border border-primary/20 rounded-2xl rounded-tr-sm"
                               }`}
                             >
-                              <div className="text-sm font-medium text-gray-900 mb-2">Attachment</div>
+                              <div className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-2">Attachment</div>
                               <div className="space-y-2">
                                 {(message.attachments || []).map((a, idx) => (
-                                  <div key={idx} className="flex items-center justify-between gap-3 bg-gray-50 rounded-lg p-2">
+                                  <div key={idx} className="flex items-center justify-between gap-3 bg-gray-50/80 rounded-lg px-3 py-2 border border-gray-100">
                                     <div className="min-w-0">
                                       <div className="text-xs font-medium text-gray-900 truncate">{a.name}</div>
-                                      <div className="text-[11px] text-gray-500 truncate">{a.type}</div>
+                                      <div className="text-[10px] text-gray-400 mt-0.5">{a.type}</div>
                                     </div>
                                     <a
                                       href={a.url}
                                       target="_blank"
                                       rel="noreferrer"
-                                      className="inline-flex items-center text-xs font-medium text-primary hover:underline"
+                                      className="flex-shrink-0 inline-flex items-center text-xs font-medium text-primary hover:text-primary/80 gap-1"
                                     >
-                                      <Download className="h-3 w-3 mr-1" />
-                                      Download
+                                      <Download className="h-3 w-3" />
+                                      Save
                                     </a>
                                   </div>
                                 ))}
                                 {(message.attachments || []).length === 0 && (
-                                  <div className="text-xs text-gray-500">No attachment data.</div>
+                                  <div className="text-xs text-gray-400">No attachment data.</div>
                                 )}
                               </div>
-                              <div className="mt-2 flex items-center justify-end space-x-2 text-[11px] text-gray-500">
+                              <div className={`mt-2 flex items-center justify-end space-x-1.5 text-[10px] ${isMine ? "text-primary/50" : "text-gray-400"}`}>
                                 <span>{formatTime(message.timestamp)}</span>
                                 {message.sender === "me" ? getMessageStatus(message.status) : null}
                               </div>
@@ -2160,12 +2842,12 @@ useEffect(() => {
                     })}
 
                     {messages.length === 0 && (
-                      <div className="text-xs text-gray-500 text-center py-4">No messages yet.</div>
+                      <div className="text-sm text-gray-400 text-center py-10">No messages yet. Start the conversation!</div>
                     )}
                   </>
                 ) : (
-                  <div className="text-xs text-gray-500 text-center py-10">
-                    No conversations yet. Use the box below to start messaging.
+                  <div className="text-sm text-gray-400 text-center py-16">
+                    No conversation selected. Use the box below to start messaging.
                   </div>
                 )}
               </div>
@@ -2173,12 +2855,12 @@ useEffect(() => {
           </CardContent>
 
           {/* Composer ALWAYS visible */}
-          <div className="border-t p-3 sm:p-4">
+          <div className="flex-shrink-0 border-t border-gray-50/80 px-4 py-3 bg-white">
             {selectedFile && (
-              <div className="mb-2 flex items-center justify-between rounded-lg border bg-gray-50 px-3 py-2 text-xs">
+              <div className="mb-2.5 flex items-center justify-between rounded-xl border border-gray-100 bg-gray-50/80 px-3 py-2">
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-gray-900">{selectedFile.name}</p>
-                  <p className="text-gray-500">
+                  <p className="truncate text-xs font-medium text-gray-900">{selectedFile.name}</p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
                     {(selectedFile.size / 1024 / 1024).toFixed(2)} MB
                   </p>
                 </div>
@@ -2187,14 +2869,14 @@ useEffect(() => {
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="h-7 px-2 text-red-600"
+                  className="h-7 px-2 text-red-500 hover:text-red-600 hover:bg-red-50 text-xs"
                   onClick={() => setSelectedFile(null)}
                 >
                   Remove
                 </Button>
               </div>
             )}
-            <div className="flex items-center space-x-2">
+            <div className="flex items-center gap-2">
               <input
                 ref={fileInputRef}
                 type="file"
@@ -2207,9 +2889,9 @@ useEffect(() => {
               />
               {auth?.user?.role === "artisan" && (
                 <Button
-                  variant="outline"
+                  variant="ghost"
                   size="sm"
-                  className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
+                  className="h-9 w-9 p-0 flex-shrink-0 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-xl"
                   onClick={() => setShowContractModal(true)}
                   title="Send Contract"
                   disabled={!selectedConversation?.id}
@@ -2219,18 +2901,18 @@ useEffect(() => {
               )}
 
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
+                className="h-9 w-9 p-0 flex-shrink-0 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-xl"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!canType || isSendingFile || !selectedConversation?.id}
                 title="Attach File">
                 <Paperclip className="h-4 w-4" />
               </Button>
               <Button
-                variant="outline"
+                variant="ghost"
                 size="sm"
-                className="h-10 w-10 p-0 flex-shrink-0 bg-transparent"
+                className="h-9 w-9 p-0 flex-shrink-0 text-gray-400 hover:text-primary hover:bg-primary/5 rounded-xl"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={!canType || isSendingFile || !selectedConversation?.id}
                 title="Attach Image"
@@ -2251,7 +2933,7 @@ useEffect(() => {
                 value={newMessage}
                 onChange={(e) => setNewMessage(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && canType && sendMessageHandler()}
-                className="h-10 text-sm"
+                className="h-9 text-sm bg-gray-50/80 border-gray-200/80 rounded-xl focus-visible:ring-primary/30"
                 disabled={!canType}
               />
 
@@ -2259,7 +2941,7 @@ useEffect(() => {
                 size="sm"
                 onClick={sendMessageHandler}
                 disabled={!canType || isSendingFile || (!newMessage.trim() && !selectedFile)}
-                className="h-10 w-10 p-0"
+                className="h-9 w-9 p-0 flex-shrink-0 bg-primary hover:bg-primary/90 rounded-xl shadow-sm"
               >
                 <Send className="h-4 w-4" />
               </Button>
@@ -2267,17 +2949,33 @@ useEffect(() => {
           </div>
         </Card>
 
+        {/* Mobile backdrop — blurs the message body behind the Job Summary card */}
+        {showJobSummary && (
+          <div
+            className="lg:hidden fixed inset-0 z-40 bg-black/10 backdrop-blur-[3px]"
+            onClick={() => setShowJobSummary(false)}
+          />
+        )}
+
         {/* Job Summary Panel - Right Panel */}
         <Card
-          className={`lg:col-span-3 ${showJobSummary ? "block" : "hidden"} lg:block absolute lg:relative inset-0 lg:inset-auto z-50 lg:z-auto`}
+          className={`
+            lg:col-span-3 lg:static lg:top-auto lg:left-auto
+            lg:translate-x-0 lg:translate-y-0 lg:w-auto lg:max-h-none lg:z-auto
+            flex flex-col py-0 overflow-hidden border-gray-100/80 shadow-sm
+            ${showJobSummary
+              ? "block fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50 w-[72%] max-h-[85vh] overflow-hidden shadow-2xl"
+              : "hidden lg:flex"
+            }
+          `}
         >
-          <CardHeader className="pb-3 border-b">
+          <CardHeader className="flex-shrink-0 pb-3 border-b border-gray-50/80 px-4 pt-4">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base lg:text-lg">Job Summary</CardTitle>
+              <CardTitle className="text-sm font-semibold text-gray-900">Job Summary</CardTitle>
               <Button
                 variant="ghost"
                 size="sm"
-                className="lg:hidden h-8 w-8 p-0"
+                className="lg:hidden h-7 w-7 p-0 text-gray-400 hover:text-gray-600 rounded-lg"
                 onClick={() => setShowJobSummary(false)}
               >
                 ×
@@ -2285,21 +2983,21 @@ useEffect(() => {
             </div>
           </CardHeader>
           <CardContent className="p-0">
-            <ScrollArea className="h-[calc(100vh-10rem)] lg:h-[calc(100vh-16rem)]">
-              <div className="p-4 space-y-4">
+            <ScrollArea className="h-[calc(72vh-4rem)] lg:h-[calc(100vh-16rem)]">
+              <div className="p-4 space-y-5">
                 {!activeContract ? (
-                  <div className="text-sm text-gray-600">No contract details are available for this conversation yet.</div>
+                  <div className="text-sm text-gray-500 text-center py-8">No contract details available for this conversation yet.</div>
                 ) : (
                   <>
                     <div>
-                      <h3 className="font-semibold text-sm mb-2">Contract Status</h3>
-                      <div className="bg-gradient-to-r from-primary/10 to-primary/5 rounded-lg p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <span className="text-sm font-medium">Overall Progress</span>
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Contract Status</h4>
+                      <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl p-4 border border-primary/10">
+                        <div className="flex items-center justify-between mb-2.5">
+                          <span className="text-sm font-medium text-gray-700">Overall Progress</span>
                           <span className="text-sm font-bold text-primary">{Math.round(calculateProgress())}%</span>
                         </div>
-                        <Progress value={calculateProgress()} className="h-2 mb-2" />
-                        <div className="flex items-center justify-between text-xs text-gray-600">
+                        <Progress value={calculateProgress()} className="h-1.5 mb-2.5" />
+                        <div className="flex items-center justify-between text-xs text-gray-500">
                           <span>
                             {activeContract.phases.filter((p) => {
                               const s = normalizePhaseStatus(p.status)
@@ -2311,44 +3009,44 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <Separator />
+                    <Separator className="opacity-50" />
 
                     <div>
-                      <h3 className="font-semibold text-sm mb-3">Payment Summary</h3>
-                      <div className="space-y-2">
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Payment Summary</h4>
+                      <div className="space-y-2.5 bg-gray-50/50 rounded-xl p-3.5 border border-gray-100">
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Total Contract</span>
-                          <span className="font-semibold">₦{activeContract.totalAmount.toLocaleString()}</span>
+                          <span className="text-gray-500">Total Contract</span>
+                          <span className="font-semibold text-gray-900">₦{activeContract.totalAmount.toLocaleString()}</span>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Deposit Paid</span>
+                          <span className="text-gray-500">Deposit Paid</span>
                           <div className="flex items-center space-x-2">
-                            <span className="font-semibold">
+                            <span className="font-semibold text-gray-900">
                               ₦{depositPaidAmount.toLocaleString()}
                             </span>
-                            {depositFullyPaid && <CheckCircle className="h-4 w-4 text-green-600" />}
-                            {contractTxLoading && <span className="text-xs text-gray-500">…</span>}
+                            {depositFullyPaid && <CheckCircle className="h-3.5 w-3.5 text-emerald-500" />}
+                            {contractTxLoading && <span className="text-xs text-gray-400">…</span>}
                           </div>
                         </div>
                         <div className="flex items-center justify-between text-sm">
-                          <span className="text-gray-600">Total Paid</span>
-                            <span className="font-semibold text-green-600">
+                          <span className="text-gray-500">Total Paid</span>
+                            <span className="font-semibold text-emerald-600">
                               ₦{totalPaid.toLocaleString()}
                             </span>
                         </div>
-                        <div className="flex items-center justify-between text-sm pt-2 border-t">
-                          <span className="text-gray-600">Remaining</span>
-                          <span className="font-semibold text-green-600">
+                        <div className="flex items-center justify-between text-sm pt-2.5 border-t border-gray-100">
+                          <span className="text-gray-500">Remaining</span>
+                          <span className="font-semibold text-gray-900">
                             ₦{remaining.toLocaleString()}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <Separator />
+                    <Separator className="opacity-50" />
 
                     <div>
-                      <h3 className="font-semibold text-sm mb-3">Project Phases</h3>
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3">Project Phases</h4>
                       <div className="space-y-3">
                       {activeContract.phases.map((phase, index) => {
                         const rawStatus = normalizePhaseStatus(phase.status)
@@ -2367,52 +3065,118 @@ useEffect(() => {
                         })
 
                         return (
-                          <div key={phase.id} className="border rounded-lg p-3">
+                          <div key={phase.id} className="rounded-xl border border-gray-100 bg-white p-3.5 shadow-sm">
                             <div className="flex items-start justify-between mb-2">
                               <div className="flex-1">
-                                <div className="flex items-center space-x-2 mb-1">
-                                  <span className="text-xs font-medium text-gray-500">Phase {index + 1}</span>
-                                  <Badge className={`${getPhaseStatusColor(rawStatus)} text-xs`}>
+                                <div className="flex items-center flex-wrap gap-1 mb-1.5">
+                                  <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Phase {index + 1}</span>
+                                  <Badge className={`${getPhaseStatusColor(rawStatus)} text-[10px] py-0 px-1.5 h-4 border-0`}>
                                     {displayStatus}
                                   </Badge>
+                                  {phase.initial_release_done && rawStatus === "in-progress" && (
+                                    <Badge className="bg-emerald-100 text-emerald-700 text-[10px] py-0 px-1.5 h-4 border-0">
+                                      Advance Paid
+                                    </Badge>
+                                  )}
                                 </div>
-                                <p className="text-sm font-medium">{phase.name}</p>
+                                <p className="text-sm font-medium text-gray-900">{phase.name}</p>
                               </div>
-                              {getPhaseStatusIcon(rawStatus)}
+                              <div className="flex-shrink-0 ml-2">
+                                {getPhaseStatusIcon(rawStatus)}
+                              </div>
                             </div>
 
-                            <div className="flex items-center justify-between text-xs text-gray-600 mb-2">
-                              <span>Amount:</span>
+                            <div className="flex items-center justify-between text-xs text-gray-500 mb-2">
+                              <span>Total Value</span>
                               <span className="font-semibold text-primary">
                                 ₦{Number(phase.amount || 0).toLocaleString()}
                               </span>
                             </div>
 
+                            {phase.initial_release_done && (() => {
+                              const materialAmt  = Number(phase.material_cost || 0)
+                              const labourAmt    = Number(phase.labour_cost || 0)
+                              const advanceGross = materialAmt + labourAmt * 0.1
+                              const pendingGross = labourAmt * 0.9
+                              const isFullyPaid  = ["released", "paid"].includes(rawStatus)
+                              return (
+                                <div className="mb-2 rounded-lg border border-emerald-100 bg-emerald-50/70 p-2.5 space-y-1.5">
+                                  <div className="flex items-center justify-between text-xs">
+                                    <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                                      <CheckCircle className="h-3 w-3" />
+                                      {currentUserRole === "artisan" ? "Advance Received" : "Advance Released"}
+                                    </span>
+                                    <span className="font-semibold text-emerald-700">
+                                      ₦{advanceGross.toLocaleString()}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-xs">
+                                    {isFullyPaid ? (
+                                      <span className="flex items-center gap-1 text-emerald-700 font-medium">
+                                        <CheckCircle className="h-3 w-3" />
+                                        {currentUserRole === "artisan" ? "Final Payment Received" : "Final Payment Released"}
+                                      </span>
+                                    ) : (
+                                      <span className="text-gray-500">Pending approval</span>
+                                    )}
+                                    <span className={`font-semibold ${isFullyPaid ? "text-emerald-700" : "text-gray-700"}`}>
+                                      ₦{pendingGross.toLocaleString()}
+                                    </span>
+                                  </div>
+                                </div>
+                              )
+                            })()}
+
                             {phase.dueDate && (
-                              <div className="flex items-center text-xs text-gray-600">
-                                <Clock className="h-3 w-3 mr-1" />
+                              <div className="flex items-center text-xs text-gray-400 mb-2">
+                                <Clock className="h-3 w-3 mr-1.5" />
                                 Due: {new Date(phase.dueDate).toLocaleDateString()}
                               </div>
                             )}
 
+                            {/* Employer: fund milestone when it's active but not yet funded */}
+                            {currentUserRole === "employer" && rawStatus === "in-progress" && !phase.initial_release_done && (
+                              <Button
+                                onClick={() => handleFundMilestone(phase.id)}
+                                size="sm"
+                                className="w-full mt-2 h-8 text-xs rounded-lg bg-primary hover:bg-primary/90"
+                                disabled={isLoading}
+                              >
+                                <DollarSign className="h-3 w-3 mr-2" />
+                                {isLoading
+                                  ? "Processing..."
+                                  : activeContract?.payment_mode === "MILESTONE"
+                                    ? "Fund & Advance Pay"
+                                    : "Fund Milestone"}
+                              </Button>
+                            )}
+
+                            {/* Artisan: submit completed work */}
                             {currentUserRole === "artisan" && canArtisanSubmitPhase(rawStatus) && (
                               <Button
                                 onClick={() => handleSubmitPhase(phase.id)}
                                 size="sm"
-                                className="w-full mt-2"
+                                className="w-full mt-2 h-8 text-xs rounded-lg"
                                 disabled={isLoading}
                               >
                                 <Package className="h-3 w-3 mr-2" />
-                                {isLoading ? "Submitting..." : "Submit"}
+                                {isLoading ? "Submitting..." : "Submit Work"}
                               </Button>
                             )}
 
-                            {currentUserRole === "employer" && canEmployerResolvePhase(rawStatus) && (
+                            {currentUserRole === "employer" && canEmployerResolvePhase(rawStatus) && (() => {
+                              // After Phase 1, only the remaining 90% labour can be released/refunded.
+                              // Before Phase 1 (FULL-mode or legacy), the full amount applies.
+                              const phase2Max = phase.initial_release_done
+                                ? Number(phase.labour_cost || 0) * 0.9
+                                : Number(phase.amount || 0)
+
+                              return (
                               <div className="grid grid-cols-1 gap-2 mt-2">
                                 <Button
                                   onClick={() => handleReleasePhase(phase.id)}
                                   size="sm"
-                                  className="w-full bg-green-600 hover:bg-green-700"
+                                  className="w-full h-8 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700"
                                   disabled={isLoading}
                                 >
                                   <CheckCircle className="h-3 w-3 mr-2" />
@@ -2427,7 +3191,7 @@ useEffect(() => {
                                   }
                                   size="sm"
                                   variant="outline"
-                                  className="w-full"
+                                  className="w-full h-8 text-xs rounded-lg"
                                   disabled={isLoading}
                                 >
                                   <DollarSign className="h-3 w-3 mr-2" />
@@ -2435,11 +3199,16 @@ useEffect(() => {
                                 </Button>
 
                                 {partialReleaseOpenFor === String(phase.id) && (
-                                  <div className="mt-2 space-y-2 rounded-md border p-2 bg-gray-50">
+                                  <div className="mt-1 space-y-2 rounded-xl border border-gray-100 p-3 bg-gray-50/80">
+                                    {phase.initial_release_done && (
+                                      <p className="text-[10px] text-gray-400 leading-tight">
+                                        Advance already released. Max releasable: ₦{Math.round(phase2Max).toLocaleString()}
+                                      </p>
+                                    )}
                                     <Input
                                       type="number"
                                       min="1"
-                                      max={Number(phase.amount || 0)}
+                                      max={phase2Max}
                                       step="0.01"
                                       placeholder="Enter amount"
                                       value={partialReleaseAmount[String(phase.id)] || ""}
@@ -2450,21 +3219,23 @@ useEffect(() => {
                                         }))
                                       }
                                       disabled={isLoading}
+                                      className="h-8 text-xs rounded-lg"
                                     />
 
                                     <div className="flex gap-2">
                                       <Button
                                         size="sm"
-                                        className="flex-1"
-                                        onClick={() => handlePartialReleasePhase(phase.id, Number(phase.amount || 0))}
+                                        className="flex-1 h-8 text-xs rounded-lg"
+                                        onClick={() => handlePartialReleasePhase(phase.id, phase2Max)}
                                         disabled={isLoading}
                                       >
-                                        {isLoading ? "Processing..." : "Confirm Partial Release"}
+                                        {isLoading ? "Processing..." : "Confirm"}
                                       </Button>
 
                                       <Button
                                         size="sm"
                                         variant="outline"
+                                        className="h-8 text-xs rounded-lg"
                                         onClick={() => {
                                           setPartialReleaseOpenFor(null)
                                           setPartialReleaseAmount((prev) => ({
@@ -2484,51 +3255,52 @@ useEffect(() => {
                                   onClick={() => handleRefundPhase(phase.id)}
                                   size="sm"
                                   variant="outline"
-                                  className="w-full hover:bg-red-50 hover:text-red-600 hover:border-red-300"
+                                  className="w-full h-8 text-xs rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200"
                                   disabled={isLoading}
                                 >
                                   <XCircle className="h-3 w-3 mr-2" />
-                                  Refund
+                                  {phase.initial_release_done ? "Refund Remaining" : "Refund"}
                                 </Button>
                               </div>
-                            )}
+                              )
+                            })()}
                           </div>
                         )
                       })}
                       </div>
                     </div>
 
-                    <Separator />
+                    <Separator className="opacity-50" />
 
                     <div>
-                      <h3 className="font-semibold text-sm mb-3 flex items-center">
-                        <Wrench className="h-4 w-4 mr-2 text-primary" />
-                        Materials & Tools
-                      </h3>
+                      <h4 className="text-[11px] font-semibold uppercase tracking-wide text-gray-400 mb-3 flex items-center gap-1.5">
+                        <Wrench className="h-3.5 w-3.5 text-gray-400" />
+                        Materials &amp; Tools
+                      </h4>
                       <div className="space-y-2">
                         {activeContract.materials.map((material) => (
                           <div key={material.id}>
-                            <div className="bg-gray-50 rounded p-2">
-                              <div className="flex items-start justify-between mb-1">
-                                <p className="text-xs font-medium flex-1">{material.name}</p>
-                                <Badge variant="secondary" className="text-xs ml-2">
+                            <div className="bg-gray-50/80 rounded-xl p-3 border border-gray-100">
+                              <div className="flex items-start justify-between mb-1.5">
+                                <p className="text-xs font-medium text-gray-900 flex-1">{material.name}</p>
+                                <Badge variant="secondary" className="text-[10px] ml-2 border-0 bg-gray-100 text-gray-500">
                                   {material.coveredBy === "client" ? "You" : "Artisan"}
                                 </Badge>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="text-xs text-gray-600">₦{material.cost.toLocaleString()}</span>
+                                <span className="text-xs text-gray-500">₦{material.cost.toLocaleString()}</span>
                               </div>
                             </div>
                             {material.receipt && (
-                              <div className="mt-2 flex justify-end">
+                              <div className="mt-1.5 flex justify-end">
                                 <Button
-                                  variant="outline"
+                                  variant="ghost"
                                   size="sm"
-                                  className="h-7 px-3 bg-transparent hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                                  className="h-7 px-3 text-xs text-primary hover:bg-primary/5 rounded-lg"
                                   title="Download Receipt"
                                 >
                                   <Download className="h-3 w-3 mr-1.5" />
-                                  <span className="text-xs">Download Receipt</span>
+                                  Download Receipt
                                 </Button>
                               </div>
                             )}
@@ -2537,14 +3309,14 @@ useEffect(() => {
                       </div>
                     </div>
 
-                    <Separator />
+                    <Separator className="opacity-50" />
 
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
-                      <div className="flex items-start space-x-2">
-                        <Shield className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                    <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-3.5">
+                      <div className="flex items-start space-x-2.5">
+                        <Shield className="h-4 w-4 text-blue-500 mt-0.5 flex-shrink-0" />
                         <div>
-                          <h5 className="text-xs font-medium text-blue-900 mb-1">Escrow Protection Active</h5>
-                          <p className="text-xs text-blue-800 leading-relaxed">
+                          <h5 className="text-xs font-semibold text-blue-900 mb-1">Escrow Protection Active</h5>
+                          <p className="text-xs text-blue-700 leading-relaxed">
                             Your funds are held securely. Release payments only after reviewing and approving each phase.
                           </p>
                         </div>
@@ -2560,5 +3332,3 @@ useEffect(() => {
     </div>
   )
 }
-
-

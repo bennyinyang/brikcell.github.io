@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { AuthAPI, saveAuth, type UserDTO } from "@/lib/api"
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -172,7 +174,8 @@ export default function LoginPage() {
 
               <button
                 type="button"
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-slate-200 bg-white text-[14px] font-medium text-slate-700 hover:bg-slate-50"
+                onClick={() => { window.location.href = `${API}/auth/google`; }}
+                className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-slate-200 bg-white text-[14px] font-medium text-slate-700 hover:bg-slate-50 transition-colors"
               >
                 <GoogleIcon />
                 Login with Google

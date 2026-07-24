@@ -1,7 +1,7 @@
 "use client"
 
 import type React from "react"
-import { useMemo, useState } from "react"
+import { useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Upload, X, CalendarDays } from "lucide-react"
@@ -17,16 +17,59 @@ import { createServiceListing, getAuth, type ServiceType } from "@/lib/api"
 
 import { Header } from "@/components/header"
 
-const serviceTypes: { label: string; value: ServiceType }[] = [
-  { label: "Home service", value: "general" },
-  { label: "Plumbing", value: "plumbing" },
-  { label: "Carpentry", value: "carpentry" },
-  { label: "Electrical", value: "electrical" },
-  { label: "Painting", value: "painting" },
-  { label: "Cleaning", value: "cleaning" },
-  { label: "Hair Styling", value: "hairstyling" },
-  { label: "Auto Repair", value: "autorepair" },
-  { label: "Tech Support", value: "techsupport" },
+const serviceTypes: { label: string; value: ServiceType; group: string }[] = [
+  // ── Physical / Local ───────────────────────────────────────────
+  { label: "Home Service", value: "general", group: "Physical" },
+  { label: "Plumbing", value: "plumbing", group: "Physical" },
+  { label: "Carpentry", value: "carpentry", group: "Physical" },
+  { label: "Electrical", value: "electrical", group: "Physical" },
+  { label: "Painting", value: "painting", group: "Physical" },
+  { label: "House Cleaning", value: "cleaning", group: "Physical" },
+  { label: "Hair Styling", value: "hairstyling", group: "Physical" },
+  { label: "Auto Repair", value: "autorepair", group: "Physical" },
+  { label: "Tech Support", value: "techsupport", group: "Physical" },
+  { label: "Landscaping", value: "landscaping", group: "Physical" },
+  { label: "Moving Services", value: "moving", group: "Physical" },
+  { label: "HVAC (Heating & Cooling)", value: "hvac", group: "Physical" },
+  { label: "Roofing", value: "roofing", group: "Physical" },
+  { label: "Flooring", value: "flooring", group: "Physical" },
+  { label: "Pest Control", value: "pestcontrol", group: "Physical" },
+  { label: "Interior Design", value: "interiordesign", group: "Physical" },
+  { label: "Masonry & Concrete", value: "masonry", group: "Physical" },
+  { label: "Pool Maintenance", value: "poolmaintenance", group: "Physical" },
+  { label: "Appliance Repair", value: "appliancerepair", group: "Physical" },
+  { label: "Welding & Fabrication", value: "welding", group: "Physical" },
+  { label: "Security & CCTV", value: "securitycctv", group: "Physical" },
+  { label: "Photography", value: "photography", group: "Physical" },
+  { label: "Catering & Cooking", value: "catering", group: "Physical" },
+  { label: "Personal Training", value: "personaltraining", group: "Physical" },
+  { label: "Childcare & Babysitting", value: "childcare", group: "Physical" },
+  { label: "Elderly Care", value: "elderlycare", group: "Physical" },
+  { label: "Tailoring & Alterations", value: "tailoring", group: "Physical" },
+  { label: "Laundry & Dry Cleaning", value: "laundry", group: "Physical" },
+  { label: "Window Cleaning", value: "windowcleaning", group: "Physical" },
+  { label: "Furniture Assembly", value: "furnitureassembly", group: "Physical" },
+  { label: "Home Inspection", value: "homeinspection", group: "Physical" },
+  { label: "Tiling", value: "tiling", group: "Physical" },
+  // ── Digital / Remote ───────────────────────────────────────────
+  { label: "Web Development", value: "webdevelopment", group: "Digital" },
+  { label: "Mobile App Development", value: "mobiledev", group: "Digital" },
+  { label: "Graphic Design", value: "graphicdesign", group: "Digital" },
+  { label: "Logo & Brand Design", value: "logodesign", group: "Digital" },
+  { label: "Video Editing", value: "videoediting", group: "Digital" },
+  { label: "Social Media Management", value: "socialmedia", group: "Digital" },
+  { label: "Content Writing & Copywriting", value: "contentwriting", group: "Digital" },
+  { label: "SEO & Digital Marketing", value: "seomarketing", group: "Digital" },
+  { label: "Virtual Assistant", value: "virtualassistant", group: "Digital" },
+  { label: "Bookkeeping & Accounting", value: "bookkeeping", group: "Digital" },
+  { label: "Translation & Interpretation", value: "translation", group: "Digital" },
+  { label: "Tutoring & Academic Help", value: "tutoring", group: "Digital" },
+  { label: "Music Production", value: "musicproduction", group: "Digital" },
+  { label: "Animation & Motion Graphics", value: "animation", group: "Digital" },
+  { label: "UI/UX Design", value: "uiuxdesign", group: "Digital" },
+  { label: "Cybersecurity", value: "cybersecurity", group: "Digital" },
+  { label: "Software QA & Testing", value: "qatesting", group: "Digital" },
+  { label: "Voice Over", value: "voiceover", group: "Digital" },
 ]
 
 const suggestedTags = ["Home service", "Wood work", "Home service", "Painting"]
@@ -40,6 +83,8 @@ export default function PostServicePage() {
   const auth = getAuth()
 
   const [isSaving, setIsSaving] = useState(false)
+  const [isDragging, setIsDragging] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const [formData, setFormData] = useState({
     title: "",
@@ -76,13 +121,39 @@ export default function PostServicePage() {
     }))
   }
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || [])
-
+  const addFiles = (incoming: File[]) => {
+    if (!incoming.length) return
     setFormData((prev) => ({
       ...prev,
-      files: [...prev.files, ...files].slice(0, 5),
+      files: [...prev.files, ...incoming].slice(0, 5),
     }))
+  }
+
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    addFiles(Array.from(event.target.files || []))
+    event.target.value = ""
+  }
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragging(false)
+    const dropped = Array.from(e.dataTransfer.files).filter((f) =>
+      f.type.startsWith("image/") || /\.(pdf|doc|docx)$/i.test(f.name)
+    )
+    addFiles(dropped)
   }
 
   const removeFile = (index: number) => {
@@ -159,29 +230,29 @@ export default function PostServicePage() {
           {/* Sidebar - desktop only */}
           <aside className="hidden lg:block">
             <nav className="space-y-2 text-sm text-slate-700">
-              <a href="/dashboard/artisan" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <a href="/dashboard/artisan" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Dashboard
               </a>
-              <a href="/dashboard/jobs" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <a href="/dashboard/jobs" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Browse Gigs
               </a>
-              <a href="/dashboard/bookings" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <a href="/dashboard/bookings" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 My Bookings
               </a>
               <a
                 href="/dashboard/services/post"
-                className="block rounded-md bg-slate-50 px-3 py-2 font-medium text-slate-950"
+                className="block rounded-md bg-slate-50 px-4 py-3 font-medium text-slate-950"
               >
                 <span className="mr-2 inline-block h-1.5 w-1.5 rounded-full bg-emerald-500 align-middle" />
                 Post Service
               </a>
-              <a href="/dashboard/wallet" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <a href="/dashboard/wallet" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Wallet
               </a>
-              <a href="/dashboard/settings" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <a href="/dashboard/settings" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Settings
               </a>
-              <a href="/support" className="block rounded-md px-3 py-2 hover:bg-slate-50">
+              <a href="/support" className="block rounded-md px-4 py-3 hover:bg-slate-50">
                 Support
               </a>
             </nav>
@@ -326,34 +397,47 @@ export default function PostServicePage() {
 
               {/* Upload */}
               <div className="space-y-2">
-                <Label className="text-xs font-medium text-slate-600">Upload files</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-medium text-slate-600">Upload files</Label>
+                  {formData.files.length > 0 && (
+                    <span className="text-[10px] text-slate-400">{formData.files.length}/5 files</span>
+                  )}
+                </div>
 
-                <div className="rounded-lg border border-slate-200 bg-white px-4 py-6 text-center">
-                  <input
-                    id="service-files"
-                    type="file"
-                    multiple
-                    accept="image/*,.pdf,.doc,.docx"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept="image/*,.pdf,.doc,.docx"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
 
-                  <button
-                    type="button"
-                    onClick={() => document.getElementById("service-files")?.click()}
-                    className="mx-auto flex h-8 w-8 items-center justify-center rounded-md border border-slate-200 text-slate-500"
-                  >
-                    <Upload className="h-4 w-4" />
-                  </button>
-
-                  <p className="mt-2 text-xs">
-                    <span className="cursor-pointer font-medium text-primary">Click to upload</span>{" "}
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  onDragOver={handleDragOver}
+                  onDragEnter={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+                    isDragging
+                      ? "border-primary bg-primary/5"
+                      : "border-slate-200 bg-white hover:border-primary/40 hover:bg-slate-50"
+                  }`}
+                >
+                  <div className={`mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-full transition-colors ${isDragging ? "bg-primary/10" : "bg-slate-100"}`}>
+                    <Upload className={`h-5 w-5 ${isDragging ? "text-primary" : "text-slate-400"}`} />
+                  </div>
+                  <p className="text-sm">
+                    <span className="font-medium text-primary">Click to upload</span>{" "}
                     <span className="text-slate-500">or drag and drop</span>
                   </p>
-
-                  <p className="mt-1 text-[10px] text-slate-400">
-                    SVG, PNG, JPG or GIF max 800x400px
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    PNG, JPG, GIF, PDF, DOC — up to 5 files
                   </p>
+                  {formData.files.length >= 5 && (
+                    <p className="mt-1 text-[11px] text-amber-500 font-medium">Maximum 5 files reached</p>
+                  )}
                 </div>
 
                 {formData.files.length > 0 && (
@@ -370,15 +454,17 @@ export default function PostServicePage() {
                             className="h-24 w-full object-cover"
                           />
                         ) : (
-                          <div className="flex h-24 items-center justify-center px-2 text-center text-xs text-slate-500">
-                            {file.name}
+                          <div className="flex h-24 flex-col items-center justify-center gap-1 px-2 text-center">
+                            <div className="flex h-8 w-8 items-center justify-center rounded-md bg-slate-200 text-[10px] font-bold uppercase text-slate-500">
+                              {file.name.split(".").pop()}
+                            </div>
+                            <span className="line-clamp-2 text-[10px] text-slate-500">{file.name}</span>
                           </div>
                         )}
-
                         <button
                           type="button"
-                          onClick={() => removeFile(index)}
-                          className="absolute right-2 top-2 rounded-full bg-white p-1 text-slate-500 shadow-sm hover:text-red-500"
+                          onClick={(e) => { e.stopPropagation(); removeFile(index) }}
+                          className="absolute right-1.5 top-1.5 rounded-full bg-white/90 p-1 text-slate-500 shadow-sm hover:text-red-500"
                         >
                           <X className="h-3 w-3" />
                         </button>

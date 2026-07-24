@@ -54,10 +54,11 @@ function toNumber(value: any) {
   return Number.isFinite(n) ? n : 0;
 }
 
-const PAYSTACK_FEE_RATE = 0.02;
-
+// Official Paystack rate: 1.5% + ₦100 flat, capped at ₦2,000
 function withPaystackFee(desiredAmount: number): number {
-  return Math.ceil(desiredAmount / (1 - PAYSTACK_FEE_RATE));
+  if (desiredAmount <= 0) return 0;
+  const uncapped = Math.ceil((desiredAmount + 100) / (1 - 0.015));
+  return uncapped - desiredAmount >= 2000 ? desiredAmount + 2000 : uncapped;
 }
 
 function formatCurrency(value: any) {
@@ -91,16 +92,22 @@ function formatTime(value?: string) {
 
 function getTransactionAmountClass(transaction: EmployerWalletTransaction) {
   if (transaction.type === "deposit") return "text-emerald-600";
+  if (transaction.type === "milestone_refund") return "text-emerald-600";
   if (transaction.type === "withdrawal") return "text-red-600";
   if (transaction.type === "job_payment") return "text-red-600";
+  if (transaction.type === "milestone_release") return "text-red-600";
+  if (transaction.type === "milestone_partial_release") return "text-red-600";
 
   return "text-slate-950";
 }
 
 function getTransactionAmountPrefix(transaction: EmployerWalletTransaction) {
   if (transaction.type === "deposit") return "+";
+  if (transaction.type === "milestone_refund") return "+";
   if (transaction.type === "withdrawal") return "-";
   if (transaction.type === "job_payment") return "-";
+  if (transaction.type === "milestone_release") return "-";
+  if (transaction.type === "milestone_partial_release") return "-";
 
   return "";
 }

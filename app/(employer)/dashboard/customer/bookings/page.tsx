@@ -1,3 +1,4 @@
+// empolyer bookings
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
@@ -12,7 +13,7 @@ import {
   UserRound,
   XCircle,
 } from "lucide-react"
-
+import { BookingModal } from "@/components/modals/booking-modal"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
@@ -27,6 +28,7 @@ import {
 import {
   BookingDTO,
   BookingStatus,
+  getAuth,
   listEmployerBookings,
   listEmployerBookingHistory,
   updateBookingStatusEmployer,
@@ -78,7 +80,8 @@ function getInitials(name?: string) {
 function getStatusLabel(status?: string) {
   const value = String(status || "").toLowerCase()
 
-  if (value === "scheduled") return "In progress"
+  if (value === "in_progress") return "In Progress"
+  if (value === "scheduled") return "Scheduled"
   if (value === "completed") return "Completed"
   if (value === "cancelled") return "Cancelled"
 
@@ -88,8 +91,12 @@ function getStatusLabel(status?: string) {
 function getStatusClass(status?: string) {
   const value = String(status || "").toLowerCase()
 
-  if (value === "scheduled") {
+  if (value === "in_progress") {
     return "border-orange-100 bg-orange-50 text-orange-700"
+  }
+
+  if (value === "scheduled") {
+    return "border-blue-100 bg-blue-50 text-blue-700"
   }
 
   if (value === "completed") {
@@ -113,17 +120,12 @@ function getTalentName(booking: BookingDTO) {
 
 function isCurrentBooking(booking: BookingDTO) {
   const status = String(booking.status || "").toLowerCase()
-  const date = new Date(booking.scheduled_at)
-
-  if (status !== "scheduled") return false
-  if (Number.isNaN(date.getTime())) return true
-
-  return date >= new Date()
+  return status === "in_progress" || status === "scheduled"
 }
 
 function EmployerSidebar() {
   const items = [
-    { label: "Dashboard", href: "/dashboard" },
+    { label: "Dashboard", href: "/dashboard/customer" },
     { label: "Browse Gigs", href: "/search" },
     { label: "My Bookings", href: "/dashboard/customer/bookings", active: true },
     { label: "Post a Gig", href: "/post-job" },
@@ -248,16 +250,19 @@ function BookingDetailsPanel({ booking }: { booking: BookingDTO }) {
 
 function BookingCard({
   booking,
-  onCancel,
-  isCancelling,
+  onEdit,
+  onStatusChange,
+  isUpdatingStatus,
   history,
 }: {
   booking: BookingDTO
-  onCancel: (bookingId: string) => void
-  isCancelling: boolean
+  onEdit: (booking: BookingDTO) => void
+  onStatusChange: (bookingId: string, status: BookingStatus) => void
+  isUpdatingStatus: boolean
   history?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
+  const isActive = booking.status === "in_progress" || booking.status === "scheduled"
 
   return (
     <Card className="rounded-2xl border border-slate-100 shadow-sm">
@@ -304,36 +309,61 @@ function BookingCard({
           <span>Time: {formatTime(booking.scheduled_at)}</span>
         </div>
 
-        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-          <Button
-            size="sm"
-            variant="outline"
-            className="border-primary/40 text-primary hover:bg-primary/5"
-            onClick={() => setExpanded((prev) => !prev)}
-          >
-            View Details
-            <ChevronDown
-              className={`ml-1 h-3 w-3 transition ${
-                expanded ? "rotate-180" : ""
-              }`}
-            />
-          </Button>
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          {/* Status updater — employer only, active bookings */}
+          {!history && isActive && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-slate-500">Update status:</span>
+              <Select
+                value={booking.status}
+                disabled={isUpdatingStatus}
+                onValueChange={(val) =>
+                  onStatusChange(booking.id, val as BookingStatus)
+                }
+              >
+                <SelectTrigger className="h-8 w-[150px] rounded-md border-slate-200 text-xs">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="in_progress">In Progress</SelectItem>
+                  <SelectItem value="scheduled">Scheduled</SelectItem>
+                  <SelectItem value="completed">Completed</SelectItem>
+                  <SelectItem value="cancelled">Cancelled</SelectItem>
+                </SelectContent>
+              </Select>
+              {isUpdatingStatus && (
+                <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />
+              )}
+            </div>
+          )}
 
-          {!history && booking.status === "scheduled" && (
+          <div className="flex flex-col gap-2 sm:ml-auto sm:flex-row">
             <Button
               size="sm"
-              className="bg-red-600 hover:bg-red-700"
-              disabled={isCancelling}
-              onClick={() => onCancel(booking.id)}
+              variant="outline"
+              className="border-primary/40 text-primary hover:bg-primary/5"
+              onClick={() => setExpanded((prev) => !prev)}
             >
-              {isCancelling ? (
-                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-              ) : (
-                <XCircle className="mr-1 h-3 w-3" />
-              )}
-              Cancel service
+              View Details
+              <ChevronDown
+                className={`ml-1 h-3 w-3 transition ${
+                  expanded ? "rotate-180" : ""
+                }`}
+              />
             </Button>
-          )}
+
+            {!history && isActive && (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                className="border-primary/40 text-primary hover:bg-primary/5"
+                onClick={() => onEdit(booking)}
+              >
+                Edit booking
+              </Button>
+            )}
+          </div>
         </div>
 
         {expanded && <BookingDetailsPanel booking={booking} />}
@@ -347,7 +377,11 @@ export default function EmployerBookingsPage() {
   const [currentBookings, setCurrentBookings] = useState<BookingDTO[]>([])
   const [bookingHistory, setBookingHistory] = useState<BookingDTO[]>([])
   const [loading, setLoading] = useState(true)
-  const [cancellingId, setCancellingId] = useState<string | null>(null)
+  const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null)
+  const [editingBooking, setEditingBooking] =
+    useState<BookingDTO | null>(null)
+
+  const auth = getAuth()
 
   async function loadBookings() {
     try {
@@ -375,18 +409,21 @@ export default function EmployerBookingsPage() {
     loadBookings()
   }, [])
 
-  async function handleCancelBooking(bookingId: string) {
+  async function handleStatusChange(bookingId: string, status: BookingStatus) {
     try {
-      setCancellingId(bookingId)
-
-      await updateBookingStatusEmployer(bookingId, "cancelled")
-
-      toast.success("Booking cancelled")
+      setUpdatingStatusId(bookingId)
+      await updateBookingStatusEmployer(bookingId, status)
+      const label = getStatusLabel(status).toLowerCase()
+      toast.success(
+        status === "cancelled"
+          ? "Booking cancelled"
+          : `Booking marked as ${label}`
+      )
       await loadBookings()
     } catch (error: any) {
-      toast.error(error?.message || "Failed to cancel booking")
+      toast.error(error?.message || "Failed to update booking status")
     } finally {
-      setCancellingId(null)
+      setUpdatingStatusId(null)
     }
   }
 
@@ -470,8 +507,9 @@ export default function EmployerBookingsPage() {
                   key={booking.id}
                   booking={booking}
                   history={activeTab === "history"}
-                  isCancelling={cancellingId === booking.id}
-                  onCancel={handleCancelBooking}
+                  isUpdatingStatus={updatingStatusId === booking.id}
+                  onEdit={setEditingBooking}
+                  onStatusChange={handleStatusChange}
                 />
               ))}
             </div>
@@ -479,6 +517,29 @@ export default function EmployerBookingsPage() {
         </section>
       </main>
     </div>
+    <BookingModal
+        open={Boolean(editingBooking)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditingBooking(null)
+          }
+        }}
+        currentUser={auth?.user}
+        participant={
+          editingBooking?.artisan
+            ? {
+                id: editingBooking.artisan.id,
+                name: editingBooking.artisan.name,
+                email: editingBooking.artisan.email,
+              }
+            : null
+        }
+        initialBooking={editingBooking}
+        onSaved={async () => {
+          setEditingBooking(null)
+          await loadBookings()
+        }}
+      />
     </>
   )
 }

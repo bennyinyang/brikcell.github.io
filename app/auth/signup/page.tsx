@@ -15,6 +15,8 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { AuthAPI } from "@/lib/api"
 
+const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+
 export default function SignUpPage() {
   const router = useRouter()
 
@@ -170,27 +172,6 @@ export default function SignUpPage() {
               talented artisans. Here, you’ll find skilled professionals who are
               dedicated to their craft and ready to cater to your needs.
             </p>
-
-            <div className="mt-9 flex items-center gap-5">
-              <div className="flex -space-x-3">
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <div
-                    key={item}
-                    className="h-11 w-11 rounded-full border-2 border-white bg-slate-200"
-                  />
-                ))}
-              </div>
-
-              <div>
-                <div className="flex items-center gap-1 text-[15px]">
-                  <span className="text-yellow-400">★★★★★</span>
-                  <span className="ml-2 text-white">5.0</span>
-                </div>
-                <p className="mt-1 text-[13px] text-white">
-                  from 200+ reviews
-                </p>
-              </div>
-            </div>
           </div>
         </section>
 
@@ -469,15 +450,17 @@ export default function SignUpPage() {
 
               <Button
                 type="submit"
-                disabled={isLoading}
-                className="h-11 w-full rounded-md bg-primary text-[14px] font-medium text-white hover:bg-primary/90"
+                disabled={isLoading || !agreeToTerms}
+                className="h-11 w-full rounded-md bg-primary text-[14px] font-medium text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {isLoading ? "Creating account..." : "Get started"}
               </Button>
 
               <button
                 type="button"
-                className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-slate-200 bg-white text-[14px] font-medium text-slate-700 hover:bg-slate-50"
+                disabled={!agreeToTerms}
+                onClick={() => { window.location.href = `${API}/auth/google?role=${formData.userType}`; }}
+                className="flex h-11 w-full items-center justify-center gap-3 rounded-md border border-slate-200 bg-white text-[14px] font-medium text-slate-700 hover:bg-slate-50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <GoogleIcon />
                 Sign up with Google

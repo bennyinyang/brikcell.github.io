@@ -29,26 +29,63 @@ import {
 } from "@/components/ui/select"
 import { createJobPostingWithFiles, getAuth } from "@/lib/api"
 
-const skillOptions = [
-  "Home service",
-  "Wood work",
-  "Home service",
-  "Painting",
-  "Plumbing",
-  "Electrical",
-  "Cleaning",
-  "Carpentry",
-]
-
 const categoryOptions = [
-  { label: "Home service", value: "home-service" },
-  { label: "Wood work", value: "carpentry" },
+  // ── Physical / Local ───────────────────────────────────────────
+  { label: "Home Service", value: "general" },
   { label: "Plumbing", value: "plumbing" },
+  { label: "Carpentry", value: "carpentry" },
   { label: "Electrical", value: "electrical" },
   { label: "Painting", value: "painting" },
-  { label: "Cleaning", value: "cleaning" },
-  { label: "Tech support", value: "techsupport" },
+  { label: "House Cleaning", value: "cleaning" },
+  { label: "Hair Styling", value: "hairstyling" },
+  { label: "Auto Repair", value: "autorepair" },
+  { label: "Tech Support", value: "techsupport" },
+  { label: "Landscaping", value: "landscaping" },
+  { label: "Moving Services", value: "moving" },
+  { label: "HVAC (Heating & Cooling)", value: "hvac" },
+  { label: "Roofing", value: "roofing" },
+  { label: "Flooring", value: "flooring" },
+  { label: "Pest Control", value: "pestcontrol" },
+  { label: "Interior Design", value: "interiordesign" },
+  { label: "Masonry & Concrete", value: "masonry" },
+  { label: "Pool Maintenance", value: "poolmaintenance" },
+  { label: "Appliance Repair", value: "appliancerepair" },
+  { label: "Welding & Fabrication", value: "welding" },
+  { label: "Security & CCTV", value: "securitycctv" },
+  { label: "Photography", value: "photography" },
+  { label: "Catering & Cooking", value: "catering" },
+  { label: "Personal Training", value: "personaltraining" },
+  { label: "Childcare & Babysitting", value: "childcare" },
+  { label: "Elderly Care", value: "elderlycare" },
+  { label: "Tailoring & Alterations", value: "tailoring" },
+  { label: "Laundry & Dry Cleaning", value: "laundry" },
+  { label: "Window Cleaning", value: "windowcleaning" },
+  { label: "Furniture Assembly", value: "furnitureassembly" },
+  { label: "Home Inspection", value: "homeinspection" },
+  { label: "Tiling", value: "tiling" },
+  // ── Digital / Remote ───────────────────────────────────────────
+  { label: "Web Development", value: "webdevelopment" },
+  { label: "Mobile App Development", value: "mobiledev" },
+  { label: "Graphic Design", value: "graphicdesign" },
+  { label: "Logo & Brand Design", value: "logodesign" },
+  { label: "Video Editing", value: "videoediting" },
+  { label: "Social Media Management", value: "socialmedia" },
+  { label: "Content Writing & Copywriting", value: "contentwriting" },
+  { label: "SEO & Digital Marketing", value: "seomarketing" },
+  { label: "Virtual Assistant", value: "virtualassistant" },
+  { label: "Bookkeeping & Accounting", value: "bookkeeping" },
+  { label: "Translation & Interpretation", value: "translation" },
+  { label: "Tutoring & Academic Help", value: "tutoring" },
+  { label: "Music Production", value: "musicproduction" },
+  { label: "Animation & Motion Graphics", value: "animation" },
+  { label: "UI/UX Design", value: "uiuxdesign" },
+  { label: "Cybersecurity", value: "cybersecurity" },
+  { label: "Software QA & Testing", value: "qatesting" },
+  { label: "Voice Over", value: "voiceover" },
 ]
+
+// Derived from categoryOptions so recommended skills always match available categories
+const skillOptions = categoryOptions.map((c) => c.label)
 
 type FormState = {
   title: string
@@ -114,7 +151,7 @@ export function JobPostingForm() {
     isNegotiable: false,
     includesMaterial: false,
     files: [],
-    recommendedSkills: ["Home service", "Wood work", "Home service", "Painting"],
+    recommendedSkills: [],
   })
 
   const descriptionCount = formData.description.length
@@ -124,7 +161,8 @@ export function JobPostingForm() {
       formData.title.trim().length > 0 &&
       formData.category.trim().length > 0 &&
       formData.description.trim().length > 0 &&
-      Number(formData.budget) > 0
+      Number(formData.budget) > 0 &&
+      formData.deadline.trim().length > 0
     )
   }, [formData])
 
@@ -417,7 +455,7 @@ export function JobPostingForm() {
 
               <div className="space-y-2">
                 <Label className="text-xs font-medium text-slate-700">
-                  Deadline: Select if applicable
+                  Closing Date <span className="text-primary">*</span>
                 </Label>
 
                 <div className="relative max-w-md">
@@ -425,10 +463,15 @@ export function JobPostingForm() {
                   <Input
                     type="date"
                     value={formData.deadline}
+                    min={new Date().toISOString().split("T")[0]}
                     onChange={(e) => updateField("deadline", e.target.value)}
                     className="h-11 rounded-md border-slate-200 pl-10 text-sm"
+                    required
                   />
                 </div>
+                <p className="text-[11px] text-slate-400">
+                  Job listing will not appear in browse after this date.
+                </p>
               </div>
 
               <div className="flex max-w-md flex-col gap-3 pt-6 sm:ml-[260px]">

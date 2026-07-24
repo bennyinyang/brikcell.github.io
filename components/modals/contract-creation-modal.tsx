@@ -90,7 +90,8 @@ export function ContractCreationModal({
     )
 
     if (initialContract.totalAmount && initialContract.depositAmount) {
-      const pct = Math.round((initialContract.depositAmount / initialContract.totalAmount) * 100)
+      const grandTotal = Number(initialContract.totalAmount)
+      const pct = Math.round((initialContract.depositAmount / grandTotal) * 100)
       setDepositPercentage(isNaN(pct) ? 30 : pct)
     }
   }, [initialContract])
@@ -159,15 +160,16 @@ export function ContractCreationModal({
     setMaterials(materials.map((m) => (m.id === id ? { ...m, [field]: value } : m)))
   }
 
-  const calculateTotalAmount = () => phases.reduce((sum, p) => sum + (p.amount || 0), 0)
-  const calculateDepositAmount = () => Math.round((calculateTotalAmount() * depositPercentage) / 100)
+  const calculateLaborCost = () => phases.reduce((sum, p) => sum + (p.amount || 0), 0)
   const calculateMaterialsCost = () => materials.reduce((sum, m) => sum + (m.cost || 0), 0)
+  const calculateGrandTotal = () => calculateLaborCost() + calculateMaterialsCost()
+  const calculateDepositAmount = () => Math.round((calculateGrandTotal() * depositPercentage) / 100)
 
   const handleSendContract = async () => {
     const contract = {
       title,
       description,
-      totalAmount: calculateTotalAmount(),
+      totalAmount: calculateGrandTotal(),
       depositAmount: calculateDepositAmount(),
       depositPaid: false,
       status: "in_review",
@@ -197,7 +199,7 @@ export function ContractCreationModal({
     title.trim() &&
     description.trim() &&
     phases.every((p) => p.name.trim() && p.amount > 0) &&
-    calculateTotalAmount() > 0
+    calculateGrandTotal() > 0
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -494,13 +496,13 @@ export function ContractCreationModal({
                 </div>
                 <div className="flex items-center justify-between text-sm">
                   <span className="text-gray-600">Labor Cost:</span>
-                  <span className="font-semibold">₦{calculateTotalAmount().toLocaleString()}</span>
+                  <span className="font-semibold">₦{calculateLaborCost().toLocaleString()}</span>
                 </div>
                 <Separator className="my-2" />
                 <div className="flex items-center justify-between">
                   <span className="font-semibold">Total Contract Value:</span>
                   <span className="text-2xl font-bold text-primary">
-                    ₦{(calculateTotalAmount() + calculateMaterialsCost()).toLocaleString()}
+                    ₦{calculateGrandTotal().toLocaleString()}
                   </span>
                 </div>
               </div>

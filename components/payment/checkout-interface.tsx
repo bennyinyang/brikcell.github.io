@@ -78,9 +78,18 @@ export function CheckoutInterface() {
   const [agreeToTerms, setAgreeToTerms] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
 
+  // Official Paystack rate: 1.5% + ₦100 flat, capped at ₦2,000
+  const grossUpPaystack = (desired: number): number => {
+    if (desired <= 0) return 0
+    const uncapped = Math.ceil((desired + 100) / (1 - 0.015))
+    // If the computed fee exceeds the ₦2,000 cap, charge desired + ₦2,000
+    return uncapped - desired >= 2000 ? desired + 2000 : uncapped
+  }
+
   const depositAmount = Number(contract?.depositAmount ?? 0)
-  const serviceFee = Math.round(depositAmount * 0.02) // 5% service fee on deposit
-  const totalAmount = depositAmount + serviceFee
+  const chargeAmount = grossUpPaystack(depositAmount)
+  const serviceFee = chargeAmount - depositAmount
+  const totalAmount = chargeAmount
 
 const handlePayment = async () => {
   if (!agreeToTerms) return
@@ -89,9 +98,7 @@ const handlePayment = async () => {
   try {
     setIsProcessing(true)
 
-    // You are charging DEPOSIT + service fee on this page
-    // If you want Paystack to charge ONLY deposit, then pass depositAmount instead.
-    const payload = await initDeposit(depositAmount, String(contract.id))
+    const payload = await initDeposit(totalAmount, String(contract.id))
 
     // Hard redirect to Paystack checkout
     window.location.href = payload.authorization_url
@@ -277,13 +284,6 @@ const handlePayment = async () => {
                     <Label htmlFor="card">Credit/Debit Card</Label>
                   </div>
 
-                  {/* Keep these for UI parity; Paystack will still be the real method later */}
-                  <div className="flex items-center space-x-2 p-3 border rounded-lg">
-                    <RadioGroupItem value="paypal" id="paypal" />
-                    <Wallet className="h-4 w-4" />
-                    <Label htmlFor="paypal">PayPal</Label>
-                  </div>
-
                   <div className="flex items-center space-x-2 p-3 border rounded-lg">
                     <RadioGroupItem value="bank" id="bank" />
                     <Building2 className="h-4 w-4" />
@@ -291,8 +291,6 @@ const handlePayment = async () => {
                   </div>
                 </RadioGroup>
               </div>
-
-              {/* Card Details */}
  
               {/* Billing Address */}
               <div className="space-y-4">

@@ -1,18 +1,24 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { toast } from "sonner"
 import Link from "next/link"
 import {
   Award,
   Briefcase,
   Calendar,
+  Camera,
   CheckCircle,
   Clock,
   Heart,
+  HelpCircle,
+  Home,
   ImageIcon,
+  Loader2,
   Mail,
   MapPin,
   MessageSquare,
+  Pencil,
   Share2,
   ShieldCheck,
   Star,
@@ -24,10 +30,61 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
   getArtisanProfile,
+  getAuth,
+  updateMyArtisanProfile,
+  uploadSingleFile,
+  addFavouriteArtisan,
+  removeFavouriteArtisan,
   type GetArtisanProfileResponse,
 } from "@/lib/api"
+
+const EMPLOYER_NAV = [
+  { label: "Dashboard", href: "/dashboard/customer" },
+  { label: "Browse Talent", href: "/search" },
+  { label: "Post a Job", href: "/post-job" },
+  { label: "My Bookings", href: "/dashboard/customer/bookings" },
+  { label: "Wallet", href: "/dashboard/customer/wallet" },
+  { label: "Settings", href: "/dashboard/customer/settings" },
+  { label: "Support", href: "/support" },
+]
+
+const ARTISAN_NAV = [
+  { label: "Dashboard", href: "/dashboard/artisan" },
+  { label: "Browse Jobs", href: "/dashboard/jobs" },
+  { label: "My Bookings", href: "/dashboard/bookings" },
+  { label: "My Services", href: "/dashboard/services/post" },
+  { label: "Wallet", href: "/dashboard/wallet" },
+  { label: "Settings", href: "/dashboard/settings" },
+  { label: "Support", href: "/support" },
+]
+
+function ProfileNavSidebar() {
+  const [navItems, setNavItems] = useState(EMPLOYER_NAV)
+
+  useEffect(() => {
+    const auth = getAuth()
+    if (auth?.user?.role === "artisan") setNavItems(ARTISAN_NAV)
+  }, [])
+
+  return (
+    <aside className="hidden w-[190px] shrink-0 lg:block">
+      <nav className="sticky top-24 space-y-4">
+        {navItems.map(({ label, href }) => (
+          <Link
+            key={label}
+            href={href}
+            className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 hover:text-slate-950"
+          >
+            {label}
+          </Link>
+        ))}
+      </nav>
+    </aside>
+  )
+}
 
 interface ArtisanProfileProps {
   artisanId: string
@@ -144,11 +201,51 @@ function EmptyState({
   )
 }
 
+const STATUS_OPTIONS = [
+  { value: "available", label: "Available", color: "text-emerald-600" },
+  { value: "busy", label: "Busy", color: "text-amber-600" },
+  { value: "on_leave", label: "On Leave", color: "text-slate-500" },
+  { value: "unavailable", label: "Unavailable", color: "text-red-500" },
+]
+
+const RESPONSE_OPTIONS = [
+  { value: "within_1_hour", label: "Within 1 hour" },
+  { value: "within_few_hours", label: "Within a few hours" },
+  { value: "within_1_day", label: "Within a day" },
+  { value: "within_few_days", label: "Within a few days" },
+]
+
+function statusLabel(value: string | null | undefined) {
+  return STATUS_OPTIONS.find((o) => o.value === value)?.label ?? "Available"
+}
+function statusColor(value: string | null | undefined) {
+  return STATUS_OPTIONS.find((o) => o.value === value)?.color ?? "text-emerald-600"
+}
+function responseLabel(value: string | null | undefined) {
+  return RESPONSE_OPTIONS.find((o) => o.value === value)?.label ?? "Within a few hours"
+}
+
 export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
   const [activeTab, setActiveTab] = useState("overview")
   const [isFavorited, setIsFavorited] = useState(false)
   const [data, setData] = useState<GetArtisanProfileResponse | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isOwnProfile, setIsOwnProfile] = useState(false)
+  const [viewerIsArtisan, setViewerIsArtisan] = useState(false)
+  const [editingField, setEditingField] = useState<"currentStatus" | "responseTime" | "remoteServices" | null>(null)
+  const [availabilityState, setAvailabilityState] = useState({
+    currentStatus: "available",
+    responseTime: "within_few_hours",
+    isRemoteAvailable: false,
+  })
+  const [savingField, setSavingField] = useState(false)
+  const [coverImage, setCoverImage] = useState<string | null>(null)
+  const [coverUploading, setCoverUploading] = useState(false)
+
+  useEffect(() => {
+    const auth = getAuth()
+    setViewerIsArtisan(auth?.user?.role === "artisan")
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -156,10 +253,33 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
     async function loadProfile() {
       try {
         setLoading(true)
+        const auth = getAuth()
         const response = await getArtisanProfile(artisanId)
 
         if (!cancelled) {
           setData(response)
+          setIsOwnProfile(auth?.user?.id === response.user?.id)
+          setAvailabilityState({
+            currentStatus: response.profile?.currentStatus || "available",
+            responseTime: response.profile?.responseTime || "within_few_hours",
+            isRemoteAvailable: Boolean(response.profile?.isRemoteAvailable),
+          })
+          setCoverImage(
+            (response.profile as any)?.cover_image ||
+            response.profile?.coverImage ||
+            null
+          )
+
+          // Load favourite status for employers
+          if (auth?.user?.role === "employer") {
+            try {
+              const { getFavouriteArtisans } = await import("@/lib/api")
+              const favs: any[] = await getFavouriteArtisans()
+              if (!cancelled) {
+                setIsFavorited(favs.some((f: any) => f.artisan_id === response.user?.id || f.artisan?.id === response.user?.id))
+              }
+            } catch {}
+          }
         }
       } catch (error) {
         console.error("Failed to load artisan profile:", error)
@@ -174,6 +294,38 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
       cancelled = true
     }
   }, [artisanId])
+
+  async function handleCoverImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setCoverUploading(true)
+    try {
+      const res = await uploadSingleFile(file)
+      const url = (res as any)?.secure_url || (res as any)?.url
+      if (!url) throw new Error("Upload failed")
+      await updateMyArtisanProfile({ cover_image: url })
+      setCoverImage(url)
+      toast.success("Cover image updated")
+    } catch {
+      toast.error("Failed to upload cover image")
+    } finally {
+      setCoverUploading(false)
+      e.target.value = ""
+    }
+  }
+
+  async function saveAvailabilityField(field: string, value: string | boolean) {
+    setSavingField(true)
+    try {
+      await updateMyArtisanProfile({ [field]: value })
+      setAvailabilityState((prev) => ({ ...prev, [field]: value }))
+    } catch (e) {
+      console.error("Failed to update availability", e)
+    } finally {
+      setSavingField(false)
+      setEditingField(null)
+    }
+  }
 
   const user = data?.user
   const profile = data?.profile
@@ -232,20 +384,41 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
   async function handleShare() {
     try {
       await navigator.clipboard.writeText(window.location.href)
-    } catch {}
+      toast.success("Copied")
+    } catch {
+      toast.error("Could not copy link")
+    }
+  }
+
+  async function handleToggleFavourite() {
+    if (!user?.id) return
+    const next = !isFavorited
+    setIsFavorited(next)
+    try {
+      if (next) {
+        await addFavouriteArtisan(user.id)
+        toast.success("Artisan added to favourites")
+      } else {
+        await removeFavouriteArtisan(user.id)
+        toast.success("Removed from favourites")
+      }
+    } catch (err: any) {
+      setIsFavorited(!next)
+      toast.error(err?.message || "Could not update favourites")
+    }
   }
 
   if (loading) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-        <div className="h-[280px] animate-pulse rounded-3xl border border-slate-100 bg-slate-50" />
-        <div className="mt-6 grid gap-4 md:grid-cols-3">
-          {Array.from({ length: 3 }).map((_, index) => (
-            <div
-              key={index}
-              className="h-[140px] animate-pulse rounded-2xl border border-slate-100 bg-slate-50"
-            />
-          ))}
+      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-8 lg:px-8">
+        <ProfileNavSidebar />
+        <div className="min-w-0 flex-1">
+          <div className="h-[280px] animate-pulse rounded-3xl border border-slate-100 bg-slate-50" />
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {Array.from({ length: 3 }).map((_, index) => (
+              <div key={index} className="h-[140px] animate-pulse rounded-2xl border border-slate-100 bg-slate-50" />
+            ))}
+          </div>
         </div>
       </div>
     )
@@ -253,28 +426,70 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
 
   if (!data || !user || !profile) {
     return (
-      <div className="mx-auto max-w-7xl px-4 py-8 lg:px-8">
-        <EmptyState
-          icon={<Briefcase className="h-5 w-5" />}
-          title="Profile not found"
-          text="This artisan profile could not be loaded. Please try again later."
-        />
+      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-8 lg:px-8">
+        <ProfileNavSidebar />
+        <div className="min-w-0 flex-1">
+          <EmptyState
+            icon={<Briefcase className="h-5 w-5" />}
+            title="Profile not found"
+            text="This artisan profile could not be loaded. Please try again later."
+          />
+        </div>
       </div>
     )
   }
 
   return (
     <div className="bg-slate-50/40">
-      <div className="mx-auto max-w-7xl px-4 py-6 lg:px-8">
+      <div className="mx-auto flex max-w-7xl gap-6 px-4 py-6 lg:px-8">
+        <ProfileNavSidebar />
+        <div className="min-w-0 flex-1">
         <section className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm">
-          <div className="relative h-28 bg-primary/10">
-            <div className="absolute bottom-4 right-5 hidden rounded-full border border-white/70 bg-white/70 px-3 py-1 text-xs text-slate-600 backdrop-blur sm:block">
-              Available for new work
-            </div>
+          <div
+            className="relative h-40"
+            style={
+              coverImage
+                ? { backgroundImage: `url(${coverImage})`, backgroundSize: "cover", backgroundPosition: "center" }
+                : undefined
+            }
+          >
+            {/* Fallback tint when no cover image */}
+            {!coverImage && <div className="absolute inset-0 bg-primary/10" />}
+
+            {/* Dim overlay so any content stays readable over a photo */}
+            {coverImage && <div className="absolute inset-0 bg-black/20" />}
+
+            {/* Own-profile upload button */}
+            {isOwnProfile && (
+              <label className="absolute bottom-3 right-3 z-10 cursor-pointer">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="sr-only"
+                  onChange={handleCoverImageUpload}
+                  disabled={coverUploading}
+                />
+                <span className="flex items-center gap-1.5 rounded-full border border-white/60 bg-white/80 px-3 py-1.5 text-xs font-medium text-slate-700 backdrop-blur transition hover:bg-white">
+                  {coverUploading ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    <Camera className="h-3 w-3" />
+                  )}
+                  {coverUploading ? "Uploading…" : coverImage ? "Change cover" : "Add cover photo"}
+                </span>
+              </label>
+            )}
+
+            {/* Visitor badge */}
+            {!isOwnProfile && (
+              <div className="absolute bottom-4 right-5 z-10 hidden rounded-full border border-white/70 bg-white/70 px-3 py-1 text-xs text-slate-600 backdrop-blur sm:block">
+                Available for new work
+              </div>
+            )}
           </div>
 
-          <div className="px-5 pb-6 sm:px-8">
-            <div className="-mt-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="px-5 pb-6 pt-2 sm:px-8">
+            <div className="-mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="flex flex-col gap-5 sm:flex-row sm:items-end">
                 <Avatar className="h-28 w-28 border-4 border-white bg-slate-100 shadow-sm sm:h-32 sm:w-32">
                   <AvatarImage src={profileImage} alt={user.name} />
@@ -328,39 +543,39 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-1 lg:pb-2">
-                <Button className="bg-primary text-white hover:bg-primary/90" asChild>
-                  <Link
-                    href={{
-                      pathname: "/messages",
-                      query: {
-                        artisanId: user.id,
-                        artisanName: user.name,
-                        artisanEmail: user.email,
-                      },
-                    }}
+              <div className="flex flex-nowrap gap-2 lg:pb-2">
+                {!viewerIsArtisan && (
+                  <Button className="bg-primary text-white hover:bg-primary/90 whitespace-nowrap" asChild>
+                    <Link
+                      href={{
+                        pathname: "/messages",
+                        query: {
+                          artisanId: user.id,
+                          artisanName: user.name,
+                          artisanEmail: user.email,
+                        },
+                      }}
+                    >
+                      <MessageSquare className="mr-2 h-4 w-4" />
+                      Contact {firstName}
+                    </Link>
+                  </Button>
+                )}
+
+                {!viewerIsArtisan && (
+                  <Button
+                    variant="outline"
+                    onClick={handleToggleFavourite}
+                    className={`whitespace-nowrap ${isFavorited ? "border-red-200 text-red-500" : ""}`}
                   >
-                    <MessageSquare className="mr-2 h-4 w-4" />
-                    Contact {firstName}
-                  </Link>
-                </Button>
+                    <Heart
+                      className={`mr-2 h-4 w-4 ${isFavorited ? "fill-red-500" : ""}`}
+                    />
+                    {isFavorited ? "Saved" : "Save"}
+                  </Button>
+                )}
 
-                <Button variant="outline">Request Quote</Button>
-
-                <Button
-                  variant="outline"
-                  onClick={() => setIsFavorited((prev) => !prev)}
-                  className={isFavorited ? "border-red-200 text-red-500" : ""}
-                >
-                  <Heart
-                    className={`mr-2 h-4 w-4 ${
-                      isFavorited ? "fill-red-500" : ""
-                    }`}
-                  />
-                  Save
-                </Button>
-
-                <Button variant="outline" onClick={handleShare}>
+                <Button variant="outline" onClick={handleShare} className="whitespace-nowrap">
                   <Share2 className="mr-2 h-4 w-4" />
                   Share
                 </Button>
@@ -405,7 +620,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
           />
         </div>
 
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
+        <Tabs value={activeTab} onValueChange={(v) => { setActiveTab(v); setEditingField(null) }} className="mt-8">
           <TabsList className="grid h-auto w-full grid-cols-2 rounded-2xl border border-slate-100 bg-white p-1 sm:grid-cols-4">
             <TabsTrigger value="overview" className="rounded-xl py-2 text-xs">
               Overview
@@ -542,10 +757,10 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                         <div className="flex items-start justify-between gap-4">
                           <div>
                             <p className="text-sm font-semibold text-slate-950">
-                              {review.customerName || "Customer"}
+                              {review.reviewer?.name || "Customer"}
                             </p>
                             <p className="mt-1 text-xs text-slate-500">
-                              {review.service || "Service"}
+                              {formatDate(review.created_at || review.createdAt)}
                             </p>
                           </div>
 
@@ -623,11 +838,10 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="text-sm font-semibold text-slate-950">
-                            {review.customerName || "Customer"}
+                            {review.reviewer?.name || "Customer"}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
-                            {review.service || "Service"} •{" "}
-                            {formatDate(review.createdAt || review.created_at)}
+                            {formatDate(review.created_at || review.createdAt)}
                           </p>
                         </div>
 
@@ -673,25 +887,115 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                   </div>
 
                   <div className="space-y-4 text-sm">
-                    <div className="flex justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                    {/* Current status */}
+                    <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                       <span className="text-slate-500">Current status</span>
-                      <span className="font-medium text-emerald-600">
-                        Available
-                      </span>
+                      {isOwnProfile && editingField === "currentStatus" ? (
+                        <Select
+                          value={availabilityState.currentStatus}
+                          onValueChange={(v) => saveAvailabilityField("currentStatus", v)}
+                          disabled={savingField}
+                        >
+                          <SelectTrigger className="h-7 w-44 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {STATUS_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value} className="text-xs">
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <span className={`font-medium ${statusColor(availabilityState.currentStatus)}`}>
+                            {statusLabel(availabilityState.currentStatus)}
+                          </span>
+                          {isOwnProfile && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingField("currentStatus")}
+                              className="text-slate-400 hover:text-primary transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                    {/* Response time */}
+                    <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                       <span className="text-slate-500">Response time</span>
-                      <span className="font-medium text-slate-950">
-                        Responds quickly
-                      </span>
+                      {isOwnProfile && editingField === "responseTime" ? (
+                        <Select
+                          value={availabilityState.responseTime}
+                          onValueChange={(v) => saveAvailabilityField("responseTime", v)}
+                          disabled={savingField}
+                        >
+                          <SelectTrigger className="h-7 w-44 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {RESPONSE_OPTIONS.map((o) => (
+                              <SelectItem key={o.value} value={o.value} className="text-xs">
+                                {o.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <span className="font-medium text-slate-950">
+                            {responseLabel(availabilityState.responseTime)}
+                          </span>
+                          {isOwnProfile && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingField("responseTime")}
+                              className="text-slate-400 hover:text-primary transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </span>
+                      )}
                     </div>
 
-                    <div className="flex justify-between rounded-2xl bg-slate-50 px-4 py-3">
+                    {/* Remote services */}
+                    <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3">
                       <span className="text-slate-500">Remote services</span>
-                      <span className="font-medium text-slate-950">
-                        {profile.isRemoteAvailable ? "Available" : "Not available"}
-                      </span>
+                      {isOwnProfile && editingField === "remoteServices" ? (
+                        <Select
+                          value={availabilityState.isRemoteAvailable ? "yes" : "no"}
+                          onValueChange={(v) => saveAvailabilityField("isRemoteAvailable", v === "yes")}
+                          disabled={savingField}
+                        >
+                          <SelectTrigger className="h-7 w-36 text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes" className="text-xs">Available</SelectItem>
+                            <SelectItem value="no" className="text-xs">Not available</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <span className="flex items-center gap-2">
+                          <span className="font-medium text-slate-950">
+                            {availabilityState.isRemoteAvailable ? "Available" : "Not available"}
+                          </span>
+                          {isOwnProfile && (
+                            <button
+                              type="button"
+                              onClick={() => setEditingField("remoteServices")}
+                              className="text-slate-400 hover:text-primary transition-colors"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          )}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </CardContent>
@@ -723,27 +1027,30 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                       </p>
                     </div>
 
-                    <Button className="mt-2 w-full bg-primary text-white hover:bg-primary/90" asChild>
-                      <Link
-                        href={{
-                          pathname: "/messages",
-                          query: {
-                            artisanId: user.id,
-                            artisanName: user.name,
-                            artisanEmail: user.email,
-                          },
-                        }}
-                      >
-                        <Mail className="mr-2 h-4 w-4" />
-                        Ask about availability
-                      </Link>
-                    </Button>
+                    {!viewerIsArtisan && (
+                      <Button className="mt-2 w-full bg-primary text-white hover:bg-primary/90" asChild>
+                        <Link
+                          href={{
+                            pathname: "/messages",
+                            query: {
+                              artisanId: user.id,
+                              artisanName: user.name,
+                              artisanEmail: user.email,
+                            },
+                          }}
+                        >
+                          <Mail className="mr-2 h-4 w-4" />
+                          Ask about availability
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
             </div>
           </TabsContent>
         </Tabs>
+        </div>
       </div>
     </div>
   )

@@ -2,22 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import {
-  Briefcase,
-  ChevronDown,
-  CircleUserRound,
-  CreditCard,
-  LayoutDashboard,
-  Plus,
-  Search,
-  Settings,
-  ShieldQuestion,
-  User,
-  Wallet,
-} from "lucide-react"
+import { Plus, Wallet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import {
@@ -33,6 +20,9 @@ import {
   getArtisanActiveJobs,
   getArtisanJobHistory,
   listMyWithdrawals,
+  getArtisanWalletTransactions,
+  normalizePaginatedResponse,
+  type ArtisanWalletTransaction,
 } from "@/lib/api"
 
 import { Header } from "@/components/header"
@@ -46,7 +36,20 @@ type WalletService = {
   date: string
   time: string
   amount: number
+  rawDate: string | null
 }
+
+type DateFilter = "all" | "7d" | "30d" | "3m" | "6m"
+
+const DATE_FILTER_OPTIONS: { value: DateFilter; label: string }[] = [
+  { value: "all", label: "All time" },
+  { value: "7d", label: "Last 7 days" },
+  { value: "30d", label: "Last 30 days" },
+  { value: "3m", label: "Last 3 months" },
+  { value: "6m", label: "Last 6 months" },
+]
+
+const PAGE_SIZE = 10
 
 type WithdrawalRecord = {
   id: string
@@ -116,96 +119,44 @@ function mapService(raw: any): WalletService {
   const contract = raw?.contract || {}
   const job = contract?.job || raw?.job || {}
   const employer = contract?.employer || raw?.employer || {}
+  const rawDateValue =
+    raw?.submitted_at ||
+    raw?.approved_at ||
+    raw?.review_deadline_at ||
+    raw?.updatedAt ||
+    raw?.updated_at ||
+    null
 
   return {
     id: String(raw?.id || ""),
     title: raw?.title || job?.title || "Custom Furniture Design",
     customerName: employer?.name || "James",
     status: String(raw?.status || ""),
-    date: formatDate(
-      raw?.submitted_at ||
-        raw?.approved_at ||
-        raw?.review_deadline_at ||
-        raw?.updatedAt ||
-        raw?.updated_at
-    ),
-    time: formatTime(
-      raw?.submitted_at ||
-        raw?.approved_at ||
-        raw?.review_deadline_at ||
-        raw?.updatedAt ||
-        raw?.updated_at
-    ),
+    date: formatDate(rawDateValue),
+    time: formatTime(rawDateValue),
     amount: Number(raw?.amount || job?.budget_max || job?.budget_min || 0),
+    rawDate: rawDateValue,
   }
 }
 
 function EmptyWalletState() {
   return (
-    <div className="relative flex min-h-[340px] flex-col items-center justify-center overflow-hidden rounded-2xl bg-white px-4 text-center">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="h-[380px] w-[380px] rounded-full border border-slate-100" />
-        <div className="absolute h-[320px] w-[320px] rounded-full border border-slate-100" />
-        <div className="absolute h-[260px] w-[260px] rounded-full border border-slate-100" />
-        <div className="absolute h-[200px] w-[200px] rounded-full border border-slate-100" />
-        <div className="absolute h-[140px] w-[140px] rounded-full border border-slate-100" />
-      </div>
-
-      <div className="relative z-10 mb-4 flex h-12 w-12 items-center justify-center rounded-xl border bg-white shadow-sm">
+    <div className="flex min-h-[340px] flex-col items-center justify-center rounded-2xl bg-white px-4 text-center">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border bg-white shadow-sm">
         <Wallet className="h-6 w-6 text-slate-500" />
       </div>
 
-      <h3 className="relative z-10 text-base font-semibold text-slate-950">
+      <h3 className="text-base font-semibold text-slate-950">
         No transaction found
       </h3>
 
-      <p className="relative z-10 mt-1 text-sm text-slate-500">
-        Fund wallet to begin transaction
+      <p className="mt-1 text-sm text-slate-500">
+        Your transactions will appear here
       </p>
-
-      <Button className="relative z-10 mt-5 bg-primary hover:bg-primary/90">
-        <Plus className="mr-2 h-4 w-4" />
-        Fund wallet
-      </Button>
     </div>
   )
 }
 
-function NoBookingsState() {
-  return (
-    <div className="relative flex min-h-[340px] flex-col items-center justify-center overflow-hidden rounded-2xl bg-white px-4 text-center">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="h-[360px] w-[360px] rounded-full border border-slate-100" />
-        <div className="absolute h-[300px] w-[300px] rounded-full border border-slate-100" />
-        <div className="absolute h-[240px] w-[240px] rounded-full border border-slate-100" />
-        <div className="absolute h-[180px] w-[180px] rounded-full border border-slate-100" />
-        <div className="absolute h-[120px] w-[120px] rounded-full border border-slate-100" />
-      </div>
-
-      <div className="relative z-10 mb-4 flex h-12 w-12 items-center justify-center rounded-xl border bg-white shadow-sm">
-        <CircleUserRound className="h-6 w-6 text-slate-500" />
-      </div>
-
-      <h3 className="relative z-10 text-base font-semibold text-slate-950">
-        No bookings found
-      </h3>
-
-      <p className="relative z-10 mt-1 text-sm text-slate-500">
-        You haven&apos;t started any service yet.
-      </p>
-
-      <div className="relative z-10 mt-6 flex flex-col gap-3 sm:flex-row">
-        <Button asChild variant="outline" className="min-w-[140px]">
-          <Link href="/dashboard/jobs">Search for Jobs</Link>
-        </Button>
-
-        <Button asChild className="min-w-[140px] bg-primary hover:bg-primary/90">
-          <Link href="/dashboard/services/post">Post a service</Link>
-        </Button>
-      </div>
-    </div>
-  )
-}
 
 function ServiceTransactionCard({ item }: { item: WalletService }) {
   return (
@@ -293,29 +244,141 @@ function WithdrawalHistoryCard({ item }: { item: WithdrawalRecord }) {
   )
 }
 
+function MilestonePaymentCard({ item }: { item: ArtisanWalletTransaction }) {
+  const isWithdrawal = item.type === "withdrawal"
+
+  const badgeClass = isWithdrawal
+    ? "border-orange-200 bg-orange-50 text-orange-600"
+    : "border-emerald-200 bg-emerald-50 text-emerald-600"
+
+  const amountClass = isWithdrawal ? "text-red-600" : "text-emerald-600"
+  const amountPrefix = isWithdrawal ? "−" : "+"
+
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white px-4 py-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-950">{item.title}</h3>
+          <p className="mt-1 text-xs text-slate-500">
+            {formatDate(item.createdAt)} · {formatTime(item.createdAt)}
+          </p>
+        </div>
+        <Badge className={`rounded-md border px-2 py-1 text-[11px] font-medium hover:bg-inherit ${badgeClass}`}>
+          {isWithdrawal ? "Withdrawal" : "Received"}
+        </Badge>
+      </div>
+      <p className={`mt-3 text-sm font-semibold ${amountClass}`}>
+        {amountPrefix}{formatMoney(item.amount)}
+      </p>
+    </div>
+  )
+}
+
+function Paginator({
+  page,
+  total,
+  pageSize,
+  onPageChange,
+  label = "items",
+}: {
+  page: number
+  total: number
+  pageSize: number
+  onPageChange: (p: number) => void
+  label?: string
+}) {
+  const totalPages = Math.ceil(total / pageSize)
+  if (totalPages <= 1) return null
+
+  const from = (page - 1) * pageSize + 1
+  const to = Math.min(page * pageSize, total)
+
+  const pages = Array.from({ length: totalPages }, (_, i) => i + 1)
+  const visiblePages =
+    totalPages <= 7
+      ? pages
+      : page <= 4
+      ? [...pages.slice(0, 5), -1, totalPages]
+      : page >= totalPages - 3
+      ? [1, -1, ...pages.slice(totalPages - 5)]
+      : [1, -1, page - 1, page, page + 1, -2, totalPages]
+
+  return (
+    <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+      <p className="text-xs text-slate-500">
+        Showing {from}–{to} of {total} {label}
+      </p>
+
+      <div className="flex items-center gap-1">
+        <button
+          onClick={() => onPageChange(page - 1)}
+          disabled={page === 1}
+          className="flex h-8 min-w-[32px] items-center justify-center rounded-md border border-slate-200 px-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          ← Prev
+        </button>
+
+        {visiblePages.map((p, i) =>
+          p < 0 ? (
+            <span key={`ellipsis-${i}`} className="px-1 text-xs text-slate-400">
+              …
+            </span>
+          ) : (
+            <button
+              key={p}
+              onClick={() => onPageChange(p)}
+              className={`flex h-8 min-w-[32px] items-center justify-center rounded-md border px-2 text-xs font-medium transition-colors ${
+                p === page
+                  ? "border-primary bg-primary text-white"
+                  : "border-slate-200 text-slate-700 hover:bg-slate-50"
+              }`}
+            >
+              {p}
+            </button>
+          )
+        )}
+
+        <button
+          onClick={() => onPageChange(page + 1)}
+          disabled={page === totalPages}
+          className="flex h-8 min-w-[32px] items-center justify-center rounded-md border border-slate-200 px-2 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+        >
+          Next →
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function ArtisanWalletPage() {
   const [activeTab, setActiveTab] = useState("history")
-  const [activeBookingFilter, setActiveBookingFilter] = useState("current")
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all")
+  const [historyPage, setHistoryPage] = useState(1)
+  const [withdrawPage, setWithdrawPage] = useState(1)
   const [summary, setSummary] = useState<any>(null)
   const [activeJobs, setActiveJobs] = useState<WalletService[]>([])
   const [historyJobs, setHistoryJobs] = useState<WalletService[]>([])
   const [withdrawals, setWithdrawals] = useState<WithdrawalRecord[]>([])
+  const [paymentTxs, setPaymentTxs] = useState<ArtisanWalletTransaction[]>([])
   const [loading, setLoading] = useState(true)
 
   async function loadWalletData() {
     try {
-      const [summaryRes, activeRes, historyRes, withdrawalsRes] =
+      const [summaryRes, activeRes, historyRes, withdrawalsRes, txRes] =
         await Promise.all([
           getArtisanDashboardSummary(),
           getArtisanActiveJobs(),
           getArtisanJobHistory(),
           listMyWithdrawals(),
+          getArtisanWalletTransactions(1, 100),
         ])
 
       setSummary(summaryRes || null)
       setActiveJobs(Array.isArray(activeRes) ? activeRes.map(mapService) : [])
       setHistoryJobs(Array.isArray(historyRes) ? historyRes.map(mapService) : [])
       setWithdrawals(Array.isArray(withdrawalsRes) ? withdrawalsRes : [])
+      const txData = normalizePaginatedResponse<ArtisanWalletTransaction>(txRes)
+      setPaymentTxs(txData.data)
     } catch (error) {
       console.error("[Wallet] Failed to load wallet data:", error)
     } finally {
@@ -329,11 +392,61 @@ export default function ArtisanWalletPage() {
 
   const walletBalance = Number(summary?.walletBalance || 0)
 
-  const displayedTransactions = useMemo(() => {
-    if (activeBookingFilter === "current") return activeJobs
-    if (activeBookingFilter === "history") return historyJobs
-    return []
-  }, [activeBookingFilter, activeJobs, historyJobs])
+  type UnifiedItem =
+    | { kind: "service"; date: Date; data: WalletService }
+    | { kind: "withdrawal"; date: Date; data: WithdrawalRecord }
+    | { kind: "payment"; date: Date; data: ArtisanWalletTransaction }
+
+  const filteredTransactions = useMemo((): UnifiedItem[] => {
+    const serviceItems: UnifiedItem[] = [...activeJobs, ...historyJobs].map((s) => ({
+      kind: "service",
+      date: s.rawDate ? new Date(s.rawDate) : new Date(0),
+      data: s,
+    }))
+
+    const withdrawalItems: UnifiedItem[] = withdrawals.map((w) => ({
+      kind: "withdrawal",
+      date: new Date(w.created_at || w.createdAt || 0),
+      data: w,
+    }))
+
+    const paymentItems: UnifiedItem[] = paymentTxs
+      .filter((tx) => tx.type !== "withdrawal")
+      .map((tx) => ({
+        kind: "payment",
+        date: new Date(tx.createdAt || 0),
+        data: tx,
+      }))
+
+    const combined = [...paymentItems, ...serviceItems, ...withdrawalItems].sort(
+      (a, b) => b.date.getTime() - a.date.getTime()
+    )
+
+    if (dateFilter === "all") return combined
+
+    const now = new Date()
+    const cutoff = new Date(now)
+    if (dateFilter === "7d") cutoff.setDate(now.getDate() - 7)
+    else if (dateFilter === "30d") cutoff.setDate(now.getDate() - 30)
+    else if (dateFilter === "3m") cutoff.setMonth(now.getMonth() - 3)
+    else if (dateFilter === "6m") cutoff.setMonth(now.getMonth() - 6)
+
+    return combined.filter((item) => item.date >= cutoff)
+  }, [activeJobs, historyJobs, withdrawals, paymentTxs, dateFilter])
+
+  useEffect(() => {
+    setHistoryPage(1)
+  }, [dateFilter])
+
+  const pagedTransactions = filteredTransactions.slice(
+    (historyPage - 1) * PAGE_SIZE,
+    historyPage * PAGE_SIZE
+  )
+
+  const pagedWithdrawals = withdrawals.slice(
+    (withdrawPage - 1) * PAGE_SIZE,
+    withdrawPage * PAGE_SIZE
+  )
 
   return (
     <>
@@ -418,13 +531,10 @@ export default function ArtisanWalletPage() {
           </div>
 
           {/* Mobile action buttons */}
-          <div className="mb-4 flex gap-3 sm:hidden">
-            <Button className="flex-1 bg-primary hover:bg-primary/90">
-              Fund wallet
-            </Button>
+          <div className="mb-4 flex sm:hidden">
             <Button
               variant="ghost"
-              className="flex-1 text-primary hover:bg-primary/5"
+              className="text-primary hover:bg-primary/5"
               onClick={() => setActiveTab("withdraw")}
             >
               Withdraw
@@ -442,32 +552,20 @@ export default function ArtisanWalletPage() {
             </TabsList>
 
             <TabsContent value="history" className="mt-0">
-              <div className="mb-5 sm:hidden">
+              <div className="mb-5">
                 <Select
-                  value={activeBookingFilter}
-                  onValueChange={setActiveBookingFilter}
+                  value={dateFilter}
+                  onValueChange={(v) => setDateFilter(v as DateFilter)}
                 >
-                  <SelectTrigger className="h-10">
-                    <SelectValue placeholder="Current bookings" />
+                  <SelectTrigger className="h-10 max-w-xs">
+                    <SelectValue placeholder="All time" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="current">Current bookings</SelectItem>
-                    <SelectItem value="history">Booking history</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="hidden sm:mb-5 sm:block">
-                <Select
-                  value={activeBookingFilter}
-                  onValueChange={setActiveBookingFilter}
-                >
-                  <SelectTrigger className="max-w-xs">
-                    <SelectValue placeholder="Transaction history" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="current">Current bookings</SelectItem>
-                    <SelectItem value="history">Service history</SelectItem>
+                    {DATE_FILTER_OPTIONS.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -481,12 +579,27 @@ export default function ArtisanWalletPage() {
                     />
                   ))}
                 </div>
-              ) : displayedTransactions.length > 0 ? (
-                <div className="space-y-4">
-                  {displayedTransactions.map((item) => (
-                    <ServiceTransactionCard key={item.id} item={item} />
-                  ))}
-                </div>
+              ) : filteredTransactions.length > 0 ? (
+                <>
+                  <div className="space-y-4">
+                    {pagedTransactions.map((item) =>
+                      item.kind === "payment" ? (
+                        <MilestonePaymentCard key={`tx-${item.data.id}`} item={item.data} />
+                      ) : item.kind === "service" ? (
+                        <ServiceTransactionCard key={`s-${item.data.id}`} item={item.data} />
+                      ) : (
+                        <WithdrawalHistoryCard key={`w-${item.data.id}`} item={item.data} />
+                      )
+                    )}
+                  </div>
+                  <Paginator
+                    page={historyPage}
+                    total={filteredTransactions.length}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={setHistoryPage}
+                    label="transactions"
+                  />
+                </>
               ) : (
                 <EmptyWalletState />
               )}
@@ -571,14 +684,24 @@ export default function ArtisanWalletPage() {
               </div>
 
               {withdrawals.length > 0 && (
-                <div className="mt-6 space-y-4">
-                  <h3 className="text-sm font-semibold text-slate-950">
-                    Recent withdrawals
+                <div className="mt-6">
+                  <h3 className="mb-4 text-sm font-semibold text-slate-950">
+                    Withdrawal history
                   </h3>
 
-                  {withdrawals.slice(0, 5).map((item) => (
-                    <WithdrawalHistoryCard key={item.id} item={item} />
-                  ))}
+                  <div className="space-y-4">
+                    {pagedWithdrawals.map((item) => (
+                      <WithdrawalHistoryCard key={item.id} item={item} />
+                    ))}
+                  </div>
+
+                  <Paginator
+                    page={withdrawPage}
+                    total={withdrawals.length}
+                    pageSize={PAGE_SIZE}
+                    onPageChange={setWithdrawPage}
+                    label="withdrawals"
+                  />
                 </div>
               )}
             </TabsContent>

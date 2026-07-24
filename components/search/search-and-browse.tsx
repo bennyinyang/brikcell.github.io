@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -31,17 +32,61 @@ import { PaginationControl } from "@/components/pagination-control"
 
 const CATEGORY_MAP: Record<string, string | null> = {
   "All Services": null,
-  "Hair Styling": "hairstyling",
+  // Physical / Local
+  "Home Service": "general",
   "Plumbing": "plumbing",
-  Carpentry: "carpentry",
-  Electrical: "electrical",
-  Painting: "painting",
+  "Carpentry": "carpentry",
+  "Electrical": "electrical",
+  "Painting": "painting",
   "House Cleaning": "cleaning",
+  "Hair Styling": "hairstyling",
   "Auto Repair": "autorepair",
   "Tech Support": "techsupport",
+  "Landscaping": "landscaping",
+  "Moving Services": "moving",
+  "HVAC": "hvac",
+  "Roofing": "roofing",
+  "Flooring": "flooring",
+  "Pest Control": "pestcontrol",
+  "Interior Design": "interiordesign",
+  "Masonry & Concrete": "masonry",
+  "Pool Maintenance": "poolmaintenance",
+  "Appliance Repair": "appliancerepair",
+  "Welding & Fabrication": "welding",
+  "Security & CCTV": "securitycctv",
+  "Photography": "photography",
+  "Catering & Cooking": "catering",
+  "Personal Training": "personaltraining",
+  "Childcare & Babysitting": "childcare",
+  "Elderly Care": "elderlycare",
+  "Tailoring & Alterations": "tailoring",
+  "Laundry & Dry Cleaning": "laundry",
+  "Window Cleaning": "windowcleaning",
+  "Furniture Assembly": "furnitureassembly",
+  "Home Inspection": "homeinspection",
+  "Tiling": "tiling",
+  // Digital / Remote
+  "Web Development": "webdevelopment",
+  "Mobile App Development": "mobiledev",
+  "Graphic Design": "graphicdesign",
+  "Logo & Brand Design": "logodesign",
+  "Video Editing": "videoediting",
+  "Social Media Management": "socialmedia",
+  "Content Writing": "contentwriting",
+  "SEO & Digital Marketing": "seomarketing",
+  "Virtual Assistant": "virtualassistant",
+  "Bookkeeping & Accounting": "bookkeeping",
+  "Translation & Interpretation": "translation",
+  "Tutoring & Academic Help": "tutoring",
+  "Music Production": "musicproduction",
+  "Animation & Motion Graphics": "animation",
+  "UI/UX Design": "uiuxdesign",
+  "Cybersecurity": "cybersecurity",
+  "Software QA & Testing": "qatesting",
+  "Voice Over": "voiceover",
 }
 
-const SERVICE_FILTERS = ["Home cleaning", "Wood work", "Home service", "Painting"]
+const SERVICE_FILTERS = Object.keys(CATEGORY_MAP).filter(k => k !== "All Services")
 
 const RATING_FILTERS = [
   { label: "No rating preference", value: "all" },
@@ -85,20 +130,6 @@ function getInitials(name?: string) {
     .toUpperCase()
 }
 
-function mapServiceFilterToBackend(service: string) {
-  const normalized = service.toLowerCase()
-
-  if (normalized.includes("cleaning")) return "cleaning"
-  if (normalized.includes("wood")) return "carpentry"
-  if (normalized.includes("painting")) return "painting"
-
-  // Home service should not force only one category.
-  // It represents broader home-related services.
-  if (normalized.includes("home")) return "home-service"
-
-  return undefined
-}
-
 function buildSelectedServiceTypes({
   selectedCategory,
   selectedServices,
@@ -109,54 +140,21 @@ function buildSelectedServiceTypes({
   const types = new Set<string>()
 
   const categoryType = CATEGORY_MAP[selectedCategory]
-
-  if (categoryType) {
-    types.add(categoryType)
-  }
+  if (categoryType) types.add(categoryType)
 
   selectedServices.forEach((service) => {
-    const mapped = mapServiceFilterToBackend(service)
-
-    if (!mapped) return
-
-    if (mapped === "home-service") {
-      types.add("cleaning")
-      types.add("plumbing")
-      types.add("carpentry")
-      types.add("electrical")
-      types.add("painting")
-      return
-    }
-
-    types.add(mapped)
+    const slug = CATEGORY_MAP[service]
+    if (slug) types.add(slug)
   })
 
-  const allKnownTypes = [
-    "hairstyling",
-    "plumbing",
-    "carpentry",
-    "electrical",
-    "painting",
-    "cleaning",
-    "autorepair",
-    "techsupport",
-  ]
-
+  // If everything is selected (or nothing filtered), let the API return all
   const hasAllServiceBoxes =
     selectedServices.length === SERVICE_FILTERS.length &&
     selectedCategory === "All Services"
 
-  if (hasAllServiceBoxes) {
-    return []
-  }
+  if (hasAllServiceBoxes || types.size === 0) return []
 
-  const result = Array.from(types)
-
-  if (result.length === allKnownTypes.length) {
-    return []
-  }
-
-  return result
+  return Array.from(types)
 }
 
 function FilterChip({
@@ -190,15 +188,15 @@ function CheckRow({
   subLabel?: string
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-2 text-xs text-slate-600">
+    <label className="flex cursor-pointer items-start gap-2 text-xs text-slate-700">
       <Checkbox
         checked={checked}
         onCheckedChange={(value) => onCheckedChange(Boolean(value))}
-        className="mt-0.5 h-4 w-4 rounded border-slate-300"
+        className="mt-0.5 h-5 w-5 rounded-[3px]"
       />
       <span>
         <span className="block">{label}</span>
-        {subLabel && <span className="block text-[10px] text-slate-400">{subLabel}</span>}
+        {subLabel && <span className="block text-xs text-slate-500">{subLabel}</span>}
       </span>
     </label>
   )
@@ -242,7 +240,7 @@ function FilterPanel({
   resetFilters: () => void
 }) {
   return (
-    <aside className="space-y-6 text-xs">
+    <aside className="space-y-7">
       <div>
         <button
           type="button"
@@ -275,7 +273,7 @@ function FilterPanel({
       </div>
 
       <div className="space-y-3">
-        <p className="text-xs font-medium text-slate-500">Service type</p>
+        <p className="mb-4 text-xs font-medium text-slate-500">Service type</p>
 
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -293,7 +291,7 @@ function FilterPanel({
           </Select>
         </div>
 
-        <div className="space-y-2">
+        <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
           {SERVICE_FILTERS.map((service) => (
             <CheckRow
               key={service}
@@ -306,7 +304,7 @@ function FilterPanel({
       </div>
 
       <div className="space-y-3">
-        <p className="text-xs font-medium text-slate-500">Location</p>
+        <p className="mb-4 text-xs font-medium text-slate-500">Location</p>
 
         <CheckRow
           label="Auto detection"
@@ -317,7 +315,7 @@ function FilterPanel({
 
         <div className="grid grid-cols-2 gap-2">
           <div>
-            <p className="mb-1 text-[11px] text-slate-500">City</p>
+            <p className="mb-1.5 text-xs text-slate-500">City</p>
             <Input
               value={city}
               onChange={(e) => setCity(e.target.value)}
@@ -327,7 +325,7 @@ function FilterPanel({
           </div>
 
           <div>
-            <p className="mb-1 text-[11px] text-slate-500">State</p>
+            <p className="mb-1.5 text-xs text-slate-500">State</p>
             <Input
               value={stateLocation}
               onChange={(e) => setStateLocation(e.target.value)}
@@ -338,7 +336,7 @@ function FilterPanel({
         </div>
 
         <div>
-          <p className="mb-2 text-[11px] text-slate-500">Within</p>
+          <p className="mb-3 text-xs text-slate-500">Within</p>
           <div className="grid grid-cols-2 gap-2">
             {["5 km", "10 km", "20 km", "50 km"].map((distance) => (
               <CheckRow
@@ -353,7 +351,7 @@ function FilterPanel({
       </div>
 
       <div className="space-y-3">
-        <p className="text-xs font-medium text-slate-500">Rating</p>
+        <p className="mb-4 text-xs font-medium text-slate-500">Rating</p>
 
         <div className="space-y-2">
           {RATING_FILTERS.map((rating) => (
@@ -368,7 +366,7 @@ function FilterPanel({
       </div>
 
       <div className="space-y-3">
-        <p className="text-xs font-medium text-slate-500">Price range</p>
+        <p className="mb-4 text-xs font-medium text-slate-500">Price range</p>
 
         <div className="grid grid-cols-2 gap-2">
           <Input
@@ -430,7 +428,7 @@ function ArtisanCard({ artisan }: { artisan: any }) {
     <article className="overflow-hidden rounded-lg border border-slate-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="h-[92px] overflow-hidden bg-slate-100 sm:h-[96px]">
         <img
-          src={artisan.profileImage || artisan.profile_image || "/placeholder.svg"}
+          src={artisan.cover_image || artisan.coverImage || "/placeholder.svg"}
           alt={serviceName}
           className="h-full w-full object-cover"
         />
@@ -498,7 +496,8 @@ function ArtisanCard({ artisan }: { artisan: any }) {
 }
 
 export function SearchAndBrowse() {
-  const [searchQuery, setSearchQuery] = useState("")
+  const searchParams = useSearchParams()
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "")
   const [selectedCategory, setSelectedCategory] = useState("All Services")
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [selectedRating, setSelectedRating] = useState("all")
@@ -559,7 +558,7 @@ export function SearchAndBrowse() {
 
     const paginated = normalizePaginatedResponse<any>(data)
 
-    setResults(paginated.data)
+    setResults(paginated.data.map(mapArtisanForCard))
     setTotal(paginated.pagination.total)
     setPagination(paginated.pagination)
   } catch (e) {
@@ -810,16 +809,32 @@ export function SearchAndBrowse() {
             {loading && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {Array.from({ length: 6 }).map((_, index) => (
-                  <div
-                    key={index}
-                    className="h-[210px] animate-pulse rounded-lg border border-slate-100 bg-slate-50"
-                  />
+                  <article key={index} className="overflow-hidden rounded-lg border border-slate-100 bg-white shadow-sm">
+                    <div className="h-[96px] animate-pulse bg-slate-100" />
+                    <div className="p-3">
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <div className="h-4 w-3/5 animate-pulse rounded bg-slate-100" />
+                        <div className="h-5 w-8 animate-pulse rounded-full bg-slate-100" />
+                      </div>
+                      <div className="mb-3">
+                        <div className="h-4 w-24 animate-pulse rounded-md bg-slate-100" />
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="h-7 w-7 shrink-0 animate-pulse rounded-full bg-slate-100" />
+                        <div className="h-3 w-24 animate-pulse rounded bg-slate-100" />
+                      </div>
+                    </div>
+                  </article>
                 ))}
               </div>
             )}
 
             {!loading && filteredAndSortedResults.length > 0 && (
               <>
+              <p className="mb-3 text-xs text-slate-500">
+                {total > 0 ? `${total} artisan${total !== 1 ? "s" : ""} found` : ""}
+                {pagination && pagination.totalPages > 1 ? ` · page ${pagination.page} of ${pagination.totalPages}` : ""}
+              </p>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredAndSortedResults.map((artisan) => (
                   <ArtisanCard

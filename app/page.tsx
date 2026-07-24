@@ -1,21 +1,28 @@
-import { Header } from "@/components/header"
+import { LandingHeader } from "@/components/landing-header"
 import { HeroSection } from "@/components/hero-section"
-import { ServiceCategories } from "@/components/service-categories"
-import { HowItWorks } from "@/components/how-it-works"
-import { FeaturedArtisans } from "@/components/featured-artisans"
-import { Footer } from "@/components/footer"
+import {
+  TopServicesSection,
+  WhyChooseBrikcellSection,
+  TopTalentsSection,
+  FindTalentsSection,
+  ShowcaseTalentSection,
+  ReadyToStartSection,
+} from "@/components/landing-sections"
 
 export default function HomePage() {
   return (
-    <div className="min-h-screen">
-      <Header />
+    <div className="min-h-screen bg-white">
+      <LandingHeader />
+
       <main>
         <HeroSection />
-        <ServiceCategories />
-        <HowItWorks />
-        <FeaturedArtisans />
+        <TopServicesSection />
+        <WhyChooseBrikcellSection />
+        <TopTalentsSection />
+        <FindTalentsSection />
+        <ShowcaseTalentSection />
+        <ReadyToStartSection />
       </main>
-      <Footer />
     </div>
   )
 }

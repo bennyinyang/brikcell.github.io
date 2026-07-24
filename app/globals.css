@@ -10,15 +10,14 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  /* Updated primary to purple #BA24D5 */
-  --primary: oklch(0.578 0.234 312.5);
+  --primary: #BA24D5;
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.145 0 0);
   --muted: oklch(0.97 0 0);
   --muted-foreground: oklch(0.556 0 0);
   /* Updated accent to navy blue #1e3a8a */
-  --accent: rgb(167, 59, 218);
+  --accent: #BA24D5;
   --accent-foreground: oklch(1 0 0);
   --destructive: oklch(0.577 0.245 27.325);
   --destructive-foreground: oklch(0.577 0.245 27.325);
@@ -33,8 +32,7 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  /* Updated sidebar primary to match new purple brand color */
-  --sidebar-primary: oklch(0.578 0.234 312.5);
+  --sidebar-primary: #BA24D5;
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.145 0 0);
@@ -49,8 +47,7 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.145 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  /* Updated dark mode primary to purple #BA24D5 */
-  --primary: oklch(0.578 0.234 312.5);
+  --primary: #BA24D5;
   --primary-foreground: oklch(1 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -70,8 +67,7 @@
   --chart-5: oklch(0.645 0.246 16.439);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  /* Updated dark mode sidebar primary to match new purple brand color */
-  --sidebar-primary: oklch(0.578 0.234 312.5);
+  --sidebar-primary: #BA24D5;
   --sidebar-primary-foreground: oklch(1 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
@@ -116,14 +112,53 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
-  --font-sans: var(--font-dm-sans);
+  --font-sans: var(--font-urbanist);
+  --font-heading: var(--font-manrope);
 }
 
 @layer base {
+  /* Universal brand font baseline — Urbanist on every element, no inheritance gaps */
   * {
     @apply border-border outline-ring/50;
+    font-family: var(--font-urbanist), sans-serif;
   }
   body {
     @apply bg-background text-foreground;
   }
+  /* All semantic headings + shadcn heading-like components → Manrope */
+  h1, h2, h3, h4, h5, h6,
+  [data-slot="card-title"],
+  [data-slot="dialog-title"] {
+    font-family: var(--font-manrope), sans-serif;
+  }
+  /* Sidebar navigation links → Manrope */
+  aside nav, aside nav a, aside nav button {
+    font-family: var(--font-manrope), sans-serif;
+  }
+  /* Header desktop navigation links → Manrope */
+  header nav a, header nav button {
+    font-family: var(--font-manrope), sans-serif;
+  }
+  /* Right-panel aside card labels and buttons (Complete Profile, Earnings) → Manrope */
+  aside.space-y-4 span,
+  aside.space-y-4 button {
+    font-family: var(--font-manrope), sans-serif;
+  }
+  /* Preserve monospace for code blocks */
+  code, kbd, samp, pre {
+    font-family: ui-monospace, monospace;
+  }
+}
+
+@keyframes talent-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-33.333%);
+  }
+}
+
+.animate-talent-scroll {
+  animation: talent-scroll 28s linear infinite;
 }
