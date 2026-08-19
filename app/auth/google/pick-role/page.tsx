@@ -1,12 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { saveAuth, type UserDTO } from "@/lib/api";
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080";
 
-export default function GooglePickRolePage() {
+function PickRoleContent() {
   const router = useRouter();
   const params = useSearchParams();
   const tempToken = params.get("t") || "";
@@ -120,6 +120,20 @@ export default function GooglePickRolePage() {
         </p>
       </div>
     </main>
+  );
+}
+
+export default function GooglePickRolePage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      }
+    >
+      <PickRoleContent />
+    </Suspense>
   );
 }
 

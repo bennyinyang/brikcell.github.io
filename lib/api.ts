@@ -74,9 +74,11 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   if (!res.ok) {
     const message =
       data?.message ||
-      data?.error?.message ||
+      (typeof data?.error === "string" ? data.error : data?.error?.message) ||
       `HTTP ${res.status}`;
-    throw new Error(message);
+    const err: any = new Error(message);
+    err.status = res.status;
+    throw err;
   }
 
   return data as T;
@@ -902,6 +904,7 @@ export type ContractStateResponse = {
     totalAmount: number
     depositAmount: number
     depositPaid: boolean
+    escrowBalance: number
     materials: any[]
     phases: Array<{
       id: string
@@ -928,6 +931,13 @@ export async function getContractState(contractId: string) {
   return request<ContractStateResponse>(`/contracts/${contractId}/state`, {
     method: "GET",
   })
+}
+
+export async function topupContractEscrow(contractId: string, amount: number) {
+  return request<{ escrowBalance: number; walletBalance: number }>(
+    `/contracts/${contractId}/topup-escrow`,
+    { method: "POST", json: { amount } }
+  )
 }
 
 // Withdrawal APIs

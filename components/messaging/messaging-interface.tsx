@@ -29,6 +29,7 @@ import {
   partialReleaseMilestone,
   refundMilestone,
   getContractState,
+  topupContractEscrow,
   getIncomingMessageRequests,
   acceptMessageRequest,
   declineMessageRequest,
@@ -182,6 +183,8 @@ export function MessagingInterface() {
   const [milestoneActionLoading, setMilestoneActionLoading] = useState<string | null>(null)
   const [partialReleaseOpenFor, setPartialReleaseOpenFor] = useState<string | null>(null)
   const [partialReleaseAmount, setPartialReleaseAmount] = useState<Record<string, string>>({})
+  const [activeContractEscrowBalance, setActiveContractEscrowBalance] = useState<number | null>(null)
+  const [escrowTopupLoading, setEscrowTopupLoading] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null)
   const [editText, setEditText] = useState("")
@@ -229,11 +232,14 @@ export function MessagingInterface() {
   const remaining = Math.max(0, totalContract - totalPaid)
 
   const depositRequired = Number(activeContract?.depositAmount ?? 0)
-  // Deposit is considered paid when we have a real deposit transaction OR any release happened
-  const depositFullyPaid = contractTxDepositPaid > 0 || totalPaid > 0
-  const depositPaidAmount = contractTxDepositPaid > 0
-    ? Math.min(depositRequired, contractTxDepositPaid)
-    : Math.min(depositRequired, totalPaid)
+  // After final release the full contract value has been paid — show 100%.
+  // During the cycle: sum all employer deposits (Paystack checkout + wallet topups).
+  const depositPaidAmount = allPhasesReleased
+    ? totalContract
+    : contractTxDepositPaid > 0
+      ? contractTxDepositPaid
+      : Math.min(depositRequired, totalPaid)
+  const depositFullyPaid = allPhasesReleased || contractTxDepositPaid >= depositRequired || totalPaid >= totalContract
 
 
 
@@ -276,6 +282,8 @@ export function MessagingInterface() {
     const fresh = mapBackendContractToUI(res.contract)
 
     setActiveContract(fresh)
+    // Always sync from DB — backend always returns a number (0 when unfunded)
+    setActiveContractEscrowBalance(res.contract.escrowBalance ?? 0)
 
     setMessages((prev) =>
       prev.map((msg) => {
@@ -420,7 +428,7 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
     // their own records, so employer gets: deposit + employer-side release rows.
     // Artisan gets: artisan-side release rows only (no deposit).
     const depositTotal = successful
-      .filter((t) => String(t?.type || "").toLowerCase() === "deposit")
+      .filter((t) => ["deposit", "escrow_topup"].includes(String(t?.type || "").toLowerCase()))
       .reduce((sum, t) => sum + Number(t?.amount || 0), 0)
 
     const releaseTotal = successful
@@ -1217,6 +1225,10 @@ useEffect(() => {
     if (!selectedConversation?.id) return
     if (!currentUserId) return
 
+    // Reset escrow balance immediately when switching conversations so stale
+    // data from a previous contract never bleeds over during the fetch.
+    setActiveContractEscrowBalance(null)
+
     let cancelled = false
 
     ;(async () => {
@@ -1569,13 +1581,55 @@ useEffect(() => {
 
     } catch (err: any) {
       console.error("[Messaging][debug] submit failed", err)
-      toast.error(err?.message || "Failed to submit milestone")
+      const errMsg = String(err?.message || "").toLowerCase()
+      const contractAccepted = ["accepted", "active"].includes(
+        String(activeContract?.status || "").toLowerCase()
+      )
+      // "Milestone not ready to submit" (400) when contract not yet accepted,
+      // or any explicit 409 "not accept-able" variant
+      const isContractGate =
+        !contractAccepted ||
+        err?.status === 409 ||
+        errMsg.includes("not ready") ||
+        errMsg.includes("not accept")
+      if (isContractGate) {
+        toast.error(
+          "This contract must be accepted by both parties before a milestone can be submitted. Ask the client to accept the contract first.",
+          { duration: 6000 }
+        )
+      } else {
+        toast.error(err?.message || "Failed to submit milestone")
+      }
     } finally {
       setMilestoneActionLoading(null)
     }
   }
 
   const handleReleasePhase = async (phaseId: string | number) => {
+    // If deposit < total, verify the escrow has enough to cover the final payout
+    if (activeContract) {
+      const ph = activeContract.phases.find((p) => String(p.id) === String(phaseId))
+      if (ph?.initial_release_done) {
+        const totalAmt   = Number(activeContract.totalAmount  ?? 0)
+        const depositAmt = Number(activeContract.depositAmount ?? 0)
+        const fundingGap = Math.max(0, totalAmt - depositAmt)
+        if (fundingGap > 0) {
+          const escrowBal = activeContractEscrowBalance !== null
+            ? activeContractEscrowBalance
+            : Math.max(0, depositAmt - contractTxReleasedTotal)
+          const finalDue = Number(ph.labour_cost ?? 0) * 0.9
+          if (escrowBal < finalDue) {
+            const shortfall = Math.ceil(finalDue - escrowBal)
+            toast.error(
+              `Insufficient escrow balance. Transfer ₦${shortfall.toLocaleString()} from your wallet to escrow first.`,
+              { duration: 8000 }
+            )
+            return
+          }
+        }
+      }
+    }
+
     try {
       setMilestoneActionLoading(String(phaseId))
 
@@ -1622,6 +1676,20 @@ useEffect(() => {
       toast.error(err?.message || "Failed to partially release milestone")
     } finally {
       setMilestoneActionLoading(null)
+    }
+  }
+
+  const handleTopupEscrow = async (contractId: string | number, amount: number) => {
+    try {
+      setEscrowTopupLoading(true)
+      const res = await topupContractEscrow(String(contractId), amount)
+      setActiveContractEscrowBalance(res.escrowBalance)
+      toast.success(`₦${amount.toLocaleString()} transferred to escrow successfully`)
+      await refreshActiveContractState(contractId)
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to transfer funds to escrow")
+    } finally {
+      setEscrowTopupLoading(false)
     }
   }
 
@@ -1685,11 +1753,18 @@ useEffect(() => {
   }
 
   function downloadContractPDF(contract: Contract) {
+    const isCompleted = allPhasesReleased || contract.status === "completed"
+
     const statusLabel =
-      contract.status === "accepted" ? "Accepted"
+      isCompleted ? "Completed"
+      : contract.status === "accepted" ? "Active"
       : contract.status === "in_review" ? "Pending"
       : contract.status === "draft" ? "Draft"
       : contract.status
+
+    // Amounts for the document — use live payment state when available
+    const docTotalPaid    = isCompleted ? totalContract : depositPaidAmount
+    const docTotalContract = totalContract || Number(contract.totalAmount)
 
     const createdDate = contract.createdAt
       ? new Date(contract.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "long", year: "numeric" })
@@ -1704,20 +1779,40 @@ useEffect(() => {
     const employerName = currentUserRole === "employer" ? myName : otherName
     const artisanName  = currentUserRole === "artisan"  ? myName : otherName
 
-    const phasesHTML = contract.phases.map((phase, i) => `
+    const phasesHTML = contract.phases.map((phase, i) => {
+      const labourCost   = Number(phase.labour_cost || phase.amount || 0)
+      const materialCost = Number(phase.material_cost || 0)
+      const initialPct   = 10
+      const phase1Advance = Math.round((materialCost + labourCost * initialPct / 100) * 100) / 100
+      const phase2Final   = Math.round((labourCost * (100 - initialPct) / 100) * 100) / 100
+      const phaseStatus   = String(phase.status || "").toLowerCase()
+      const phaseReleased = ["released", "paid", "approved"].includes(phaseStatus)
+
+      const paymentBreakdown = isCompleted && contract.payment_mode === "MILESTONE" ? `
+        <div class="phase-payment">
+          <span class="pay-row"><span class="pay-lbl">Phase 1 — Advance (materials + 10% labour):</span> <span class="pay-val">₦${phase1Advance.toLocaleString()}</span></span>
+          <span class="pay-row"><span class="pay-lbl">Phase 2 — Final release (90% labour):</span> <span class="pay-val">₦${phase2Final.toLocaleString()}</span></span>
+        </div>
+      ` : ""
+
+      return `
       <div class="phase">
         <div class="phase-header">
           <span class="phase-title">Phase ${i + 1}: ${phase.name}</span>
-          <span class="phase-amount">₦${Number(phase.amount).toLocaleString()}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span class="phase-amount">₦${Number(phase.amount).toLocaleString()}</span>
+            ${phaseReleased ? `<span class="phase-paid-badge">✓ Paid</span>` : ""}
+          </div>
         </div>
         ${phase.description ? `<p class="phase-desc">${phase.description}</p>` : ""}
         ${phase.deliverables?.length ? `
           <ul class="deliverables">
-            ${phase.deliverables.map((d) => `<li>${d}</li>`).join("")}
+            ${phase.deliverables.map((d: string) => `<li>${d}</li>`).join("")}
           </ul>
         ` : ""}
+        ${paymentBreakdown}
       </div>
-    `).join("")
+    `}).join("")
 
     const materialsHTML = contract.materials?.length ? `
       <section>
@@ -1770,9 +1865,46 @@ useEffect(() => {
       border-radius: 999px;
       font-size: 11px;
       font-weight: 600;
-      background: ${contract.status === "accepted" ? "#d1fae5" : contract.status === "draft" ? "#e5e7eb" : "#fef3c7"};
-      color: ${contract.status === "accepted" ? "#065f46" : contract.status === "draft" ? "#374151" : "#92400e"};
+      background: ${isCompleted ? "#d1fae5" : contract.status === "draft" ? "#e5e7eb" : "#fef3c7"};
+      color: ${isCompleted ? "#065f46" : contract.status === "draft" ? "#374151" : "#92400e"};
     }
+    .payment-complete-banner {
+      background: #d1fae5;
+      border: 1px solid #6ee7b7;
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 16px 0;
+      font-size: 13px;
+      font-weight: 600;
+      color: #065f46;
+    }
+    .phase-paid-badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      color: #065f46;
+      background: #d1fae5;
+      border-radius: 999px;
+      padding: 1px 7px;
+    }
+    .phase-payment {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+    .pay-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+    }
+    .pay-lbl { color: #6b7280; }
+    .pay-val { font-weight: 600; color: #374151; }
     /* meta row */
     .meta-grid {
       display: grid;
@@ -1889,16 +2021,29 @@ useEffect(() => {
     <p>${contract.description || ""}</p>
   </section>
 
+  ${isCompleted ? `
+  <div class="payment-complete-banner">
+    <span style="font-size:18px;">✅</span>
+    <span>Payment Complete — Full contract amount of ₦${docTotalContract.toLocaleString()} settled in full</span>
+  </div>
+  ` : ""}
+
   <div class="amounts">
     <div class="amount-box">
       <div class="lbl">Total Contract Value</div>
-      <div class="val">₦${Number(contract.totalAmount).toLocaleString()}</div>
+      <div class="val">₦${docTotalContract.toLocaleString()}</div>
     </div>
-    <div class="amount-box">
-      <div class="lbl">Deposit Required</div>
-      <div class="val">₦${Number(contract.depositAmount).toLocaleString()}</div>
+    <div class="amount-box" style="${isCompleted ? "border-color:#6ee7b7;background:#f0fdf4;" : ""}">
+      <div class="lbl">${isCompleted ? "Total Paid" : "Initial Deposit"}</div>
+      <div class="val" style="${isCompleted ? "color:#059669;" : ""}">₦${docTotalPaid.toLocaleString()}</div>
     </div>
   </div>
+
+  ${!isCompleted && Number(contract.depositAmount) > 0 ? `
+  <div style="font-size:11px;color:#6b7280;margin-top:-8px;margin-bottom:16px;padding:0 2px;">
+    Remaining ₦${Math.max(0, docTotalContract - docTotalPaid).toLocaleString()} released upon final approval.
+  </div>
+  ` : ""}
 
   <hr />
 
@@ -2101,7 +2246,7 @@ useEffect(() => {
             </div>
           )}
 
-          {sender === "them" && contract.status !== "accepted" && (
+          {sender === "them" && contract.status === "in_review" && (
             <div className="flex space-x-2 pt-2">
               <Button
                 onClick={() => handleAcceptContract(contract)}
@@ -2167,20 +2312,48 @@ useEffect(() => {
                     (p) => String(p.id) === String(phase.id)
                   )
                   const isLoading = milestoneActionLoading === String(phase.id)
+                  const phaseLabour = Number(phase.labour_cost || phase.amount || 0)
+                  const phaseMaterial = Number(phase.material_cost || 0)
+                  const phase1Need = Math.round((phaseMaterial + phaseLabour * 0.1) * 100) / 100
+                  const escrowBal = activeContractEscrowBalance ?? 0
+                  const escrowCoversPhase1 = activeContractEscrowBalance === null || escrowBal >= phase1Need
+                  const phase1Shortfall = Math.max(0, Math.round((phase1Need - escrowBal) * 100) / 100)
+                  const showFundBanner = activeContractEscrowBalance !== null && !escrowCoversPhase1
                   return (
-                    <Button
-                      key={phase.id}
-                      className="w-full bg-primary hover:bg-primary/90"
-                      disabled={isLoading}
-                      onClick={() => handleFundMilestone(phase.id)}
-                    >
-                      <DollarSign className="h-4 w-4 mr-2" />
-                      {isLoading
-                        ? "Processing..."
-                        : contract.phases.length > 1
-                          ? `Fund & Advance Pay · Phase ${phaseIdx + 1}`
-                          : "Fund & Advance Pay"}
-                    </Button>
+                    <div key={phase.id} className="space-y-1.5">
+                      {showFundBanner && (
+                        <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+                          <p className="text-xs text-amber-800 leading-snug">
+                            <span className="font-semibold">Escrow underfunded: </span>
+                            Escrow has ₦{escrowBal.toLocaleString()} but the advance payment needs
+                            at least ₦{phase1Need.toLocaleString()} (materials + 10% labour).
+                            Transfer ₦{phase1Shortfall.toLocaleString()} from your main wallet to proceed.
+                          </p>
+                          <Button
+                            size="sm"
+                            className="w-full h-8 text-xs rounded-lg bg-amber-600 hover:bg-amber-700 text-white"
+                            disabled={escrowTopupLoading}
+                            onClick={() => handleTopupEscrow(contract.id, phase1Shortfall)}
+                          >
+                            {escrowTopupLoading
+                              ? "Transferring..."
+                              : `Transfer ₦${phase1Shortfall.toLocaleString()} From Main Balance`}
+                          </Button>
+                        </div>
+                      )}
+                      <Button
+                        className="w-full bg-primary hover:bg-primary/90"
+                        disabled={isLoading || showFundBanner}
+                        onClick={() => handleFundMilestone(phase.id)}
+                      >
+                        <DollarSign className="h-4 w-4 mr-2" />
+                        {isLoading
+                          ? "Processing..."
+                          : contract.phases.length > 1
+                            ? `Fund & Advance Pay · Phase ${phaseIdx + 1}`
+                            : "Fund & Advance Pay"}
+                      </Button>
+                    </div>
                   )
                 })
               })()}
@@ -3135,21 +3308,50 @@ useEffect(() => {
                             )}
 
                             {/* Employer: fund milestone when it's active but not yet funded */}
-                            {currentUserRole === "employer" && rawStatus === "in-progress" && !phase.initial_release_done && (
-                              <Button
-                                onClick={() => handleFundMilestone(phase.id)}
-                                size="sm"
-                                className="w-full mt-2 h-8 text-xs rounded-lg bg-primary hover:bg-primary/90"
-                                disabled={isLoading}
-                              >
-                                <DollarSign className="h-3 w-3 mr-2" />
-                                {isLoading
-                                  ? "Processing..."
-                                  : activeContract?.payment_mode === "MILESTONE"
-                                    ? "Fund & Advance Pay"
-                                    : "Fund Milestone"}
-                              </Button>
-                            )}
+                            {currentUserRole === "employer" && rawStatus === "in-progress" && !phase.initial_release_done && (() => {
+                              const p1Labour   = Number(phase.labour_cost || phase.amount || 0)
+                              const p1Material = Number(phase.material_cost || 0)
+                              const p1Need     = Math.round((p1Material + p1Labour * 0.1) * 100) / 100
+                              const p1EscrowBal = activeContractEscrowBalance ?? 0
+                              const p1Covers   = activeContractEscrowBalance === null || p1EscrowBal >= p1Need
+                              const p1Shortfall = Math.max(0, Math.round((p1Need - p1EscrowBal) * 100) / 100)
+                              return (
+                                <div className="mt-2 space-y-1.5">
+                                  {activeContractEscrowBalance !== null && !p1Covers && (
+                                    <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 space-y-1.5">
+                                      <p className="text-xs text-amber-800 leading-snug">
+                                        <span className="font-semibold">Escrow underfunded: </span>
+                                        ₦{p1EscrowBal.toLocaleString()} available, ₦{p1Need.toLocaleString()} needed.
+                                        Transfer ₦{p1Shortfall.toLocaleString()} from your wallet to proceed.
+                                      </p>
+                                      <Button
+                                        size="sm"
+                                        className="w-full h-7 text-xs rounded-md bg-amber-600 hover:bg-amber-700 text-white"
+                                        disabled={escrowTopupLoading}
+                                        onClick={() => handleTopupEscrow(activeContract!.id, p1Shortfall)}
+                                      >
+                                        {escrowTopupLoading
+                                          ? "Transferring..."
+                                          : `Transfer ₦${p1Shortfall.toLocaleString()} From Main Balance`}
+                                      </Button>
+                                    </div>
+                                  )}
+                                  <Button
+                                    onClick={() => handleFundMilestone(phase.id)}
+                                    size="sm"
+                                    className="w-full h-8 text-xs rounded-lg bg-primary hover:bg-primary/90"
+                                    disabled={isLoading || (activeContractEscrowBalance !== null && !p1Covers)}
+                                  >
+                                    <DollarSign className="h-3 w-3 mr-2" />
+                                    {isLoading
+                                      ? "Processing..."
+                                      : activeContract?.payment_mode === "MILESTONE"
+                                        ? "Fund & Advance Pay"
+                                        : "Fund Milestone"}
+                                  </Button>
+                                </div>
+                              )
+                            })()}
 
                             {/* Artisan: submit completed work */}
                             {currentUserRole === "artisan" && canArtisanSubmitPhase(rawStatus) && (
@@ -3171,13 +3373,47 @@ useEffect(() => {
                                 ? Number(phase.labour_cost || 0) * 0.9
                                 : Number(phase.amount || 0)
 
+                              // Compute funding shortfall using real escrow balance when available
+                              const phFundingGap = Math.max(
+                                0,
+                                Number(activeContract.totalAmount ?? 0) - Number(activeContract.depositAmount ?? 0)
+                              )
+                              const phEscrowBal = activeContractEscrowBalance !== null
+                                ? activeContractEscrowBalance
+                                : Math.max(0, Number(activeContract.depositAmount ?? 0) - contractTxReleasedTotal)
+                              const phFinalDue = phase.initial_release_done
+                                ? Number(phase.labour_cost ?? 0) * 0.9
+                                : Number(phase.amount ?? 0)
+                              const phShortfall = phase.initial_release_done && phFundingGap > 0
+                                ? Math.max(0, Math.ceil(phFinalDue - phEscrowBal))
+                                : 0
+                              const actionsLocked = phShortfall > 0
+
                               return (
                               <div className="grid grid-cols-1 gap-2 mt-2">
+                                {actionsLocked && (
+                                  <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 space-y-2">
+                                    <p className="text-xs text-amber-800 leading-snug">
+                                      <span className="font-semibold">Funding required: </span>
+                                      The initial deposit did not cover the full contract amount.
+                                      Transfer <span className="font-bold">₦{phShortfall.toLocaleString()}</span> from
+                                      your main wallet to escrow before the final payment can be released.
+                                    </p>
+                                    <Button
+                                      size="sm"
+                                      className="w-full h-8 text-xs rounded-lg bg-amber-600 hover:bg-amber-700 text-white"
+                                      disabled={escrowTopupLoading}
+                                      onClick={() => handleTopupEscrow(activeContract.id, phShortfall)}
+                                    >
+                                      {escrowTopupLoading ? "Transferring..." : `Transfer ₦${phShortfall.toLocaleString()} From Main Balance`}
+                                    </Button>
+                                  </div>
+                                )}
                                 <Button
                                   onClick={() => handleReleasePhase(phase.id)}
                                   size="sm"
                                   className="w-full h-8 text-xs rounded-lg bg-emerald-600 hover:bg-emerald-700"
-                                  disabled={isLoading}
+                                  disabled={isLoading || actionsLocked}
                                 >
                                   <CheckCircle className="h-3 w-3 mr-2" />
                                   {isLoading ? "Processing..." : "Release"}
@@ -3192,7 +3428,7 @@ useEffect(() => {
                                   size="sm"
                                   variant="outline"
                                   className="w-full h-8 text-xs rounded-lg"
-                                  disabled={isLoading}
+                                  disabled={isLoading || actionsLocked}
                                 >
                                   <DollarSign className="h-3 w-3 mr-2" />
                                   Partial Release
@@ -3256,7 +3492,7 @@ useEffect(() => {
                                   size="sm"
                                   variant="outline"
                                   className="w-full h-8 text-xs rounded-lg hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                                  disabled={isLoading}
+                                  disabled={isLoading || actionsLocked}
                                 >
                                   <XCircle className="h-3 w-3 mr-2" />
                                   {phase.initial_release_done ? "Refund Remaining" : "Refund"}

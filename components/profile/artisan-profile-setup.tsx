@@ -893,7 +893,7 @@ export function ArtisanProfileSetup() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="workExperience">Work Experience (Optional)</Label>
+                  <Label htmlFor="workExperience">Work Experience (*)</Label>
                   <Textarea
                     id="workExperience"
                     placeholder="Describe your relevant work experience..."

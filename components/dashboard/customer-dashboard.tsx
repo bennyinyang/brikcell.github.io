@@ -42,6 +42,7 @@ import {
   refundMilestone,
   listContractTransactions,
   initDeposit,
+  declineContract,
   normalizePaginatedResponse,
   type PaginationMeta,
 } from "@/lib/api"
@@ -301,7 +302,12 @@ function mapContractToDashboardJob(raw: any): ContractJobCard {
       id: String(m.id),
       name: m.title || m.name || "",
       amount: toNumber(m.amount),
+      labour_cost: toNumber(m.labour_cost),
+      material_cost: toNumber(m.material_cost),
+      initial_release_done: Boolean(m.initial_release_done),
       status: String(m.status || ""),
+      description: m.description || undefined,
+      dueDate: m.dueDate || m.due_date || undefined,
     })),
     totalAmount: toNumber(raw?.totalAmount || 0),
     escrowFunded: 0,
@@ -1002,12 +1008,28 @@ function EmployerServiceCard({
 }) {
   const [expanded, setExpanded] = useState(false)
   const [reviewOpen, setReviewOpen] = useState(false)
+  const [cancelOpen, setCancelOpen] = useState(false)
+  const [cancelLoading, setCancelLoading] = useState(false)
   const isActionable = ["active", "accepted", "ACTIVE", "ACCEPTED"].includes(job.status)
   const hasReleasedMilestone = job.milestones.some((m) =>
     ["RELEASED", "PARTIAL_RELEASED"].includes(String(m.status).toUpperCase())
   )
   const TERMINAL_STATUSES = ["released", "partial_released", "refunded", "completed", "cancelled"]
   const canCancel = !TERMINAL_STATUSES.includes(String(job.status).toLowerCase())
+
+  async function handleCancelService() {
+    setCancelLoading(true)
+    try {
+      await declineContract(String(job.id))
+      setCancelOpen(false)
+      toast.success("Service cancelled successfully")
+      onMilestoneUpdated(String(job.id))
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to cancel service")
+    } finally {
+      setCancelLoading(false)
+    }
+  }
 
   return (
     <Card className="rounded-2xl border border-slate-100 shadow-sm">
@@ -1060,10 +1082,37 @@ function EmployerServiceCard({
             {expanded ? <ChevronUp className="ml-1 h-3 w-3" /> : <ChevronDown className="ml-1 h-3 w-3" />}
           </Button>
 
-          {!history && canCancel && (
-            <Button size="sm" className="bg-red-600 hover:bg-red-700">
+          {!history && canCancel && !cancelOpen && (
+            <Button
+              size="sm"
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => setCancelOpen(true)}
+            >
               Cancel service
             </Button>
+          )}
+
+          {!history && canCancel && cancelOpen && (
+            <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2">
+              <span className="text-xs text-red-700 font-medium shrink-0">Cancel this service?</span>
+              <Button
+                size="sm"
+                className="h-7 px-3 text-xs bg-red-600 hover:bg-red-700 text-white"
+                disabled={cancelLoading}
+                onClick={handleCancelService}
+              >
+                {cancelLoading ? "Cancelling…" : "Yes, cancel"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-7 px-3 text-xs"
+                disabled={cancelLoading}
+                onClick={() => setCancelOpen(false)}
+              >
+                Never mind
+              </Button>
+            </div>
           )}
 
           {history && (
@@ -1124,6 +1173,7 @@ export function CustomerDashboard() {
   const [overviewPage, setOverviewPage] = useState(1)
   const [activePage, setActivePage] = useState(1)
   const [historyPage, setHistoryPage] = useState(1)
+  const [refreshKey, setRefreshKey] = useState(0)
 
 const [overviewPagination, setOverviewPagination] =
   useState<PaginationMeta | null>(null)
@@ -1152,6 +1202,7 @@ const [historyPagination, setHistoryPagination] =
   const handleMilestoneUpdated = useCallback(
     (contractId: string) => {
       refreshStats()
+      setRefreshKey((k) => k + 1)
     },
     [refreshStats]
   )
@@ -1215,7 +1266,7 @@ const [historyPagination, setHistoryPagination] =
     return () => {
       cancelled = true
     }
-  }, [overviewPage, activePage, historyPage])
+  }, [overviewPage, activePage, historyPage, refreshKey])
 
   if (loading) {
     return (

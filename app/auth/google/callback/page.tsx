@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { saveAuth, type UserDTO } from "@/lib/api";
 
-export default function GoogleCallbackPage() {
+function CallbackContent() {
   const router = useRouter();
   const params = useSearchParams();
   const [error, setError] = useState("");
@@ -25,7 +25,6 @@ export default function GoogleCallbackPage() {
 
     try {
       const user = JSON.parse(decodeURIComponent(userParam)) as UserDTO;
-      // Cookie was already set by the backend redirect — just persist user to localStorage
       saveAuth("cookie", user);
 
       if (user.role === "artisan") {
@@ -67,5 +66,19 @@ export default function GoogleCallbackPage() {
         <p className="text-sm text-slate-500">Signing you in…</p>
       </div>
     </div>
+  );
+}
+
+export default function GoogleCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+        </div>
+      }
+    >
+      <CallbackContent />
+    </Suspense>
   );
 }
