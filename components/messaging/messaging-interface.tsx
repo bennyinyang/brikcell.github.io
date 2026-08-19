@@ -1078,11 +1078,6 @@ useEffect(() => {
       if (currentRoomId && payload.room_id === currentRoomId) {
         setMessages((prev) => {
           if (prev.some((m) => m.id === payload.id)) return prev
-          const normalized = prev.map((m) =>
-            m.id.toString().startsWith("temp-") && m.text === payload.message && m.sender === "me"
-              ? { ...m, status: "delivered" as const }
-              : m,
-          )
           const mapped: Message = {
             id: payload.id,
             text: payload.message,
@@ -1102,7 +1097,16 @@ useEffect(() => {
                   ].filter((file) => Boolean(file.url))
                 : undefined,
           }
-          return [...normalized, mapped]
+          // Replace matching temp message with the real one; otherwise append
+          const tempIndex = prev.findIndex(
+            (m) => m.id.toString().startsWith("temp-") && m.text === payload.message && m.sender === "me"
+          )
+          if (tempIndex !== -1) {
+            const next = [...prev]
+            next[tempIndex] = mapped
+            return next
+          }
+          return [...prev, mapped]
         })
         setTimeout(() => scrollToBottom(), 50)
       }
