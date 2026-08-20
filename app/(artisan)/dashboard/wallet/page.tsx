@@ -473,14 +473,14 @@ export default function ArtisanWalletPage() {
             </Link>
 
             <Link
-              href="#"
+              href="/dashboard/bookings"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               My Bookings
             </Link>
 
             <Link
-              href="#"
+              href="/dashboard/services/post"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Post Service
@@ -502,7 +502,7 @@ export default function ArtisanWalletPage() {
             </Link>
 
             <Link
-              href="#"
+              href="/support"
               className="flex items-center gap-3 rounded-md px-4 py-3 text-sm font-medium text-slate-700 hover:bg-slate-50"
             >
               Support
