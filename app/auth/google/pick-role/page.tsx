@@ -37,8 +37,8 @@ function PickRoleContent() {
         throw new Error(data.error || "Failed to complete sign-up");
       }
 
-      const { user } = (await res.json()) as { user: UserDTO };
-      saveAuth("cookie", user);
+      const { token, user } = (await res.json()) as { token: string; user: UserDTO };
+      saveAuth(token || "cookie", user);
 
       if (user.role === "artisan") {
         router.replace("/dashboard/artisan");

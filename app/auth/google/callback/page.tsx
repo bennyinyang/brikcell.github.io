@@ -10,7 +10,8 @@ function CallbackContent() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const userParam = params.get("user");
+    const userParam  = params.get("user");
+    const tokenParam = params.get("token");
     const loginError = params.get("error");
 
     if (loginError) {
@@ -24,8 +25,9 @@ function CallbackContent() {
     }
 
     try {
-      const user = JSON.parse(decodeURIComponent(userParam)) as UserDTO;
-      saveAuth("cookie", user);
+      const user  = JSON.parse(decodeURIComponent(userParam)) as UserDTO;
+      const token = tokenParam ? decodeURIComponent(tokenParam) : "cookie";
+      saveAuth(token, user);
 
       if (user.role === "artisan") {
         router.replace("/dashboard/artisan");

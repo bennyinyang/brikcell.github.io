@@ -39,6 +39,12 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
     headers["ngrok-skip-browser-warning"] = "true";
   }
 
+  // Attach JWT as Authorization header (works in all browsers; cookie is backup for Chrome)
+  const _jwt = typeof window !== "undefined" ? localStorage.getItem("auth_jwt") : null;
+  if (_jwt) {
+    headers["Authorization"] = `Bearer ${_jwt}`;
+  }
+
   // Content type
   if (opts.json && !opts.formData) {
     headers["Content-Type"] = "application/json";
@@ -2013,22 +2019,18 @@ export function declineMessageRequest(id: string) {
 export function saveAuth(token: string, user: UserDTO) {
   if (typeof window === "undefined") return;
   localStorage.setItem("auth_user", JSON.stringify(user));
-  // JWT is intentionally NOT stored in localStorage — XSS protection.
-  // The server issues an HttpOnly cookie alongside the response; all auth
-  // (HTTP and socket.io) uses that cookie. JS never touches the raw token.
+  if (token && token !== "cookie") {
+    localStorage.setItem("auth_jwt", token);
+  }
 }
 
 export function getAuth() {
   if (typeof window === "undefined") return null;
-
   const user = localStorage.getItem("auth_user");
-
   if (!user) return null;
-
   try {
-    // "cookie" is a sentinel that tells the socket middleware to authenticate
-    // via the HttpOnly auth_token cookie sent in the handshake headers.
-    return { token: "cookie", user: JSON.parse(user) as UserDTO };
+    const token = localStorage.getItem("auth_jwt") || "cookie";
+    return { token, user: JSON.parse(user) as UserDTO };
   } catch {
     return null;
   }
@@ -2037,6 +2039,7 @@ export function getAuth() {
 export function clearAuth() {
   if (typeof window === "undefined") return;
   localStorage.removeItem("auth_user");
+  localStorage.removeItem("auth_jwt");
 }
 // ── Favourite Artisans (employer) ──────────────────────────────
 export function getFavouriteArtisans() {
