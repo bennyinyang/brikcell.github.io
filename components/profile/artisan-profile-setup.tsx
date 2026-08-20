@@ -401,14 +401,11 @@ export function ArtisanProfileSetup() {
   const nextStep = () => setCurrentStep((s) => Math.min(s + 1, totalSteps))
   const prevStep = () => setCurrentStep((s) => Math.max(s - 1, 1))
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
+  const handleSubmit = async () => {
     if (!token) {
-      toast.error("You must be logged in to save your profile") // ← surface the error
+      toast.error("You must be logged in to save your profile")
       return
     }
-    console.log("Form submitted")
     setIsSaving(true)
 
     try {
@@ -499,7 +496,7 @@ export function ArtisanProfileSetup() {
         <Progress value={progress} className="h-2" />
       </div>
 
-      <form onSubmit={handleSubmit}>
+      <div>
         <Card>
           <CardHeader>
             <CardTitle>
@@ -1045,7 +1042,8 @@ export function ArtisanProfileSetup() {
                 </Button>
               ) : (
                 <Button
-                  type="submit"
+                  type="button"
+                  onClick={handleSubmit}
                   disabled={isSaving || !formData.firstName || !formData.lastName || !formData.email || !formData.location}
                 >
                   {isSaving ? (
@@ -1061,7 +1059,7 @@ export function ArtisanProfileSetup() {
             </div>
           </CardContent>
         </Card>
-      </form>
+      </div>
     </div>
   )
 }
