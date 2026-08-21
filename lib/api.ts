@@ -78,6 +78,15 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
   }
 
   if (!res.ok) {
+    if (res.status === 401) {
+      // Clear stale credentials so the user starts fresh on next login
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("auth_jwt");
+      }
+      const err: any = new Error("Your session has expired. Please log in again to continue.");
+      err.status = 401;
+      throw err;
+    }
     const message =
       data?.message ||
       (typeof data?.error === "string" ? data.error : data?.error?.message) ||
