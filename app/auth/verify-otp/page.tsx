@@ -55,7 +55,7 @@ export default function VerifyOTPPage() {
   const handleInputChange = (index: number, value: string) => {
     const stripped = value.replace(/\D/g, "")
 
-    // Handle multi-digit input (autocomplete / fast mobile keyboard)
+    // Multi-digit: browser OTP autofill or paste-via-keyboard — distribute across boxes
     if (stripped.length > 1) {
       const nextOtp = [...otp]
       for (let i = 0; i < stripped.length && index + i < OTP_LENGTH; i++) {
@@ -64,19 +64,20 @@ export default function VerifyOTPPage() {
       setOtp(nextOtp)
       setError("")
       const nextIndex = Math.min(index + stripped.length, OTP_LENGTH - 1)
-      inputRefs.current[nextIndex]?.focus()
+      requestAnimationFrame(() => inputRefs.current[nextIndex]?.focus())
       return
     }
 
-    // Single digit — prefer the last character so overwriting works correctly
-    const digit = stripped.slice(-1)
+    if (!stripped) return
+
+    // Single digit — maxLength={1} ensures this is always the new character
     const nextOtp = [...otp]
-    nextOtp[index] = digit
+    nextOtp[index] = stripped
     setOtp(nextOtp)
     setError("")
 
-    if (digit && index < OTP_LENGTH - 1) {
-      inputRefs.current[index + 1]?.focus()
+    if (index < OTP_LENGTH - 1) {
+      requestAnimationFrame(() => inputRefs.current[index + 1]?.focus())
     }
   }
 
@@ -84,8 +85,26 @@ export default function VerifyOTPPage() {
     index: number,
     e: React.KeyboardEvent<HTMLInputElement>
   ) => {
-    if (e.key === "Backspace" && !otp[index] && index > 0) {
+    if (e.key === "Backspace") {
+      if (otp[index]) {
+        // Clear current box without going back
+        setOtp(prev => { const n = [...prev]; n[index] = ""; return n })
+      } else if (index > 0) {
+        // Box already empty — go back and clear
+        setOtp(prev => { const n = [...prev]; n[index - 1] = ""; return n })
+        inputRefs.current[index - 1]?.focus()
+      }
+      e.preventDefault()
+      return
+    }
+    // Allow arrow-key navigation
+    if (e.key === "ArrowLeft" && index > 0) {
+      e.preventDefault()
       inputRefs.current[index - 1]?.focus()
+    }
+    if (e.key === "ArrowRight" && index < OTP_LENGTH - 1) {
+      e.preventDefault()
+      inputRefs.current[index + 1]?.focus()
     }
   }
 
@@ -253,7 +272,7 @@ export default function VerifyOTPPage() {
                     }}
                     type="text"
                     inputMode="numeric"
-                    maxLength={2}
+                    maxLength={1}
                     autoComplete={index === 0 ? "one-time-code" : "off"}
                     value={digit}
                     onPaste={handlePaste}
