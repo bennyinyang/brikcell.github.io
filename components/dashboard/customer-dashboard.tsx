@@ -920,12 +920,12 @@ function EmptyServicesState() {
       <h3 className="mt-4 text-sm font-semibold text-slate-950">No services found</h3>
       <p className="mt-1 text-xs text-slate-500">You haven’t started any services yet.</p>
 
-      <div className="mt-5 flex flex-wrap justify-center gap-3">
-        <Button variant="outline" size="sm" asChild>
+      <div className="mt-5 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+        <Button variant="outline" asChild className="h-12 w-full text-sm font-semibold sm:min-w-[160px] sm:w-auto">
           <Link href="/search">Search for Talent</Link>
         </Button>
 
-        <Button size="sm" className="bg-primary hover:bg-primary/90" asChild>
+        <Button asChild className="h-12 w-full bg-primary text-sm font-semibold hover:bg-primary/90 sm:min-w-[160px] sm:w-auto">
           <Link href="/post-job">
             <Plus className="mr-1 h-4 w-4" />
             Post a gig

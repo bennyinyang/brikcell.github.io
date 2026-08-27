@@ -106,18 +106,14 @@ function EmptyBookingsState() {
           You haven’t started any services yet.
         </p>
 
-        <div className="mt-5 flex items-center gap-3">
-          <Link href="/dashboard/jobs">
-            <Button variant="outline" className="h-9 rounded-md px-5 text-xs">
-              Search for Jobs
-            </Button>
-          </Link>
+        <div className="mt-5 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+          <Button variant="outline" asChild className="h-12 w-full text-sm font-semibold sm:min-w-[160px] sm:w-auto">
+            <Link href="/dashboard/jobs">Search for Jobs</Link>
+          </Button>
 
-          <Link href="/dashboard/services/post">
-            <Button className="h-9 rounded-md bg-primary px-5 text-xs text-white hover:bg-primary/90">
-              + Post a service
-            </Button>
-          </Link>
+          <Button asChild className="h-12 w-full bg-primary text-sm font-semibold text-white hover:bg-primary/90 sm:min-w-[160px] sm:w-auto">
+            <Link href="/dashboard/services/post">+ Post a service</Link>
+          </Button>
         </div>
       </div>
     </div>

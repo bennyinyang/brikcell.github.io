@@ -311,12 +311,12 @@ function EmptyServices() {
         You haven&apos;t started any services yet.
       </p>
 
-      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-        <Button asChild variant="outline" className="min-w-[140px]">
+      <div className="mt-6 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+        <Button asChild variant="outline" className="h-12 w-full text-sm font-semibold sm:min-w-[160px] sm:w-auto">
           <Link href="/dashboard/jobs">Search for Jobs</Link>
         </Button>
 
-        <Button asChild className="min-w-[140px] bg-primary hover:bg-primary/90">
+        <Button asChild className="h-12 w-full bg-primary text-sm font-semibold hover:bg-primary/90 sm:min-w-[160px] sm:w-auto">
           <Link href="/dashboard/services/post">Post a service</Link>
         </Button>
       </div>

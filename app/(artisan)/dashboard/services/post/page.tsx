@@ -4,7 +4,7 @@ import type React from "react"
 import { useMemo, useRef, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Upload, X, CalendarDays } from "lucide-react"
+import { Upload, X } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -525,14 +525,13 @@ export default function PostServicePage() {
                   Deadline: Select if applicable
                 </Label>
 
-                <div className="relative max-w-sm">
-                  <CalendarDays className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="max-w-sm">
                   <Input
                     id="deadline"
                     type="date"
                     value={formData.deadline}
                     onChange={(e) => setFormData((prev) => ({ ...prev, deadline: e.target.value }))}
-                    className="h-10 rounded-md border-slate-200 pl-9 text-sm"
+                    className="h-10 rounded-md border-slate-200 text-sm [direction:rtl] text-left"
                   />
                 </div>
               </div>

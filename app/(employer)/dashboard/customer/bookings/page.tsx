@@ -173,12 +173,12 @@ function EmptyBookingsState() {
         You haven’t started any services yet.
       </p>
 
-      <div className="mt-5 flex flex-wrap justify-center gap-3">
-        <Button variant="outline" size="sm" asChild>
+      <div className="mt-5 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+        <Button variant="outline" asChild className="h-12 w-full text-sm font-semibold sm:min-w-[160px] sm:w-auto">
           <Link href="/search">Search for Talent</Link>
         </Button>
 
-        <Button size="sm" className="bg-primary hover:bg-primary/90" asChild>
+        <Button asChild className="h-12 w-full bg-primary text-sm font-semibold hover:bg-primary/90 sm:min-w-[160px] sm:w-auto">
           <Link href="/post-job">Post a gig</Link>
         </Button>
       </div>
