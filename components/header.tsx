@@ -431,31 +431,6 @@ export function Header() {
                   )}
                 </Link>
 
-                {/* Mobile notifications summary */}
-                {unreadNotifs > 0 && (
-                  <div className="mx-3 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2.5">
-                    <div className="flex items-center gap-2">
-                      <Bell className="h-4 w-4 text-primary" />
-                      <span className="text-sm font-medium text-primary">
-                        {unreadNotifs} unread notification{unreadNotifs !== 1 ? "s" : ""}
-                      </span>
-                      <button
-                        onClick={() => { markAllRead(); closeMobileMenu() }}
-                        className="ml-auto text-[11px] text-primary underline"
-                      >
-                        Clear all
-                      </button>
-                    </div>
-                    <div className="mt-2 space-y-2 max-h-40 overflow-y-auto">
-                      {notifications.filter(n => !n.is_read).slice(0, 3).map(n => (
-                        <p key={n.id} className="text-xs text-gray-600 truncate">
-                          <span className="font-medium">{n.title}</span> — {n.body}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
                 <Link href="/profile/setup" onClick={closeMobileMenu}
                   className="flex items-center space-x-3 px-3 py-3 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-primary transition-colors">
                   <User className="h-5 w-5 flex-shrink-0" />

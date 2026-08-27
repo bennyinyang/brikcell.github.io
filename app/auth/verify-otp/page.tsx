@@ -53,11 +53,25 @@ export default function VerifyOTPPage() {
   }, [resendCooldown])
 
   const handleInputChange = (index: number, value: string) => {
-    const digit = value.replace(/\D/g, "").slice(0, 1)
+    const stripped = value.replace(/\D/g, "")
 
+    // Handle multi-digit input (autocomplete / fast mobile keyboard)
+    if (stripped.length > 1) {
+      const nextOtp = [...otp]
+      for (let i = 0; i < stripped.length && index + i < OTP_LENGTH; i++) {
+        nextOtp[index + i] = stripped[i]
+      }
+      setOtp(nextOtp)
+      setError("")
+      const nextIndex = Math.min(index + stripped.length, OTP_LENGTH - 1)
+      inputRefs.current[nextIndex]?.focus()
+      return
+    }
+
+    // Single digit — prefer the last character so overwriting works correctly
+    const digit = stripped.slice(-1)
     const nextOtp = [...otp]
     nextOtp[index] = digit
-
     setOtp(nextOtp)
     setError("")
 
@@ -239,13 +253,15 @@ export default function VerifyOTPPage() {
                     }}
                     type="text"
                     inputMode="numeric"
-                    maxLength={1}
+                    maxLength={2}
+                    autoComplete={index === 0 ? "one-time-code" : "off"}
                     value={digit}
                     onPaste={handlePaste}
                     onChange={(e) =>
                       handleInputChange(index, e.target.value)
                     }
                     onKeyDown={(e) => handleKeyDown(index, e)}
+                    onFocus={(e) => e.target.select()}
                     className="h-[66px] rounded-xl border-slate-200 bg-white text-center text-[34px] font-semibold text-slate-400 shadow-sm focus:border-primary focus:ring-primary/20 sm:h-[72px]"
                   />
                 ))}

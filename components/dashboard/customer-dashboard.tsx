@@ -1548,22 +1548,25 @@ const [historyPagination, setHistoryPagination] =
             </div>
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-8">
-              <TabsList className="grid w-full grid-cols-3 rounded-lg border border-slate-100 bg-white p-1">
-                <TabsTrigger value="active" className="rounded-md text-xs">
-                  Active services
-                  <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+              <TabsList className="grid h-auto w-full grid-cols-3 rounded-lg border border-slate-100 bg-white p-1">
+                <TabsTrigger value="active" className="flex-col gap-0.5 rounded-md py-2 text-[10px] sm:flex-row sm:text-xs">
+                  <span className="sm:hidden">Active</span>
+                  <span className="hidden sm:inline">Active services</span>
+                  <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 sm:ml-2">
                     {activePagination?.total ?? activeJobs.length}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="upcoming" className="rounded-md text-xs">
-                  Posted Gigs
-                  <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                <TabsTrigger value="upcoming" className="flex-col gap-0.5 rounded-md py-2 text-[10px] sm:flex-row sm:text-xs">
+                  <span className="sm:hidden">Posted</span>
+                  <span className="hidden sm:inline">Posted Gigs</span>
+                  <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 sm:ml-2">
                     {postedGigs.length}
                   </span>
                 </TabsTrigger>
-                <TabsTrigger value="history" className="rounded-md text-xs">
-                  Service history
-                  <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+                <TabsTrigger value="history" className="flex-col gap-0.5 rounded-md py-2 text-[10px] sm:flex-row sm:text-xs">
+                  <span className="sm:hidden">History</span>
+                  <span className="hidden sm:inline">Service history</span>
+                  <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 sm:ml-2">
                     {historyPagination?.total ?? completedJobs.length}
                   </span>
                 </TabsTrigger>

@@ -744,24 +744,27 @@ const [selectedActiveJob, setSelectedActiveJob] =
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-5 grid h-10 w-full grid-cols-3 rounded-lg border bg-white p-1">
-              <TabsTrigger value="active" className="text-xs">
-                Active services
-                <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+            <TabsList className="mb-5 grid h-auto w-full grid-cols-3 rounded-lg border bg-white p-1">
+              <TabsTrigger value="active" className="flex-col gap-0.5 py-2 text-[10px] sm:flex-row sm:text-xs">
+                <span className="sm:hidden">Active</span>
+                <span className="hidden sm:inline">Active services</span>
+                <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 sm:ml-2">
                   {activePagination?.total ?? activeJobs.length}
                 </span>
               </TabsTrigger>
 
-              <TabsTrigger value="upcoming" className="text-xs">
-                Upcoming services
-                <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+              <TabsTrigger value="upcoming" className="flex-col gap-0.5 py-2 text-[10px] sm:flex-row sm:text-xs">
+                <span className="sm:hidden">Upcoming</span>
+                <span className="hidden sm:inline">Upcoming services</span>
+                <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 sm:ml-2">
                   0
                 </span>
               </TabsTrigger>
 
-              <TabsTrigger value="history" className="text-xs">
-                Service history
-                <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
+              <TabsTrigger value="history" className="flex-col gap-0.5 py-2 text-[10px] sm:flex-row sm:text-xs">
+                <span className="sm:hidden">History</span>
+                <span className="hidden sm:inline">Service history</span>
+                <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 sm:ml-2">
                   {historyPagination?.total ?? completedJobs.length}
                 </span>
               </TabsTrigger>
