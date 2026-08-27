@@ -235,7 +235,7 @@ export function Header() {
                 href={isArtisan ? "/dashboard/bookings" : "/dashboard/customer/bookings"}
                 className="text-sm font-medium text-gray-700 hover:text-primary transition-colors whitespace-nowrap"
               >
-                My bookings
+                Bookings
               </Link>
             </nav>
           )}

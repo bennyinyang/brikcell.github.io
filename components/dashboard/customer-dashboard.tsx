@@ -879,9 +879,9 @@ function ContractActionPanel({
 function EmployerSidebar() {
   const items = [
     { label: "Dashboard", href: "/dashboard", active: true },
-    { label: "Browse Talent", href: "/search" },
-    { label: "My Bookings", href: "/dashboard/customer/bookings" },
-    { label: "Post a Gig", href: "/post-job" },
+    { label: "Find Artisan", href: "/search" },
+    { label: "Bookings", href: "/dashboard/customer/bookings" },
+    { label: "Post a Job", href: "/post-job" },
     { label: "Wallet", href: "/dashboard/customer/wallet" },
     { label: "Settings", href: "/dashboard/customer/settings" },
     { label: "Support", href: "/support" },
