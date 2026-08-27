@@ -15,6 +15,7 @@ import {
   Loader2,
   MapPin,
   Repeat2,
+  Send,
   Star,
   Users,
   Wallet,
@@ -32,6 +33,7 @@ import {
   getReviewsForUser,
 } from "@/lib/api"
 import Header from "@/components/header"
+import { SentRequestsModal } from "@/components/artisan/sent-requests-modal"
 
 const DEFAULT_JOB_IMAGE =
   "https://images.unsplash.com/photo-1585704032915-c3400ca199e7?auto=format&fit=crop&w=900&q=80"
@@ -122,6 +124,7 @@ export default function SavedJobsPage() {
   const [employerRating, setEmployerRating] = useState<number | null>(null)
   const [msgLoading, setMsgLoading] = useState(false)
   const [requestedEmployers, setRequestedEmployers] = useState<Set<string>>(new Set())
+  const [showSentRequests, setShowSentRequests] = useState(false)
 
   useEffect(() => {
     async function load() {
@@ -593,20 +596,31 @@ export default function SavedJobsPage() {
 
             {/* Sticky footer */}
             <div className="shrink-0 border-t border-slate-100 bg-white p-4">
+              <SentRequestsModal open={showSentRequests} onClose={() => setShowSentRequests(false)} />
               {(() => {
                 const empId = String((selectedJob as any).employer_id || selectedJob.employer?.id || "")
                 const requested = requestedEmployers.has(empId)
                 return (
-                  <div className="flex gap-3">
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-3">
+                      <Button
+                        className="flex-1"
+                        disabled={msgLoading || requested || detailLoading}
+                        onClick={() => handleMessageEmployer(selectedJob)}
+                      >
+                        {msgLoading ? "Please wait…" : requested ? "Request Sent" : "Message Employer"}
+                      </Button>
+                      <Button variant="outline" className="px-5" onClick={closePanel}>
+                        Close
+                      </Button>
+                    </div>
                     <Button
-                      className="flex-1"
-                      disabled={msgLoading || requested || detailLoading}
-                      onClick={() => handleMessageEmployer(selectedJob)}
+                      variant="outline"
+                      className="w-full border-primary/30 text-primary hover:bg-primary/5"
+                      onClick={() => setShowSentRequests(true)}
                     >
-                      {msgLoading ? "Please wait…" : requested ? "Request Sent" : "Message Employer"}
-                    </Button>
-                    <Button variant="outline" className="px-5" onClick={closePanel}>
-                      Close
+                      <Send className="mr-2 h-4 w-4" />
+                      Message Requests Sent
                     </Button>
                   </div>
                 )

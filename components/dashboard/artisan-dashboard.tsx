@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useCallback } from "react"
+import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
 import {
   ChevronDown,
@@ -11,9 +11,7 @@ import {
   Star,
   User,
   Send,
-  Clock,
   X,
-  Loader2,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -34,10 +32,10 @@ import {
   getArtisanJobRequests,
   getArtisanActiveJobs,
   getArtisanJobHistory,
-  getSentMessageRequests,
   normalizePaginatedResponse,
   type PaginationMeta,
 } from "@/lib/api"
+import { SentRequestsModal } from "@/components/artisan/sent-requests-modal"
 import { PaginationControl } from "@/components/pagination-control"
 import { ReviewDialog } from "@/components/review/review-dialog"
 
@@ -419,151 +417,6 @@ function ServiceCard({
           jobTitle={item.title}
         />
       )}
-    </div>
-  )
-}
-
-function SentRequestsModal({
-  open,
-  onClose,
-}: {
-  open: boolean
-  onClose: () => void
-}) {
-  const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
-  const [requests, setRequests] = useState<any[]>([])
-  const [totalPages, setTotalPages] = useState(1)
-  const [total, setTotal] = useState(0)
-  const LIMIT = 8
-
-  const load = useCallback(async (p: number) => {
-    setLoading(true)
-    try {
-      const res = await getSentMessageRequests(p, LIMIT)
-      setRequests(res.data)
-      setTotalPages(res.totalPages)
-      setTotal(res.total)
-    } catch {
-      setRequests([])
-    } finally {
-      setLoading(false)
-    }
-  }, [])
-
-  useEffect(() => {
-    if (open) load(page)
-  }, [open, page, load])
-
-  if (!open) return null
-
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-xl">
-        {/* Header */}
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <div className="flex items-center gap-2">
-            <Send className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-slate-900">Message Requests Sent</h2>
-            {total > 0 && (
-              <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-white">
-                {total}
-              </span>
-            )}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-md p-1 text-slate-400 hover:text-slate-700"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Body */}
-        <div className="px-5 py-4 min-h-[200px]">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-primary" />
-            </div>
-          ) : requests.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 text-center">
-              <Send className="mb-3 h-8 w-8 text-slate-300" />
-              <p className="text-sm font-medium text-slate-600">No pending requests</p>
-              <p className="mt-1 text-xs text-slate-400">
-                Requests that have been accepted will be removed from this list automatically.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {requests.map((req) => (
-                <div
-                  key={req.id}
-                  className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3"
-                >
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <User className="h-4 w-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-900">
-                      {req.recipient?.name || "Employer"}
-                    </p>
-                    {req.recipient?.email && (
-                      <p className="truncate text-[11px] text-slate-500">{req.recipient.email}</p>
-                    )}
-                    {req.message && (
-                      <p className="mt-1 line-clamp-2 text-xs text-slate-500 italic">"{req.message}"</p>
-                    )}
-                    <div className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400">
-                      <Clock className="h-3 w-3" />
-                      {new Date(req.created_at).toLocaleDateString("en-NG", {
-                        day: "numeric",
-                        month: "short",
-                        year: "numeric",
-                      })}
-                    </div>
-                  </div>
-                  <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                    Pending
-                  </span>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Pagination */}
-        {totalPages > 1 && (
-          <div className="flex items-center justify-between border-t border-slate-100 px-5 py-3">
-            <button
-              type="button"
-              disabled={page <= 1}
-              onClick={() => setPage((p) => p - 1)}
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Previous
-            </button>
-            <span className="text-xs text-slate-500">
-              Page {page} of {totalPages}
-            </span>
-            <button
-              type="button"
-              disabled={page >= totalPages}
-              onClick={() => setPage((p) => p + 1)}
-              className="rounded-md border border-slate-200 px-3 py-1.5 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            >
-              Next
-            </button>
-          </div>
-        )}
-
-        {/* Footer note */}
-        <div className="border-t border-slate-100 px-5 py-3">
-          <p className="text-center text-[11px] text-slate-400">
-            Employers accepted will be removed automatically from this list
-          </p>
-        </div>
-      </div>
     </div>
   )
 }

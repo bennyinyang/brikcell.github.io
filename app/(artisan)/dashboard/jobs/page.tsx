@@ -28,6 +28,7 @@ import {
   CalendarDays,
   DollarSign,
   ExternalLink,
+  Send,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -67,6 +68,7 @@ import {
   type PaginationMeta,
 } from "@/lib/api"
 import { PaginationControl } from "@/components/pagination-control"
+import { SentRequestsModal } from "@/components/artisan/sent-requests-modal"
 
 const serviceCategories = [
   // Physical / Local
@@ -299,6 +301,7 @@ function ArtisanJobsInner() {
   const [employerRating, setEmployerRating] = useState<number | null>(null)
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
   const [savingJobId, setSavingJobId] = useState<string | null>(null)
+  const [showSentRequests, setShowSentRequests] = useState(false)
 
   useEffect(() => {
     const auth = getAuth()
@@ -1080,24 +1083,35 @@ function ArtisanJobsInner() {
 
             {/* Sticky footer actions */}
             <div className="shrink-0 border-t border-slate-100 bg-white p-4">
+              <SentRequestsModal open={showSentRequests} onClose={() => setShowSentRequests(false)} />
               {(() => {
                 const empId = String((selectedJob as any).employer_id || selectedJob.employer?.id || "")
                 const requested = requestedEmployers.has(empId)
                 return (
-                  <div className="flex gap-3">
-                    <Button
-                      className="flex-1"
-                      disabled={msgLoading || requested || detailLoading}
-                      onClick={() => handleMessageEmployer(selectedJob)}
-                    >
-                      {msgLoading ? "Please wait…" : requested ? "Request Sent" : "Message Employer"}
-                    </Button>
+                  <div className="flex flex-col gap-2">
+                    <div className="flex gap-3">
+                      <Button
+                        className="flex-1"
+                        disabled={msgLoading || requested || detailLoading}
+                        onClick={() => handleMessageEmployer(selectedJob)}
+                      >
+                        {msgLoading ? "Please wait…" : requested ? "Request Sent" : "Message Employer"}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="px-5"
+                        onClick={() => { setSelectedJob(null); setEmployerRating(null) }}
+                      >
+                        Close
+                      </Button>
+                    </div>
                     <Button
                       variant="outline"
-                      className="px-5"
-                      onClick={() => { setSelectedJob(null); setEmployerRating(null) }}
+                      className="w-full border-primary/30 text-primary hover:bg-primary/5"
+                      onClick={() => setShowSentRequests(true)}
                     >
-                      Close
+                      <Send className="mr-2 h-4 w-4" />
+                      Message Requests Sent
                     </Button>
                   </div>
                 )
