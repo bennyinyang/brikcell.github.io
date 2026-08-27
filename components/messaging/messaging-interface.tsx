@@ -1229,9 +1229,12 @@ useEffect(() => {
     if (!selectedConversation?.id) return
     if (!currentUserId) return
 
-    // Reset escrow balance immediately when switching conversations so stale
-    // data from a previous contract never bleeds over during the fetch.
+    // Clear previous contract state immediately so the job summary panel
+    // never shows a stale contract from the prior conversation.
+    setActiveContract(null)
     setActiveContractEscrowBalance(null)
+    setContractTxReleasedTotal(0)
+    setContractTxDepositPaid(0)
 
     let cancelled = false
 

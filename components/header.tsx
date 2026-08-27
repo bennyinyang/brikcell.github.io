@@ -37,6 +37,7 @@ function timeAgo(dateStr: string | null | undefined) {
 }
 
 function notifIcon(type: string) {
+  if (type.startsWith("message_request")) return <MessageSquare className="h-4 w-4" />
   if (type.startsWith("withdrawal")) return <Wallet className="h-4 w-4" />
   if (type.startsWith("milestone")) return <Milestone className="h-4 w-4" />
   if (type.startsWith("welcome")) return <Bell className="h-4 w-4" />
@@ -44,16 +45,24 @@ function notifIcon(type: string) {
   return <FileText className="h-4 w-4" />
 }
 
+function notifHref(type: string): string | null {
+  if (type === "message_request") return "/messages"
+  if (type === "message_request_accepted" || type === "message_request_declined") return "/messages"
+  return null
+}
+
 function NotificationPanel({
   notifications,
   unreadCount,
   onMarkRead,
   onMarkAllRead,
+  onNotifClick,
 }: {
   notifications: NotificationDTO[]
   unreadCount: number
   onMarkRead: (id: string) => void
   onMarkAllRead: () => void
+  onNotifClick: (n: NotificationDTO) => void
 }) {
   return (
     <div className="w-80 max-h-[480px] flex flex-col">
@@ -90,7 +99,7 @@ function NotificationPanel({
           notifications.map((n) => (
             <button
               key={n.id}
-              onClick={() => !n.is_read && onMarkRead(n.id)}
+              onClick={() => { if (!n.is_read) onMarkRead(n.id); onNotifClick(n) }}
               className={`w-full text-left px-4 py-3 transition-colors hover:bg-gray-50 flex gap-3 items-start ${
                 n.is_read ? "opacity-60" : ""
               }`}
@@ -294,6 +303,10 @@ export function Header() {
                       unreadCount={unreadNotifs}
                       onMarkRead={markRead}
                       onMarkAllRead={markAllRead}
+                      onNotifClick={(n) => {
+                        const href = notifHref(n.type)
+                        if (href) router.push(href)
+                      }}
                     />
                   </DropdownMenuContent>
                 </DropdownMenu>
