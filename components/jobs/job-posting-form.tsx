@@ -6,7 +6,6 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import {
-  CalendarIcon,
   Check,
   ChevronDown,
   Loader2,
@@ -458,14 +457,13 @@ export function JobPostingForm() {
                   Closing Date <span className="text-primary">*</span>
                 </Label>
 
-                <div className="relative max-w-md">
-                  <CalendarIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <div className="max-w-md">
                   <Input
                     type="date"
                     value={formData.deadline}
                     min={new Date().toISOString().split("T")[0]}
                     onChange={(e) => updateField("deadline", e.target.value)}
-                    className="h-11 rounded-md border-slate-200 pl-10 text-sm"
+                    className="h-11 rounded-md border-slate-200 text-sm [direction:rtl] text-left"
                     required
                   />
                 </div>
