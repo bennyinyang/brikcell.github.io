@@ -2021,6 +2021,20 @@ export function getIncomingMessageRequests() {
   return request<MessageRequestDTO[]>("/message-requests/incoming")
 }
 
+export type SentMessageRequestsResponse = {
+  data: (MessageRequestDTO & { recipient?: { id: string; name: string; email: string } })[]
+  total: number
+  page: number
+  limit: number
+  totalPages: number
+}
+
+export function getSentMessageRequests(page = 1, limit = 10) {
+  return request<SentMessageRequestsResponse>(
+    `/message-requests/sent?page=${page}&limit=${limit}`
+  )
+}
+
 export function acceptMessageRequest(id: string) {
   return request<{ request: MessageRequestDTO; room: { id: string } }>(
     `/message-requests/${id}/accept`,

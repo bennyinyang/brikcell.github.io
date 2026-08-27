@@ -495,7 +495,7 @@ function WalletFundingCard({
             </>
           ) : (
             <>
-              <DollarSign className="mr-2 h-4 w-4" />
+              <span className="mr-2 font-semibold">₦</span>
               Fund Wallet
             </>
           )}

@@ -214,7 +214,7 @@ export function Header() {
               {isArtisan ? (
                 <>
                   <Link href="/dashboard/jobs" className="text-sm font-medium text-gray-700 hover:text-secondary transition-colors whitespace-nowrap">
-                    Find a job
+                    Browse Jobs
                   </Link>
                   <Link href="/dashboard/services/post" className="text-sm font-medium text-gray-700 hover:text-secondary transition-colors whitespace-nowrap">
                     Post a service
