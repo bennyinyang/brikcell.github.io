@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { Eye, EyeOff, Mail } from "lucide-react"
+import { Eye, EyeOff, Mail, AlertCircle } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,8 +22,20 @@ export default function LoginPage() {
   const [rememberMe, setRememberMe] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState("")
+  const [sessionExpired, setSessionExpired] = useState(false)
 
   const router = useRouter()
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search)
+      if (params.get("session") === "expired") {
+        setSessionExpired(true)
+        // Clean the URL without reloading
+        window.history.replaceState({}, "", "/auth/login")
+      }
+    }
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -81,6 +93,13 @@ export default function LoginPage() {
                 Welcome back! Please enter your details.
               </p>
             </div>
+
+            {sessionExpired && (
+              <div className="mb-5 flex items-start gap-2.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-800">
+                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+                <span>Your session has expired. Please log in again to continue.</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-5">
               {error && (

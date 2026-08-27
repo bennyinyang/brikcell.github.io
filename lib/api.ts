@@ -79,9 +79,13 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
 
   if (!res.ok) {
     if (res.status === 401) {
-      // Clear stale credentials so the user starts fresh on next login
       if (typeof window !== "undefined") {
         localStorage.removeItem("auth_jwt");
+        localStorage.removeItem("auth_user");
+        // Redirect to login — avoid redirect loop if already there
+        if (!window.location.pathname.startsWith("/auth/")) {
+          window.location.href = "/auth/login?session=expired";
+        }
       }
       const err: any = new Error("Your session has expired. Please log in again to continue.");
       err.status = 401;
