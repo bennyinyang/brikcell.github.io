@@ -30,6 +30,9 @@ import {
   Settings,
   Headphones,
   Search,
+  X,
+  Pencil,
+  FileText,
 } from "lucide-react"
 import Link from "next/link"
 import {
@@ -44,7 +47,11 @@ import {
   initDeposit,
   declineContract,
   normalizePaginatedResponse,
+  listMyEmployerJobs,
+  updateEmployerJob,
+  getAuth,
   type PaginationMeta,
+  type JobRecord,
 } from "@/lib/api"
 import { WithdrawalCard } from "@/components/withdrawal-card"
 import { PaginationControl } from "@/components/pagination-control"
@@ -1152,6 +1159,139 @@ function EmployerServiceCard({
   )
 }
 
+function PostedGigModal({
+  gig,
+  onClose,
+  onUpdated,
+}: {
+  gig: JobRecord
+  onClose: () => void
+  onUpdated: (updated: JobRecord) => void
+}) {
+  const [title, setTitle] = useState(gig.title)
+  const [description, setDescription] = useState(gig.description ?? "")
+  const [location, setLocation] = useState(gig.location ?? "")
+  const [budgetMin, setBudgetMin] = useState(gig.budget_min != null ? String(gig.budget_min) : "")
+  const [budgetMax, setBudgetMax] = useState(gig.budget_max != null ? String(gig.budget_max) : "")
+  const [status, setStatus] = useState<string>(gig.status)
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const payload: any = { title, description, location, status }
+      if (budgetMin) payload.budget_min = Number(budgetMin)
+      if (budgetMax) payload.budget_max = Number(budgetMax)
+      const updated = await updateEmployerJob(gig.id, payload)
+      onUpdated(updated)
+      toast.success("Gig updated")
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to update gig")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h2 className="text-base font-semibold text-slate-900">Edit Posted Gig</h2>
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-slate-400 hover:text-slate-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Title</label>
+            <input
+              className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Description</label>
+            <textarea
+              rows={3}
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Location</label>
+            <input
+              className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">Budget min (₦)</label>
+              <input
+                type="number"
+                min={0}
+                className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+                value={budgetMin}
+                onChange={(e) => setBudgetMin(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">Budget max (₦)</label>
+              <input
+                type="number"
+                min={0}
+                className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+                value={budgetMax}
+                onChange={(e) => setBudgetMax(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Status</label>
+            <select
+              className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              <option value="open">Open</option>
+              <option value="in_progress">In progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60"
+          >
+            {saving && <Loader2 className="h-4 w-4 animate-spin" />}
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export function CustomerDashboard() {
   const [activeTab, setActiveTab] = useState("active")
   const [stats, setStats] = useState<DashboardStats>({
@@ -1167,6 +1307,10 @@ export function CustomerDashboard() {
   const [activeJobs, setActiveJobs] = useState<ContractJobCard[]>([])
   const [completedJobs, setCompletedJobs] = useState<ContractJobCard[]>([])
   const [suggestedArtisans, setSuggestedArtisans] = useState<SuggestedArtisan[]>([])
+  const [postedGigs, setPostedGigs] = useState<JobRecord[]>([])
+  const [selectedGig, setSelectedGig] = useState<JobRecord | null>(null)
+  const [showGigModal, setShowGigModal] = useState(false)
+  const [customerName, setCustomerName] = useState("")
   const [loading, setLoading] = useState(true)
   const [showFunding, setShowFunding] = useState(false)
   const [showWithdrawal, setShowWithdrawal] = useState(false)
@@ -1181,6 +1325,11 @@ const [activePagination, setActivePagination] =
   useState<PaginationMeta | null>(null)
 const [historyPagination, setHistoryPagination] =
   useState<PaginationMeta | null>(null)
+
+  useEffect(() => {
+    const auth = getAuth()
+    if (auth?.user?.name) setCustomerName(auth.user.name)
+  }, [])
 
   const refreshStats = useCallback(async () => {
     try {
@@ -1214,10 +1363,11 @@ const [historyPagination, setHistoryPagination] =
       try {
         setLoading(true)
 
-        const [overview, active, history] = await Promise.all([
+        const [overview, active, history, myGigs] = await Promise.all([
           CustomerDashboardAPI.getOverview(overviewPage, 6),
           CustomerDashboardAPI.getActiveJobs(activePage, 6),
           CustomerDashboardAPI.getJobHistory(historyPage, 6),
+          listMyEmployerJobs().catch(() => [] as JobRecord[]),
         ])
 
         if (cancelled) return
@@ -1254,6 +1404,7 @@ const [historyPagination, setHistoryPagination] =
         )
 
         setSuggestedArtisans(suggestedPaginated.data.map(mapSuggestedArtisan))
+        setPostedGigs(Array.isArray(myGigs) ? myGigs : [])
       } catch (err) {
         console.error("Customer dashboard load error:", err)
       } finally {
@@ -1358,7 +1509,7 @@ const [historyPagination, setHistoryPagination] =
           <section>
             <div className="border-b border-slate-100 pb-6">
               <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
-                Welcome Back, James!
+                Welcome Back{customerName ? `, ${customerName}` : ""}!
               </h1>
               <p className="mt-1 text-sm text-slate-500">
                 Here is a quick overview of your activities
@@ -1405,9 +1556,9 @@ const [historyPagination, setHistoryPagination] =
                   </span>
                 </TabsTrigger>
                 <TabsTrigger value="upcoming" className="rounded-md text-xs">
-                  Upcoming services
+                  Posted Gigs
                   <span className="ml-2 rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500">
-                    0
+                    {postedGigs.length}
                   </span>
                 </TabsTrigger>
                 <TabsTrigger value="history" className="rounded-md text-xs">
@@ -1441,8 +1592,97 @@ const [historyPagination, setHistoryPagination] =
                 )}
               </TabsContent>
 
-              <TabsContent value="upcoming" className="mt-5">
-                <EmptyServicesState />
+              <TabsContent value="upcoming" className="mt-5 space-y-3">
+                {postedGigs.length === 0 ? (
+                  <div className="flex flex-col items-center gap-3 py-12 text-center">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100">
+                      <FileText className="h-5 w-5 text-slate-400" />
+                    </div>
+                    <p className="text-sm font-medium text-slate-700">No gigs posted yet</p>
+                    <p className="text-xs text-slate-500">Jobs you post will appear here.</p>
+                    <Link
+                      href="/post-job"
+                      className="mt-1 inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-white hover:bg-primary/90"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      Post a job
+                    </Link>
+                  </div>
+                ) : (
+                  postedGigs.map((gig) => (
+                    <div
+                      key={gig.id}
+                      className="flex cursor-pointer items-start justify-between rounded-lg border border-slate-100 bg-white p-4 shadow-sm transition-shadow hover:shadow-md"
+                      onClick={() => { setSelectedGig(gig); setShowGigModal(true) }}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-slate-900">{gig.title}</p>
+                          <span className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${
+                            gig.status === "open" ? "bg-emerald-50 text-emerald-700" :
+                            gig.status === "in_progress" ? "bg-blue-50 text-blue-700" :
+                            gig.status === "completed" ? "bg-slate-100 text-slate-600" :
+                            "bg-red-50 text-red-600"
+                          }`}>
+                            {gig.status === "in_progress" ? "In progress" : gig.status.charAt(0).toUpperCase() + gig.status.slice(1)}
+                          </span>
+                        </div>
+                        <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
+                          {gig.category && (
+                            <span className="flex items-center gap-1">
+                              <Briefcase className="h-3 w-3" />{gig.category}
+                            </span>
+                          )}
+                          {gig.location && (
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3 w-3" />{gig.location}
+                            </span>
+                          )}
+                          {(gig.budget_min || gig.budget_max) && (
+                            <span className="flex items-center gap-1">
+                              <DollarSign className="h-3 w-3" />
+                              {gig.budget_min && gig.budget_max
+                                ? `₦${Number(gig.budget_min).toLocaleString()} – ₦${Number(gig.budget_max).toLocaleString()}`
+                                : gig.budget_min
+                                ? `From ₦${Number(gig.budget_min).toLocaleString()}`
+                                : `Up to ₦${Number(gig.budget_max).toLocaleString()}`}
+                            </span>
+                          )}
+                          {(gig.createdAt || gig.created_at) && (
+                            <span className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3" />
+                              {new Date(gig.createdAt ?? gig.created_at!).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+                            </span>
+                          )}
+                        </div>
+                        {gig.description && (
+                          <p className="mt-2 line-clamp-2 text-xs text-slate-500">{gig.description}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        className="ml-3 shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-700"
+                        onClick={(e) => { e.stopPropagation(); setSelectedGig(gig); setShowGigModal(true) }}
+                        aria-label="View or edit gig"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))
+                )}
+
+                {/* Gig detail/edit modal */}
+                {showGigModal && selectedGig && (
+                  <PostedGigModal
+                    gig={selectedGig}
+                    onClose={() => { setShowGigModal(false); setSelectedGig(null) }}
+                    onUpdated={(updated) => {
+                      setPostedGigs((prev) => prev.map((g) => g.id === updated.id ? updated : g))
+                      setShowGigModal(false)
+                      setSelectedGig(null)
+                    }}
+                  />
+                )}
               </TabsContent>
 
               <TabsContent value="history" className="mt-5 space-y-4">

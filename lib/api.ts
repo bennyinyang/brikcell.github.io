@@ -1124,6 +1124,13 @@ export function listMyEmployerJobs() {
   return request<JobRecord[]>("/jobs/mine")
 }
 
+export function updateEmployerJob(id: string, payload: Partial<Pick<JobRecord, "title" | "description" | "location" | "status" | "budget_min" | "budget_max">>) {
+  return request<JobRecord>(`/jobs/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  })
+}
+
 
 /* ============================================================
    SERVICES
