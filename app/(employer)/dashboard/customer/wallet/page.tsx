@@ -173,18 +173,11 @@ function EmptyTransactionsState({
 }) {
   return (
     <div className="flex min-h-[390px] flex-col items-center justify-center px-4 text-center">
-      <div className="relative flex h-56 w-56 items-center justify-center rounded-full border border-slate-50">
-        <div className="absolute h-48 w-48 rounded-full border border-slate-50" />
-        <div className="absolute h-40 w-40 rounded-full border border-slate-100" />
-        <div className="absolute h-32 w-32 rounded-full border border-slate-100" />
-        <div className="absolute h-24 w-24 rounded-full border border-slate-200" />
-
-        <div className="z-10 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white">
-          <ReceiptText className="h-5 w-5 text-slate-500" />
-        </div>
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white">
+        <ReceiptText className="h-5 w-5 text-slate-500" />
       </div>
 
-      <h3 className="-mt-8 text-sm font-semibold text-slate-950">
+      <h3 className="mt-4 text-sm font-semibold text-slate-950">
         No transactions found
       </h3>
       <p className="mt-1 text-xs text-slate-500">

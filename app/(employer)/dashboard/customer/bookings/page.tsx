@@ -162,18 +162,11 @@ function EmployerSidebar() {
 function EmptyBookingsState() {
   return (
     <div className="flex min-h-[360px] flex-col items-center justify-center px-4 text-center">
-      <div className="relative flex h-52 w-52 items-center justify-center rounded-full border border-slate-50">
-        <div className="absolute h-44 w-44 rounded-full border border-slate-50" />
-        <div className="absolute h-36 w-36 rounded-full border border-slate-100" />
-        <div className="absolute h-28 w-28 rounded-full border border-slate-100" />
-        <div className="absolute h-20 w-20 rounded-full border border-slate-200" />
-
-        <div className="z-10 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white">
-          <CalendarDays className="h-5 w-5 text-slate-500" />
-        </div>
+      <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white">
+        <CalendarDays className="h-5 w-5 text-slate-500" />
       </div>
 
-      <h3 className="-mt-8 text-sm font-semibold text-slate-950">
+      <h3 className="mt-4 text-sm font-semibold text-slate-950">
         No services found
       </h3>
       <p className="mt-1 text-xs text-slate-500">

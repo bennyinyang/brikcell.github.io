@@ -296,27 +296,19 @@ function getInitials(name?: string) {
 
 function EmptyServices() {
   return (
-    <div className="relative flex min-h-[310px] flex-col items-center justify-center overflow-hidden rounded-2xl bg-white px-4 text-center">
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="h-[360px] w-[360px] rounded-full border border-slate-100" />
-        <div className="absolute h-[300px] w-[300px] rounded-full border border-slate-100" />
-        <div className="absolute h-[240px] w-[240px] rounded-full border border-slate-100" />
-        <div className="absolute h-[180px] w-[180px] rounded-full border border-slate-100" />
-        <div className="absolute h-[120px] w-[120px] rounded-full border border-slate-100" />
-      </div>
-
-      <div className="relative z-10 mb-4 flex h-12 w-12 items-center justify-center rounded-xl border bg-white shadow-sm">
+    <div className="flex min-h-[310px] flex-col items-center justify-center rounded-2xl bg-white px-4 text-center">
+      <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border bg-white shadow-sm">
         <CircleUserRound className="h-6 w-6 text-slate-500" />
       </div>
 
-      <h3 className="relative z-10 text-base font-semibold text-slate-950">
+      <h3 className="text-base font-semibold text-slate-950">
         No services found
       </h3>
-      <p className="relative z-10 mt-1 text-sm text-slate-500">
+      <p className="mt-1 text-sm text-slate-500">
         You haven&apos;t started any services yet.
       </p>
 
-      <div className="relative z-10 mt-6 flex flex-col gap-3 sm:flex-row">
+      <div className="mt-6 flex flex-col gap-3 sm:flex-row">
         <Button asChild variant="outline" className="min-w-[140px]">
           <Link href="/dashboard/jobs">Search for Jobs</Link>
         </Button>

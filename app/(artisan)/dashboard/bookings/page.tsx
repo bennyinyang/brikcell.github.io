@@ -96,22 +96,17 @@ function getStatusClass(status: string) {
 function EmptyBookingsState() {
   return (
     <div className="flex min-h-[430px] items-center justify-center">
-      <div className="relative flex w-full max-w-sm flex-col items-center text-center">
-        <div className="absolute h-72 w-72 rounded-full border border-slate-100" />
-        <div className="absolute mt-6 h-60 w-60 rounded-full border border-slate-100" />
-        <div className="absolute mt-12 h-48 w-48 rounded-full border border-slate-100" />
-        <div className="absolute mt-20 h-36 w-36 rounded-full border border-slate-100" />
-
-        <div className="relative mt-24 flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
+      <div className="flex w-full max-w-sm flex-col items-center text-center">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-slate-200 bg-white shadow-sm">
           <ImageIcon className="h-5 w-5 text-slate-500" />
         </div>
 
-        <h3 className="relative mt-5 text-sm font-semibold text-slate-950">No booking found</h3>
-        <p className="relative mt-1 text-xs text-slate-500">
+        <h3 className="mt-5 text-sm font-semibold text-slate-950">No booking found</h3>
+        <p className="mt-1 text-xs text-slate-500">
           You haven’t started any services yet.
         </p>
 
-        <div className="relative mt-5 flex items-center gap-3">
+        <div className="mt-5 flex items-center gap-3">
           <Link href="/dashboard/jobs">
             <Button variant="outline" className="h-9 rounded-md px-5 text-xs">
               Search for Jobs
