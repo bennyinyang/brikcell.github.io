@@ -759,7 +759,8 @@ function ArtisanJobsInner() {
                   return (
                     <Card
                       key={job.id}
-                      className="overflow-hidden rounded-xl border-slate-100 bg-white shadow-sm transition hover:shadow-md"
+                      className="cursor-pointer overflow-hidden rounded-xl border-slate-100 bg-white shadow-sm transition hover:shadow-md"
+                      onClick={() => handleViewJob(job)}
                     >
                       <div className="h-[92px] overflow-hidden sm:h-[96px]">
                         <img
@@ -800,7 +801,7 @@ function ArtisanJobsInner() {
                             <button
                               type="button"
                               disabled={savingJobId === job.id}
-                              onClick={() => handleToggleSaveJob(job.id)}
+                              onClick={(e) => { e.stopPropagation(); handleToggleSaveJob(job.id) }}
                               className={`transition ${savedJobIds.has(job.id) ? "text-primary" : "text-slate-400 hover:text-primary"}`}
                               title={savedJobIds.has(job.id) ? "Unsave job" : "Save job"}
                             >
@@ -812,7 +813,7 @@ function ArtisanJobsInner() {
 
                             <button
                               type="button"
-                              onClick={() => handleViewJob(job)}
+                              onClick={(e) => { e.stopPropagation(); handleViewJob(job) }}
                               className="text-xs font-medium text-primary hover:underline"
                             >
                               Job details

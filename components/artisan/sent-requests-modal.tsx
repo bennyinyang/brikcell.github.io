@@ -107,7 +107,7 @@ export function SentRequestsModal({
                     )}
                     <div className="mt-1.5 flex items-center gap-1 text-[10px] text-slate-400">
                       <Clock className="h-3 w-3" />
-                      {new Date(req.created_at).toLocaleDateString("en-NG", {
+                      {new Date(req.createdAt ?? req.created_at ?? "").toLocaleDateString("en-NG", {
                         day: "numeric",
                         month: "short",
                         year: "numeric",

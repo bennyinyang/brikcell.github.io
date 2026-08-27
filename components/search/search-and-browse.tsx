@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { useSearchParams } from "next/navigation"
+import { useSearchParams, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
@@ -418,14 +418,19 @@ function SortPanel({
 }
 
 function ArtisanCard({ artisan }: { artisan: any }) {
+  const router = useRouter()
   const skill = Array.isArray(artisan.skills)
     ? artisan.skills[0]
     : artisan.serviceType || artisan.service_type || "Artisan"
 
   const serviceName = skill ? normalizeServiceLabel(skill) : "Artisan Service"
+  const profileHref = `/artisan/${artisan.artisanId || artisan.id || artisan.user_id}`
 
   return (
-    <article className="overflow-hidden rounded-lg border border-slate-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
+    <article
+      className="cursor-pointer overflow-hidden rounded-lg border border-slate-100 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md"
+      onClick={() => router.push(profileHref)}
+    >
       <div className="h-[92px] overflow-hidden bg-slate-100 sm:h-[96px]">
         <img
           src={artisan.cover_image || artisan.coverImage || "/placeholder.svg"}
@@ -486,7 +491,7 @@ function ArtisanCard({ artisan }: { artisan: any }) {
           size="sm"
           className="mt-3 h-7 w-full text-[11px] font-medium text-primary hover:bg-primary/5 hover:text-primary"
         >
-          <Link href={`/artisan/${artisan.artisanId || artisan.id || artisan.user_id}`}>
+          <Link href={profileHref} onClick={(e) => e.stopPropagation()}>
             See more
           </Link>
         </Button>
