@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
+import { toast } from "sonner"
 import {
   ChevronDown,
   CircleUserRound,
@@ -12,6 +13,11 @@ import {
   User,
   Send,
   X,
+  Pencil,
+  Trash2,
+  MapPin,
+  Briefcase,
+  Clock,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -32,8 +38,12 @@ import {
   getArtisanJobRequests,
   getArtisanActiveJobs,
   getArtisanJobHistory,
+  listMyServices,
+  updateServiceListing,
+  deleteServiceListing,
   normalizePaginatedResponse,
   type PaginationMeta,
+  type ServiceRecord,
 } from "@/lib/api"
 import { SentRequestsModal } from "@/components/artisan/sent-requests-modal"
 import { PaginationControl } from "@/components/pagination-control"
@@ -295,6 +305,229 @@ function getInitials(name?: string) {
     .join("")
     .slice(0, 2)
     .toUpperCase()
+}
+
+function PostedServiceCard({
+  service,
+  onEdit,
+  onDelete,
+  deleting,
+}: {
+  service: ServiceRecord
+  onEdit: () => void
+  onDelete: () => void
+  deleting: boolean
+}) {
+  const budgetLabel =
+    service.budget_min && service.budget_max
+      ? `₦${Number(service.budget_min).toLocaleString()} – ₦${Number(service.budget_max).toLocaleString()}`
+      : service.budget_min
+      ? `From ₦${Number(service.budget_min).toLocaleString()}`
+      : service.budget_max
+      ? `Up to ₦${Number(service.budget_max).toLocaleString()}`
+      : "Budget not set"
+
+  const statusColor =
+    service.status === "published"
+      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+      : "bg-slate-50 text-slate-600 border-slate-200"
+
+  return (
+    <div className="rounded-xl border border-slate-100 bg-white p-4 shadow-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <h3 className="line-clamp-1 text-sm font-semibold text-slate-900">{service.title}</h3>
+          {service.location && (
+            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500">
+              <MapPin className="h-3 w-3 shrink-0" />
+              {service.location}
+            </p>
+          )}
+        </div>
+        <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-medium capitalize ${statusColor}`}>
+          {service.status ?? "draft"}
+        </span>
+      </div>
+
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
+        <span className="flex items-center gap-1">
+          <Briefcase className="h-3 w-3" />
+          {String(service.service_type).replace(/_/g, " ")}
+        </span>
+        <span className="font-medium text-slate-700">{budgetLabel}</span>
+        {service.deadline && (
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {new Date(service.deadline).toLocaleDateString("en-NG", { day: "numeric", month: "short", year: "numeric" })}
+          </span>
+        )}
+      </div>
+
+      <div className="mt-4 flex gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 flex-1 text-xs"
+          onClick={onEdit}
+        >
+          <Pencil className="mr-1.5 h-3 w-3" />
+          Edit
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-8 flex-1 border-red-200 text-xs text-red-600 hover:bg-red-50 hover:text-red-700"
+          onClick={onDelete}
+          disabled={deleting}
+        >
+          <Trash2 className="mr-1.5 h-3 w-3" />
+          {deleting ? "Deleting…" : "Delete"}
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+function PostedServiceModal({
+  service,
+  onClose,
+  onUpdated,
+}: {
+  service: ServiceRecord
+  onClose: () => void
+  onUpdated: (updated: ServiceRecord) => void
+}) {
+  const [title, setTitle] = useState(service.title)
+  const [description, setDescription] = useState(service.description ?? "")
+  const [location, setLocation] = useState(service.location ?? "")
+  const [budgetMin, setBudgetMin] = useState(service.budget_min != null ? String(service.budget_min) : "")
+  const [budgetMax, setBudgetMax] = useState(service.budget_max != null ? String(service.budget_max) : "")
+  const [status, setStatus] = useState<string>(service.status ?? "draft")
+  const [deadline, setDeadline] = useState(service.deadline ?? "")
+  const [saving, setSaving] = useState(false)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      const payload: any = { title, description, location, status }
+      if (budgetMin) payload.budget_min = Number(budgetMin)
+      if (budgetMax) payload.budget_max = Number(budgetMax)
+      if (deadline) payload.deadline = deadline
+      const updated = await updateServiceListing(service.id, payload)
+      onUpdated(updated)
+      toast.success("Service updated")
+    } catch (err: any) {
+      toast.error(err?.message ?? "Failed to update service")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="w-full max-w-lg overflow-y-auto rounded-xl bg-white shadow-xl" style={{ maxHeight: "90vh" }}>
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+          <h2 className="text-base font-semibold text-slate-900">Edit Service</h2>
+          <button type="button" onClick={onClose} className="rounded-md p-1 text-slate-400 hover:text-slate-700">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="space-y-4 px-5 py-5">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Title</label>
+            <input
+              className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Description</label>
+            <textarea
+              rows={3}
+              className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Location</label>
+            <input
+              className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">Budget min (₦)</label>
+              <input
+                type="number"
+                min={0}
+                className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+                value={budgetMin}
+                onChange={(e) => setBudgetMin(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-700">Budget max (₦)</label>
+              <input
+                type="number"
+                min={0}
+                className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+                value={budgetMax}
+                onChange={(e) => setBudgetMax(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Deadline</label>
+            <input
+              type="date"
+              className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm [direction:rtl] text-left focus:border-primary focus:outline-none"
+              value={deadline}
+              onChange={(e) => setDeadline(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-700">Status</label>
+            <select
+              className="h-9 w-full rounded-md border border-slate-200 px-3 text-sm focus:border-primary focus:outline-none"
+              value={status}
+              onChange={(e) => setStatus(e.target.value)}
+            >
+              <option value="draft">Draft</option>
+              <option value="published">Published</option>
+            </select>
+          </div>
+        </div>
+
+        <div className="flex justify-end gap-2 border-t border-slate-100 px-5 py-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-md border border-slate-200 px-4 py-2 text-sm text-slate-700 hover:bg-slate-50"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+            className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-primary/90 disabled:opacity-60"
+          >
+            {saving ? "Saving…" : "Save changes"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function EmptyServices() {
@@ -562,7 +795,12 @@ const [selectedActiveJob, setSelectedActiveJob] =
 
   const [requestPagination, setRequestPagination] = useState<PaginationMeta | null>(null)
   const [activePagination, setActivePagination] = useState<PaginationMeta | null>(null)
-  const [historyPagination, setHistoryPagination] = useState<PaginationMeta | null>(null)  
+  const [historyPagination, setHistoryPagination] = useState<PaginationMeta | null>(null)
+
+  const [postedServices, setPostedServices] = useState<ServiceRecord[]>([])
+  const [servicesLoading, setServicesLoading] = useState(false)
+  const [editingService, setEditingService] = useState<ServiceRecord | null>(null)
+  const [deletingServiceId, setDeletingServiceId] = useState<string | null>(null)  
 
   useEffect(() => {
     let cancelled = false
@@ -606,6 +844,17 @@ const [selectedActiveJob, setSelectedActiveJob] =
       cancelled = true
     }
   }, [requestPage, activePage, historyPage])
+
+  useEffect(() => {
+    if (activeTab !== "upcoming") return
+    let cancelled = false
+    setServicesLoading(true)
+    listMyServices()
+      .then((data) => { if (!cancelled) setPostedServices(Array.isArray(data) ? data : []) })
+      .catch(() => { if (!cancelled) setPostedServices([]) })
+      .finally(() => { if (!cancelled) setServicesLoading(false) })
+    return () => { cancelled = true }
+  }, [activeTab])
 
   const artisan = summary?.artisan || {}
 
@@ -764,10 +1013,10 @@ const [selectedActiveJob, setSelectedActiveJob] =
               </TabsTrigger>
 
               <TabsTrigger value="upcoming" className="flex-col gap-0.5 py-2 text-[10px] sm:flex-row sm:text-xs">
-                <span className="sm:hidden">Upcoming</span>
-                <span className="hidden sm:inline">Upcoming services</span>
+                <span className="sm:hidden">Posted</span>
+                <span className="hidden sm:inline">Posted services</span>
                 <span className="rounded-full bg-slate-100 px-1.5 text-[10px] text-slate-500 sm:ml-2">
-                  0
+                  {postedServices.length}
                 </span>
               </TabsTrigger>
 
@@ -828,7 +1077,69 @@ const [selectedActiveJob, setSelectedActiveJob] =
             </TabsContent>
 
             <TabsContent value="upcoming" className="mt-0">
-              <EmptyServices />
+              {servicesLoading ? (
+                <div className="space-y-4">
+                  {[1, 2].map((i) => (
+                    <div key={i} className="rounded-xl border border-slate-100 bg-white px-4 py-4 shadow-sm">
+                      <div className="mb-3 flex items-start justify-between gap-3">
+                        <div className="flex-1 space-y-2">
+                          <div className="h-5 w-1/2 animate-pulse rounded bg-slate-100" />
+                          <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
+                        </div>
+                        <div className="h-6 w-16 animate-pulse rounded-full bg-slate-100" />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : postedServices.length === 0 ? (
+                <div className="flex min-h-[310px] flex-col items-center justify-center rounded-2xl bg-white px-4 text-center">
+                  <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border bg-white shadow-sm">
+                    <Briefcase className="h-6 w-6 text-slate-400" />
+                  </div>
+                  <h3 className="text-base font-semibold text-slate-950">No services posted yet</h3>
+                  <p className="mt-1 text-sm text-slate-500">Services you post will appear here.</p>
+                  <div className="mt-6 flex w-full flex-col gap-3 sm:flex-row sm:justify-center">
+                    <Button asChild className="h-12 w-full bg-primary text-sm font-semibold hover:bg-primary/90 sm:min-w-[160px] sm:w-auto">
+                      <Link href="/dashboard/services/post">Post a service</Link>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {postedServices.map((svc) => (
+                    <PostedServiceCard
+                      key={svc.id}
+                      service={svc}
+                      onEdit={() => setEditingService(svc)}
+                      onDelete={async () => {
+                        if (!confirm("Delete this service listing? This cannot be undone.")) return
+                        setDeletingServiceId(svc.id)
+                        try {
+                          await deleteServiceListing(svc.id)
+                          setPostedServices((prev) => prev.filter((s) => s.id !== svc.id))
+                          toast.success("Service deleted")
+                        } catch (err: any) {
+                          toast.error(err?.message ?? "Failed to delete service")
+                        } finally {
+                          setDeletingServiceId(null)
+                        }
+                      }}
+                      deleting={deletingServiceId === svc.id}
+                    />
+                  ))}
+                </div>
+              )}
+
+              {editingService && (
+                <PostedServiceModal
+                  service={editingService}
+                  onClose={() => setEditingService(null)}
+                  onUpdated={(updated) => {
+                    setPostedServices((prev) => prev.map((s) => s.id === updated.id ? updated : s))
+                    setEditingService(null)
+                  }}
+                />
+              )}
             </TabsContent>
 
             <TabsContent value="history" className="mt-0">

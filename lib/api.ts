@@ -1274,9 +1274,18 @@ export async function createServiceListing(
 }
 
 export function listMyServices() {
-  return request<ServiceRecord[]>("/services/mine", {
-   
-  })
+  return request<ServiceRecord[]>("/services/mine")
+}
+
+export function updateServiceListing(
+  id: string,
+  payload: Partial<Pick<ServiceRecord, "title" | "description" | "location" | "status" | "budget_min" | "budget_max" | "deadline">>
+) {
+  return request<ServiceRecord>(`/services/${id}`, { method: "PATCH", json: payload })
+}
+
+export function deleteServiceListing(id: string) {
+  return request<void>(`/services/${id}`, { method: "DELETE" })
 }
 
 export function listServices() {
