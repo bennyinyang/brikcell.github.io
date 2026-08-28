@@ -1057,7 +1057,7 @@ const [selectedActiveJob, setSelectedActiveJob] =
               View public profile
             </Link>
 
-            <Link href="/dashboard/services/post">Post A Services</Link>
+            <Link href="/dashboard/services/post">Post A Service</Link>
             <Link href="/dashboard/jobs">Top clients</Link>
             <Link href="/dashboard/saved-jobs">Saved jobs</Link>
           </div>
