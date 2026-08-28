@@ -939,45 +939,30 @@ const [selectedActiveJob, setSelectedActiveJob] =
 
   const totalJobs = activeJobsCount + completedJobsCount + pendingRequests
 
-  const calculatedProfileFields = useMemo(() => {
-    const profile = artisan || {}
-
+  // Weighted profile sections — mirrors backend calculateArtisanProfileCompletion exactly
+  const profileSections = useMemo(() => {
+    const p = artisan || {}
+    const skills = Array.isArray(p.skills) ? p.skills : []
     return [
-      profileImage,
-      profile.bio,
-      profile.location,
-      profile.experience,
-      profile.hourlyRate || profile.hourly_rate,
-      profile.service || profile.service_type,
-      Array.isArray(profile.skills) && profile.skills.length > 0,
+      { label: "Profile photo",   weight: 20, done: Boolean(p.profileImage) },
+      { label: "Bio",             weight: 20, done: Boolean(p.bio && String(p.bio).trim().length > 10) },
+      { label: "Service type",    weight: 15, done: Boolean(p.service || p.service_type) },
+      { label: "Experience",      weight: 15, done: Boolean(p.experience) },
+      { label: "Location",        weight: 10, done: Boolean(p.location) },
+      { label: "Hourly rate",     weight: 10, done: Boolean(Number(p.hourlyRate || p.hourly_rate) > 0) },
+      { label: "Skills",          weight: 10, done: skills.length > 0 },
     ]
-  }, [artisan, profileImage])
+  }, [artisan])
 
-  const fallbackProfileProgress = Math.min(
-    100,
-    Math.round(
-      (calculatedProfileFields.filter(Boolean).length /
-        calculatedProfileFields.length) *
-        100
-    )
+  const profileProgress = useMemo(
+    () => Math.min(100, profileSections.filter(s => s.done).reduce((sum, s) => sum + s.weight, 0)),
+    [profileSections]
   )
 
-  const backendProfileProgress = Number(
-    summary?.profileCompletion ?? artisan?.profileCompletion
+  const missingProfileItems = useMemo(
+    () => profileSections.filter(s => !s.done).map(s => ({ label: s.label, weight: s.weight })),
+    [profileSections]
   )
-
-  const profileProgress = Number.isFinite(backendProfileProgress)
-    ? Math.min(100, Math.max(0, backendProfileProgress))
-    : fallbackProfileProgress
-
-  const missingProfileItems = [
-    !profileImage && "Avatar",
-    !artisan?.bio && "Bio",
-    !artisan?.location && "Location",
-    !artisan?.experience && "Experience",
-    !(artisan?.service || artisan?.service_type) && "Service type",
-    !(Array.isArray(artisan?.skills) && artisan.skills.length > 0) && "Skills",
-  ].filter(Boolean) as string[]
 
   return (
     <main className="mx-auto max-w-[1280px] px-4 pb-12 pt-6 sm:px-6 lg:px-8">
@@ -1260,22 +1245,29 @@ const [selectedActiveJob, setSelectedActiveJob] =
 
               <Progress value={profileProgress} className="mb-4 h-1.5" />
 
-              <p className="mb-3 text-xs text-slate-500">
-                Improve your profile by completing:
-              </p>
+              {missingProfileItems.length > 0 && (
+                <p className="mb-3 text-xs text-slate-500">
+                  Improve your profile by completing:
+                </p>
+              )}
 
               <div className="space-y-2">
-                {(missingProfileItems.length ? missingProfileItems.slice(0, 3) : ["Profile completed"]).map(
-                  (item) => (
-                    <div
-                      key={item}
-                      className="flex items-center justify-between text-xs text-slate-600"
-                    >
-                      <span>— {item}</span>
-                      <span className="font-medium text-primary">+10%</span>
-                    </div>
-                  )
-                )}
+                {missingProfileItems.length > 0
+                  ? missingProfileItems.slice(0, 4).map((item) => (
+                      <div
+                        key={item.label}
+                        className="flex items-center justify-between text-xs text-slate-600"
+                      >
+                        <span>— {item.label}</span>
+                        <span className="font-medium text-primary">+{item.weight}%</span>
+                      </div>
+                    ))
+                  : (
+                      <div className="flex items-center gap-1.5 text-xs font-medium text-emerald-600">
+                        <span>✓</span>
+                        <span>Profile fully complete</span>
+                      </div>
+                    )}
               </div>
 
               <Link
