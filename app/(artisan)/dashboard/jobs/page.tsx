@@ -33,6 +33,7 @@ import {
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent } from "@/components/ui/card"
 import { Separator } from "@/components/ui/separator"
@@ -47,6 +48,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
@@ -298,6 +300,9 @@ function ArtisanJobsInner() {
   const [detailLoading, setDetailLoading] = useState(false)
   const [msgLoading, setMsgLoading] = useState(false)
   const [requestedEmployers, setRequestedEmployers] = useState<Set<string>>(new Set())
+  const [showComposeModal, setShowComposeModal] = useState(false)
+  const [composeMessage, setComposeMessage] = useState("")
+  const [composeTarget, setComposeTarget] = useState<JobRecord | null>(null)
   const [employerRating, setEmployerRating] = useState<number | null>(null)
   const [savedJobIds, setSavedJobIds] = useState<Set<string>>(new Set())
   const [savingJobId, setSavingJobId] = useState<string | null>(null)
@@ -476,7 +481,13 @@ function ArtisanJobsInner() {
     setSortBy("latest")
   }
 
-  const handleMessageEmployer = async (job: JobRecord) => {
+  const openComposeModal = (job: JobRecord) => {
+    setComposeTarget(job)
+    setComposeMessage("")
+    setShowComposeModal(true)
+  }
+
+  const handleMessageEmployer = async (job: JobRecord, message: string) => {
     const employerId = String((job as any).employer_id || job.employer?.id || "")
     if (!employerId) {
       toast.error("Employer information not available")
@@ -496,7 +507,7 @@ function ArtisanJobsInner() {
       if (existing) {
         router.push("/messages")
       } else {
-        await sendMessageRequest({ recipient_id: employerId, job_id: job.id })
+        await sendMessageRequest({ recipient_id: employerId, job_id: job.id, message: message.trim() || undefined })
         setRequestedEmployers((prev) => new Set(prev).add(employerId))
         toast.success("Message request sent to the employer")
       }
@@ -861,6 +872,53 @@ function ArtisanJobsInner() {
         </DialogContent>
       </Dialog>
 
+      {/* Compose message modal */}
+      <Dialog open={showComposeModal} onOpenChange={(open) => { if (!open) setShowComposeModal(false) }}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-base font-semibold">
+              Message {composeTarget?.employer?.name || "Employer"}
+            </DialogTitle>
+            <DialogDescription className="text-xs text-slate-500">
+              Write an introduction. This message will appear in the chat once the employer accepts your request.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-1 space-y-4">
+            <Textarea
+              placeholder="Hi! I saw your job listing and I'd love to discuss how I can help…"
+              className="min-h-[130px] resize-none rounded-xl border-slate-200 text-sm"
+              value={composeMessage}
+              onChange={(e) => setComposeMessage(e.target.value)}
+              maxLength={600}
+            />
+            <p className="text-right text-[11px] text-slate-400">{composeMessage.length}/600</p>
+
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                className="flex-1"
+                onClick={() => setShowComposeModal(false)}
+                disabled={msgLoading}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="flex-1 bg-primary hover:bg-primary/90"
+                disabled={msgLoading}
+                onClick={async () => {
+                  if (!composeTarget) return
+                  setShowComposeModal(false)
+                  await handleMessageEmployer(composeTarget, composeMessage)
+                }}
+              >
+                {msgLoading ? "Sending…" : "Send Request"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Backdrop */}
       {selectedJob && (
         <div
@@ -1094,7 +1152,7 @@ function ArtisanJobsInner() {
                       <Button
                         className="flex-1"
                         disabled={msgLoading || requested || detailLoading}
-                        onClick={() => handleMessageEmployer(selectedJob)}
+                        onClick={() => !requested && openComposeModal(selectedJob)}
                       >
                         {msgLoading ? "Please wait…" : requested ? "Request Sent" : "Message Employer"}
                       </Button>
