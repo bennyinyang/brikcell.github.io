@@ -1279,9 +1279,24 @@ export function listMyServices() {
 
 export function updateServiceListing(
   id: string,
-  payload: Partial<Pick<ServiceRecord, "title" | "description" | "location" | "status" | "budget_min" | "budget_max" | "deadline">>
+  payload: Partial<Pick<ServiceRecord, "title" | "description" | "location" | "status" | "budget_min" | "budget_max" | "deadline">> & {
+    newFiles?: File[]
+    removeAttachmentIds?: string[]
+  }
 ) {
-  return request<ServiceRecord>(`/services/${id}`, { method: "PATCH", json: payload })
+  const { newFiles = [], removeAttachmentIds = [], ...rest } = payload as any
+  if (newFiles.length || removeAttachmentIds.length) {
+    const form = new FormData()
+    Object.entries(rest).forEach(([k, v]) => {
+      if (v != null) form.append(k, String(v))
+    })
+    if (removeAttachmentIds.length) {
+      form.append("remove_attachment_ids", removeAttachmentIds.join(","))
+    }
+    newFiles.forEach((f: File) => form.append("files", f))
+    return request<ServiceRecord>(`/services/${id}`, { method: "PATCH", formData: form })
+  }
+  return request<ServiceRecord>(`/services/${id}`, { method: "PATCH", json: rest })
 }
 
 export function deleteServiceListing(id: string) {

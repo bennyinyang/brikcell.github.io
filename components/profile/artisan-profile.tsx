@@ -23,6 +23,7 @@ import {
   ShieldCheck,
   Star,
   Wallet,
+  X,
 } from "lucide-react"
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -233,6 +234,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
   const [isOwnProfile, setIsOwnProfile] = useState(false)
   const [viewerIsArtisan, setViewerIsArtisan] = useState(false)
   const [editingField, setEditingField] = useState<"currentStatus" | "responseTime" | "remoteServices" | null>(null)
+  const [selectedPortfolioItem, setSelectedPortfolioItem] = useState<any | null>(null)
   const [availabilityState, setAvailabilityState] = useState({
     currentStatus: "available",
     responseTime: "within_few_hours",
@@ -339,35 +341,60 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
     [profile?.certifications]
   )
 
-  const portfolioImages = useMemo(() => {
+  type PortfolioItem = {
+    key: string
+    title: string
+    description?: string
+    service_type?: string
+    budget_min?: number | null
+    budget_max?: number | null
+    deadline?: string | null
+    location?: string | null
+    images: string[]
+    isService: boolean
+  }
+
+  const portfolioItems = useMemo((): PortfolioItem[] => {
     const rawPortfolio = (data as any)?.portfolio || []
     const rawGallery =
       (profile as any)?.portfolioGallery ||
       (profile as any)?.portfolio_gallery ||
       []
 
-    const gallery = normalizePortfolioImages(rawGallery)
+    const galleryUrls = normalizePortfolioImages(rawGallery)
 
-    const fromPortfolio = Array.isArray(rawPortfolio)
+    const serviceItems: PortfolioItem[] = Array.isArray(rawPortfolio)
       ? rawPortfolio
-          .flatMap((item: any) => {
+          .map((item: any) => {
             const attachments = item?.attachments || []
             const attachmentUrls = Array.isArray(attachments)
-              ? attachments
-                  .map((a: any) => a?.url || a?.filename || "")
-                  .filter(Boolean)
+              ? attachments.map((a: any) => a?.url || a?.filename || "").filter(Boolean)
               : []
-
-            return [
-              item?.image,
-              item?.url,
-              item?.filename,
-              ...attachmentUrls,
-            ].filter(Boolean)
+            const images = [item?.image, item?.url, item?.filename, ...attachmentUrls].filter(Boolean)
+            return {
+              key: item?.id || item?.title || Math.random().toString(),
+              title: item?.title || "",
+              description: item?.description ?? undefined,
+              service_type: item?.service_type ?? undefined,
+              budget_min: item?.budget_min ?? null,
+              budget_max: item?.budget_max ?? null,
+              deadline: item?.deadline ?? null,
+              location: item?.location ?? undefined,
+              images,
+              isService: true,
+            } as PortfolioItem
           })
+          .filter((item: PortfolioItem) => item.images.length > 0 || item.title)
       : []
 
-    return [...gallery, ...fromPortfolio]
+    const galleryItems: PortfolioItem[] = galleryUrls.map((url, i) => ({
+      key: `gallery-${i}`,
+      title: "",
+      images: [url],
+      isService: false,
+    }))
+
+    return [...serviceItems, ...galleryItems]
   }, [data, profile])
 
   const firstName = user?.name?.split(" ")?.[0] || "Artisan"
@@ -792,26 +819,33 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
           </TabsContent>
 
           <TabsContent value="portfolio" className="mt-6">
-            {portfolioImages.length > 0 ? (
+            {portfolioItems.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {portfolioImages.map((image, index) => (
+                {portfolioItems.map((item) => (
                   <div
-                    key={`${image}-${index}`}
-                    className="group overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm"
+                    key={item.key}
+                    className="group cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md"
+                    onClick={() => setSelectedPortfolioItem(item)}
                   >
                     <div className="aspect-[4/3] overflow-hidden bg-slate-100">
-                      <img
-                        src={image}
-                        alt={`Portfolio ${index + 1}`}
-                        className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                      />
+                      {item.images[0] ? (
+                        <img
+                          src={item.images[0]}
+                          alt={item.title || "Portfolio image"}
+                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                        />
+                      ) : (
+                        <div className="flex h-full w-full items-center justify-center text-slate-300">
+                          <ImageIcon className="h-10 w-10" />
+                        </div>
+                      )}
                     </div>
                     <div className="p-4">
-                      <p className="text-sm font-medium text-slate-950">
-                        Project {index + 1}
+                      <p className="text-sm font-medium text-slate-950 line-clamp-1">
+                        {item.title || "Work sample"}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">
-                        Work sample from {firstName}.
+                        {item.service_type || `Work sample from ${firstName}`}
                       </p>
                     </div>
                   </div>
@@ -823,6 +857,79 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                 title="No portfolio yet"
                 text="This artisan has not uploaded work samples yet."
               />
+            )}
+
+            {/* Service detail popup */}
+            {selectedPortfolioItem && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setSelectedPortfolioItem(null)}>
+                <div
+                  className="w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
+                  style={{ maxHeight: "90vh" }}
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {/* Images */}
+                  {selectedPortfolioItem.images.length > 0 && (
+                    <div className={`grid ${selectedPortfolioItem.images.length === 1 ? "" : "grid-cols-2"} gap-1`}>
+                      {selectedPortfolioItem.images.map((img: string, i: number) => (
+                        <div key={i} className={`overflow-hidden bg-slate-100 ${i === 0 && selectedPortfolioItem.images.length % 2 !== 0 ? "col-span-2" : ""} ${i === 0 ? "rounded-t-2xl" : ""}`}>
+                          <img src={img} alt="" className="h-48 w-full object-cover" />
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="p-5">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-base font-semibold text-slate-900">
+                          {selectedPortfolioItem.title || "Service"}
+                        </h2>
+                        {selectedPortfolioItem.service_type && (
+                          <p className="mt-0.5 text-xs text-slate-500">{selectedPortfolioItem.service_type}</p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedPortfolioItem(null)}
+                        className="shrink-0 rounded-md p-1 text-slate-400 hover:text-slate-700"
+                      >
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+
+                    {selectedPortfolioItem.description && (
+                      <p className="mt-3 text-sm text-slate-600">{selectedPortfolioItem.description}</p>
+                    )}
+
+                    <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-500">
+                      {(selectedPortfolioItem.budget_min || selectedPortfolioItem.budget_max) && (
+                        <div>
+                          <p className="mb-0.5 font-medium text-slate-700">Budget</p>
+                          <p>
+                            {selectedPortfolioItem.budget_min && selectedPortfolioItem.budget_max
+                              ? `₦${Number(selectedPortfolioItem.budget_min).toLocaleString()} – ₦${Number(selectedPortfolioItem.budget_max).toLocaleString()}`
+                              : selectedPortfolioItem.budget_min
+                              ? `From ₦${Number(selectedPortfolioItem.budget_min).toLocaleString()}`
+                              : `Up to ₦${Number(selectedPortfolioItem.budget_max).toLocaleString()}`}
+                          </p>
+                        </div>
+                      )}
+                      {selectedPortfolioItem.location && (
+                        <div>
+                          <p className="mb-0.5 font-medium text-slate-700">Location</p>
+                          <p>{selectedPortfolioItem.location}</p>
+                        </div>
+                      )}
+                      {selectedPortfolioItem.deadline && (
+                        <div>
+                          <p className="mb-0.5 font-medium text-slate-700">Deadline</p>
+                          <p>{formatDate(selectedPortfolioItem.deadline)}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
           </TabsContent>
 

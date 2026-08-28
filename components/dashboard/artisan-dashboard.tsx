@@ -405,11 +405,33 @@ function PostedServiceModal({
   const [status, setStatus] = useState<string>(service.status ?? "draft")
   const [deadline, setDeadline] = useState(service.deadline ?? "")
   const [saving, setSaving] = useState(false)
+  const [newFiles, setNewFiles] = useState<File[]>([])
+  const [newPreviews, setNewPreviews] = useState<string[]>([])
+  const [removedIds, setRemovedIds] = useState<string[]>([])
+
+  const existingAttachments: any[] = Array.isArray(service.attachments) ? service.attachments : []
+  const visibleAttachments = existingAttachments.filter((a) => !removedIds.includes(String(a.id)))
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const picked = Array.from(e.target.files || [])
+    setNewFiles((prev) => [...prev, ...picked])
+    setNewPreviews((prev) => [...prev, ...picked.map((f) => URL.createObjectURL(f))])
+    e.target.value = ""
+  }
+
+  function removeNewFile(idx: number) {
+    setNewFiles((prev) => prev.filter((_, i) => i !== idx))
+    setNewPreviews((prev) => prev.filter((_, i) => i !== idx))
+  }
+
+  function removeExisting(id: string) {
+    setRemovedIds((prev) => [...prev, id])
+  }
 
   async function handleSave() {
     setSaving(true)
     try {
-      const payload: any = { title, description, location, status }
+      const payload: any = { title, description, location, status, newFiles, removeAttachmentIds: removedIds }
       if (budgetMin) payload.budget_min = Number(budgetMin)
       if (budgetMax) payload.budget_max = Number(budgetMax)
       if (deadline) payload.deadline = deadline
@@ -505,6 +527,43 @@ function PostedServiceModal({
               <option value="draft">Draft</option>
               <option value="published">Published</option>
             </select>
+          </div>
+
+          {/* Images */}
+          <div>
+            <label className="mb-2 block text-xs font-medium text-slate-700">Images</label>
+            {(visibleAttachments.length > 0 || newPreviews.length > 0) && (
+              <div className="mb-2 flex flex-wrap gap-2">
+                {visibleAttachments.map((a) => (
+                  <div key={a.id} className="relative h-20 w-20 overflow-hidden rounded-md border border-slate-200">
+                    <img src={a.url || a.filename} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeExisting(String(a.id))}
+                      className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+                {newPreviews.map((src, i) => (
+                  <div key={i} className="relative h-20 w-20 overflow-hidden rounded-md border border-slate-200">
+                    <img src={src} alt="" className="h-full w-full object-cover" />
+                    <button
+                      type="button"
+                      onClick={() => removeNewFile(i)}
+                      className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500 hover:border-slate-400 hover:bg-slate-50">
+              <input type="file" accept="image/*" multiple className="hidden" onChange={handleFileChange} />
+              + Add images
+            </label>
           </div>
         </div>
 
