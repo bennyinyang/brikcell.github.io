@@ -891,10 +891,10 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                   </div>
 
                   {/* Scrollable body */}
-                  <div className="flex min-h-0 flex-1 overflow-hidden lg:flex-row">
+                  <div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
                     {/* Image cards panel */}
                     {selectedPortfolioItem.images.length > 0 && (
-                      <div className="overflow-y-auto border-b border-slate-100 bg-slate-50 p-4 lg:w-3/5 lg:border-b-0 lg:border-r">
+                      <div className="h-[42%] shrink-0 overflow-y-auto border-b border-slate-100 bg-slate-50 p-4 lg:h-auto lg:w-3/5 lg:border-b-0 lg:border-r">
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
                           {selectedPortfolioItem.images.map((img: string, i: number) => (
                             <button
