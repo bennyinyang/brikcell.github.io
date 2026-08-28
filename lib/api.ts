@@ -1277,14 +1277,15 @@ export function listMyServices() {
   return request<ServiceRecord[]>("/services/mine")
 }
 
-export function updateServiceListing(
+export async function updateServiceListing(
   id: string,
   payload: Partial<Pick<ServiceRecord, "title" | "description" | "location" | "status" | "budget_min" | "budget_max" | "deadline">> & {
     newFiles?: File[]
     removeAttachmentIds?: string[]
   }
-) {
+): Promise<ServiceRecord> {
   const { newFiles = [], removeAttachmentIds = [], ...rest } = payload as any
+
   if (newFiles.length || removeAttachmentIds.length) {
     const form = new FormData()
     Object.entries(rest).forEach(([k, v]) => {
@@ -1293,9 +1294,24 @@ export function updateServiceListing(
     if (removeAttachmentIds.length) {
       form.append("remove_attachment_ids", removeAttachmentIds.join(","))
     }
-    newFiles.forEach((f: File) => form.append("files", f))
-    return request<ServiceRecord>(`/services/${id}`, { method: "PATCH", formData: form })
+    ;(newFiles as File[]).forEach((f) => form.append("files", f))
+
+    const headers: Record<string, string> = {}
+    const jwt = typeof window !== "undefined" ? localStorage.getItem("auth_jwt") : null
+    if (jwt) headers["Authorization"] = `Bearer ${jwt}`
+    if (API_BASE.includes("ngrok-free.app")) headers["ngrok-skip-browser-warning"] = "true"
+
+    const res = await fetch(`${API_BASE}/services/${id}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers,
+      body: form,
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(data?.message || data?.error || "Failed to update service")
+    return data as ServiceRecord
   }
+
   return request<ServiceRecord>(`/services/${id}`, { method: "PATCH", json: rest })
 }
 
