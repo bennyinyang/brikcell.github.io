@@ -268,7 +268,7 @@ export default function PostServicePage() {
               {/* Job title */}
               <div className="space-y-1.5">
                 <Label htmlFor="title" className="text-xs font-medium text-slate-600">
-                  Job Title <span className="text-red-500">*</span>
+                  Service Title <span className="text-red-500">*</span>
                 </Label>
                 <Input
                   id="title"
