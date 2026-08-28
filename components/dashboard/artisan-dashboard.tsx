@@ -868,11 +868,12 @@ const [selectedActiveJob, setSelectedActiveJob] =
       try {
         setLoading(true)
 
-        const [s, req, act, hist] = await Promise.all([
+        const [s, req, act, hist, svcs] = await Promise.all([
           getArtisanDashboardSummary(),
           getArtisanJobRequests(requestPage, 6),
           getArtisanActiveJobs(activePage, 6),
           getArtisanJobHistory(historyPage, 6),
+          listMyServices(),
         ])
 
         if (cancelled) return
@@ -890,6 +891,8 @@ const [selectedActiveJob, setSelectedActiveJob] =
         setRequestPagination(reqPaginated.pagination)
         setActivePagination(activePaginated.pagination)
         setHistoryPagination(historyPaginated.pagination)
+
+        setPostedServices(Array.isArray(svcs) ? svcs : [])
       } catch (err) {
         console.error("Dashboard load error:", err)
       } finally {
@@ -907,11 +910,9 @@ const [selectedActiveJob, setSelectedActiveJob] =
   useEffect(() => {
     if (activeTab !== "upcoming") return
     let cancelled = false
-    setServicesLoading(true)
     listMyServices()
       .then((data) => { if (!cancelled) setPostedServices(Array.isArray(data) ? data : []) })
-      .catch(() => { if (!cancelled) setPostedServices([]) })
-      .finally(() => { if (!cancelled) setServicesLoading(false) })
+      .catch(() => {})
     return () => { cancelled = true }
   }, [activeTab])
 

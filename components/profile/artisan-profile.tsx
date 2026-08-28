@@ -861,71 +861,99 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
 
             {/* Service detail popup */}
             {selectedPortfolioItem && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6" onClick={() => setSelectedPortfolioItem(null)}>
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-5"
+                onClick={() => setSelectedPortfolioItem(null)}
+              >
                 <div
-                  className="w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
-                  style={{ maxHeight: "92vh" }}
+                  className="flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+                  style={{ height: "90vh" }}
                   onClick={(e) => e.stopPropagation()}
                 >
-                  {/* Images */}
-                  {selectedPortfolioItem.images.length > 0 && (
-                    <div className={`grid ${selectedPortfolioItem.images.length === 1 ? "" : "grid-cols-2"} gap-1`}>
-                      {selectedPortfolioItem.images.map((img: string, i: number) => (
-                        <div key={i} className={`overflow-hidden bg-slate-100 ${i === 0 && selectedPortfolioItem.images.length % 2 !== 0 ? "col-span-2" : ""} ${i === 0 ? "rounded-t-2xl" : ""}`}>
-                          <img src={img} alt="" className="h-64 w-full object-cover sm:h-80" />
-                        </div>
-                      ))}
+                  {/* Header */}
+                  <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-7 py-5">
+                    <div>
+                      <h2 className="text-xl font-semibold text-slate-900">
+                        {selectedPortfolioItem.title || "Service"}
+                      </h2>
+                      {selectedPortfolioItem.service_type && (
+                        <p className="mt-0.5 text-sm text-slate-500">{selectedPortfolioItem.service_type}</p>
+                      )}
                     </div>
-                  )}
+                    <button
+                      type="button"
+                      onClick={() => setSelectedPortfolioItem(null)}
+                      className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                    >
+                      <X className="h-6 w-6" />
+                    </button>
+                  </div>
 
-                  <div className="p-6 sm:p-8">
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <h2 className="text-xl font-semibold text-slate-900">
-                          {selectedPortfolioItem.title || "Service"}
-                        </h2>
-                        {selectedPortfolioItem.service_type && (
-                          <p className="mt-1 text-sm text-slate-500">{selectedPortfolioItem.service_type}</p>
+                  {/* Scrollable body */}
+                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row">
+                    {/* Image panel */}
+                    {selectedPortfolioItem.images.length > 0 && (
+                      <div className="shrink-0 bg-slate-950 lg:w-3/5">
+                        {selectedPortfolioItem.images.length === 1 ? (
+                          <img
+                            src={selectedPortfolioItem.images[0]}
+                            alt={selectedPortfolioItem.title || ""}
+                            className="h-64 w-full object-cover lg:h-full"
+                          />
+                        ) : (
+                          <div className="grid h-64 grid-cols-2 gap-0.5 lg:h-full">
+                            {selectedPortfolioItem.images.map((img: string, i: number) => (
+                              <div
+                                key={i}
+                                className={`overflow-hidden ${
+                                  i === 0 && selectedPortfolioItem.images.length % 2 !== 0
+                                    ? "col-span-2"
+                                    : ""
+                                }`}
+                              >
+                                <img src={img} alt="" className="h-full w-full object-cover" />
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => setSelectedPortfolioItem(null)}
-                        className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-                      >
-                        <X className="h-6 w-6" />
-                      </button>
-                    </div>
-
-                    {selectedPortfolioItem.description && (
-                      <p className="mt-4 text-sm leading-relaxed text-slate-600">{selectedPortfolioItem.description}</p>
                     )}
 
-                    <div className="mt-6 grid grid-cols-2 gap-4 text-sm text-slate-500 sm:grid-cols-3">
-                      {(selectedPortfolioItem.budget_min || selectedPortfolioItem.budget_max) && (
+                    {/* Details panel */}
+                    <div className="flex flex-1 flex-col gap-6 p-7 lg:p-9">
+                      {selectedPortfolioItem.description && (
                         <div>
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Budget</p>
-                          <p className="font-medium text-slate-700">
-                            {selectedPortfolioItem.budget_min && selectedPortfolioItem.budget_max
-                              ? `₦${Number(selectedPortfolioItem.budget_min).toLocaleString()} – ₦${Number(selectedPortfolioItem.budget_max).toLocaleString()}`
-                              : selectedPortfolioItem.budget_min
-                              ? `From ₦${Number(selectedPortfolioItem.budget_min).toLocaleString()}`
-                              : `Up to ₦${Number(selectedPortfolioItem.budget_max).toLocaleString()}`}
-                          </p>
+                          <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">About this service</p>
+                          <p className="text-base leading-relaxed text-slate-600">{selectedPortfolioItem.description}</p>
                         </div>
                       )}
-                      {selectedPortfolioItem.location && (
-                        <div>
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Location</p>
-                          <p className="font-medium text-slate-700">{selectedPortfolioItem.location}</p>
-                        </div>
-                      )}
-                      {selectedPortfolioItem.deadline && (
-                        <div>
-                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Deadline</p>
-                          <p className="font-medium text-slate-700">{formatDate(selectedPortfolioItem.deadline)}</p>
-                        </div>
-                      )}
+
+                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                        {(selectedPortfolioItem.budget_min || selectedPortfolioItem.budget_max) && (
+                          <div className="rounded-xl border border-slate-100 bg-slate-50 px-5 py-4">
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">Budget</p>
+                            <p className="text-base font-semibold text-slate-800">
+                              {selectedPortfolioItem.budget_min && selectedPortfolioItem.budget_max
+                                ? `₦${Number(selectedPortfolioItem.budget_min).toLocaleString()} – ₦${Number(selectedPortfolioItem.budget_max).toLocaleString()}`
+                                : selectedPortfolioItem.budget_min
+                                ? `From ₦${Number(selectedPortfolioItem.budget_min).toLocaleString()}`
+                                : `Up to ₦${Number(selectedPortfolioItem.budget_max).toLocaleString()}`}
+                            </p>
+                          </div>
+                        )}
+                        {selectedPortfolioItem.location && (
+                          <div className="rounded-xl border border-slate-100 bg-slate-50 px-5 py-4">
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">Location</p>
+                            <p className="text-base font-semibold text-slate-800">{selectedPortfolioItem.location}</p>
+                          </div>
+                        )}
+                        {selectedPortfolioItem.deadline && (
+                          <div className="rounded-xl border border-slate-100 bg-slate-50 px-5 py-4">
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">Deadline</p>
+                            <p className="text-base font-semibold text-slate-800">{formatDate(selectedPortfolioItem.deadline)}</p>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
