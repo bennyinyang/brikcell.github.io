@@ -861,10 +861,10 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
 
             {/* Service detail popup */}
             {selectedPortfolioItem && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4" onClick={() => setSelectedPortfolioItem(null)}>
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 sm:p-6" onClick={() => setSelectedPortfolioItem(null)}>
                 <div
-                  className="w-full max-w-lg overflow-y-auto rounded-2xl bg-white shadow-2xl"
-                  style={{ maxHeight: "90vh" }}
+                  className="w-full max-w-2xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+                  style={{ maxHeight: "92vh" }}
                   onClick={(e) => e.stopPropagation()}
                 >
                   {/* Images */}
@@ -872,40 +872,40 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                     <div className={`grid ${selectedPortfolioItem.images.length === 1 ? "" : "grid-cols-2"} gap-1`}>
                       {selectedPortfolioItem.images.map((img: string, i: number) => (
                         <div key={i} className={`overflow-hidden bg-slate-100 ${i === 0 && selectedPortfolioItem.images.length % 2 !== 0 ? "col-span-2" : ""} ${i === 0 ? "rounded-t-2xl" : ""}`}>
-                          <img src={img} alt="" className="h-48 w-full object-cover" />
+                          <img src={img} alt="" className="h-64 w-full object-cover sm:h-80" />
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <div className="p-5">
-                    <div className="flex items-start justify-between gap-3">
+                  <div className="p-6 sm:p-8">
+                    <div className="flex items-start justify-between gap-4">
                       <div>
-                        <h2 className="text-base font-semibold text-slate-900">
+                        <h2 className="text-xl font-semibold text-slate-900">
                           {selectedPortfolioItem.title || "Service"}
                         </h2>
                         {selectedPortfolioItem.service_type && (
-                          <p className="mt-0.5 text-xs text-slate-500">{selectedPortfolioItem.service_type}</p>
+                          <p className="mt-1 text-sm text-slate-500">{selectedPortfolioItem.service_type}</p>
                         )}
                       </div>
                       <button
                         type="button"
                         onClick={() => setSelectedPortfolioItem(null)}
-                        className="shrink-0 rounded-md p-1 text-slate-400 hover:text-slate-700"
+                        className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                       >
-                        <X className="h-5 w-5" />
+                        <X className="h-6 w-6" />
                       </button>
                     </div>
 
                     {selectedPortfolioItem.description && (
-                      <p className="mt-3 text-sm text-slate-600">{selectedPortfolioItem.description}</p>
+                      <p className="mt-4 text-sm leading-relaxed text-slate-600">{selectedPortfolioItem.description}</p>
                     )}
 
-                    <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-500">
+                    <div className="mt-6 grid grid-cols-2 gap-4 text-sm text-slate-500 sm:grid-cols-3">
                       {(selectedPortfolioItem.budget_min || selectedPortfolioItem.budget_max) && (
                         <div>
-                          <p className="mb-0.5 font-medium text-slate-700">Budget</p>
-                          <p>
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Budget</p>
+                          <p className="font-medium text-slate-700">
                             {selectedPortfolioItem.budget_min && selectedPortfolioItem.budget_max
                               ? `₦${Number(selectedPortfolioItem.budget_min).toLocaleString()} – ₦${Number(selectedPortfolioItem.budget_max).toLocaleString()}`
                               : selectedPortfolioItem.budget_min
@@ -916,14 +916,14 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                       )}
                       {selectedPortfolioItem.location && (
                         <div>
-                          <p className="mb-0.5 font-medium text-slate-700">Location</p>
-                          <p>{selectedPortfolioItem.location}</p>
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Location</p>
+                          <p className="font-medium text-slate-700">{selectedPortfolioItem.location}</p>
                         </div>
                       )}
                       {selectedPortfolioItem.deadline && (
                         <div>
-                          <p className="mb-0.5 font-medium text-slate-700">Deadline</p>
-                          <p>{formatDate(selectedPortfolioItem.deadline)}</p>
+                          <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Deadline</p>
+                          <p className="font-medium text-slate-700">{formatDate(selectedPortfolioItem.deadline)}</p>
                         </div>
                       )}
                     </div>
