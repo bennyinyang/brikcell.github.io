@@ -235,6 +235,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
   const [viewerIsArtisan, setViewerIsArtisan] = useState(false)
   const [editingField, setEditingField] = useState<"currentStatus" | "responseTime" | "remoteServices" | null>(null)
   const [selectedPortfolioItem, setSelectedPortfolioItem] = useState<any | null>(null)
+  const [lightboxImage, setLightboxImage] = useState<string | null>(null)
   const [availabilityState, setAvailabilityState] = useState({
     currentStatus: "available",
     responseTime: "within_few_hours",
@@ -863,7 +864,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
             {selectedPortfolioItem && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-3 sm:p-5"
-                onClick={() => setSelectedPortfolioItem(null)}
+                onClick={() => { setSelectedPortfolioItem(null); setLightboxImage(null) }}
               >
                 <div
                   className="flex w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
@@ -882,7 +883,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                     </div>
                     <button
                       type="button"
-                      onClick={() => setSelectedPortfolioItem(null)}
+                      onClick={() => { setSelectedPortfolioItem(null); setLightboxImage(null) }}
                       className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
                     >
                       <X className="h-6 w-6" />
@@ -890,37 +891,33 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                   </div>
 
                   {/* Scrollable body */}
-                  <div className="flex min-h-0 flex-1 flex-col overflow-y-auto lg:flex-row">
-                    {/* Image panel */}
+                  <div className="flex min-h-0 flex-1 overflow-hidden lg:flex-row">
+                    {/* Image cards panel */}
                     {selectedPortfolioItem.images.length > 0 && (
-                      <div className="shrink-0 bg-slate-950 lg:w-3/5">
-                        {selectedPortfolioItem.images.length === 1 ? (
-                          <img
-                            src={selectedPortfolioItem.images[0]}
-                            alt={selectedPortfolioItem.title || ""}
-                            className="h-64 w-full object-cover lg:h-full"
-                          />
-                        ) : (
-                          <div className="grid h-64 grid-cols-2 gap-0.5 lg:h-full">
-                            {selectedPortfolioItem.images.map((img: string, i: number) => (
-                              <div
-                                key={i}
-                                className={`overflow-hidden ${
-                                  i === 0 && selectedPortfolioItem.images.length % 2 !== 0
-                                    ? "col-span-2"
-                                    : ""
-                                }`}
-                              >
-                                <img src={img} alt="" className="h-full w-full object-cover" />
+                      <div className="overflow-y-auto border-b border-slate-100 bg-slate-50 p-4 lg:w-3/5 lg:border-b-0 lg:border-r">
+                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-2 xl:grid-cols-3">
+                          {selectedPortfolioItem.images.map((img: string, i: number) => (
+                            <button
+                              key={i}
+                              type="button"
+                              className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-primary hover:shadow-md focus:outline-none focus:ring-2 focus:ring-primary"
+                              onClick={() => setLightboxImage(img)}
+                            >
+                              <div className="aspect-square w-full overflow-hidden">
+                                <img
+                                  src={img}
+                                  alt={`Image ${i + 1}`}
+                                  className="h-full w-full object-cover transition duration-200 group-hover:scale-105"
+                                />
                               </div>
-                            ))}
-                          </div>
-                        )}
+                            </button>
+                          ))}
+                        </div>
                       </div>
                     )}
 
                     {/* Details panel */}
-                    <div className="flex flex-1 flex-col gap-6 p-7 lg:p-9">
+                    <div className="flex flex-1 flex-col gap-6 overflow-y-auto p-7 lg:p-9">
                       {selectedPortfolioItem.description && (
                         <div>
                           <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-slate-400">About this service</p>
@@ -928,7 +925,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                         </div>
                       )}
 
-                      <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         {(selectedPortfolioItem.budget_min || selectedPortfolioItem.budget_max) && (
                           <div className="rounded-xl border border-slate-100 bg-slate-50 px-5 py-4">
                             <p className="mb-1 text-xs font-semibold uppercase tracking-widest text-slate-400">Budget</p>
@@ -957,6 +954,28 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                     </div>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {/* Lightbox */}
+            {lightboxImage && (
+              <div
+                className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4"
+                onClick={() => setLightboxImage(null)}
+              >
+                <button
+                  type="button"
+                  onClick={() => setLightboxImage(null)}
+                  className="absolute right-4 top-4 rounded-lg p-2 text-white/70 hover:text-white"
+                >
+                  <X className="h-7 w-7" />
+                </button>
+                <img
+                  src={lightboxImage}
+                  alt=""
+                  className="max-h-full max-w-full rounded-xl object-contain shadow-2xl"
+                  onClick={(e) => e.stopPropagation()}
+                />
               </div>
             )}
           </TabsContent>
