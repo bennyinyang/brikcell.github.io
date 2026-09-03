@@ -540,7 +540,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                     )}
                   </div>
 
-                  <p className="mt-1 text-sm font-medium text-primary">
+                  <p className="mt-6 text-sm font-medium text-primary sm:mt-8">
                     {skills[0] || profile?.service_type || "Professional Artisan"}
                   </p>
 
