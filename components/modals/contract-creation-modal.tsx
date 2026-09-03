@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Plus, Trash2, FileText, Package, Wrench, DollarSign, Calendar, AlertCircle, Send } from "lucide-react"
+import { Plus, Trash2, FileText, Package, Wrench, DollarSign, AlertCircle, Send } from "lucide-react"
 
 interface Phase {
   id: string
@@ -354,13 +354,11 @@ export function ContractCreationModal({
                           </div>
                           <div>
                             <Label className="text-xs">Due Date</Label>
-                            <div className="relative mt-1">
-                              <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                            <div className="mt-1">
                               <Input
                                 type="date"
                                 value={phase.dueDate}
                                 onChange={(e) => updatePhase(phase.id, "dueDate", e.target.value)}
-                                className="pl-9"
                               />
                             </div>
                           </div>

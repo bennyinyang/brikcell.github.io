@@ -677,11 +677,20 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
     return others.length ? others[0] : null
   }
 
+  // Sort conversations so the most recently active one is always first.
+  function sortByRecentMessage(convs: Conversation[]): Conversation[] {
+    return [...convs].sort((a, b) => {
+      const ta = a.lastMessage?.timestamp ? new Date(a.lastMessage.timestamp).getTime() : 0
+      const tb = b.lastMessage?.timestamp ? new Date(b.lastMessage.timestamp).getTime() : 0
+      return tb - ta
+    })
+  }
+
   // PATCH 3: guard null other participant and filter out bad rooms
   function mapRoomsToConversations(rooms: any[]): Conversation[] {
     if (!currentUserId) return []
 
-    return (rooms || [])
+    const mapped = (rooms || [])
       .map((room) => {
         // IMPORTANT: artisan may receive participantLinks instead of participants
         const rawParticipants =
@@ -735,6 +744,8 @@ const applySystemMilestoneUpdate = (messageText?: string) => {
         } as Conversation
       })
       .filter(Boolean) as Conversation[]
+
+    return sortByRecentMessage(mapped)
   }
 
   function mapMessages(apiMessages: any[]): Message[] {
@@ -1112,7 +1123,7 @@ useEffect(() => {
       }
 
       setConversations((prev) =>
-        prev.map((conv) => {
+        sortByRecentMessage(prev.map((conv) => {
           if (conv.id !== payload.room_id) return conv
           const isMe = payload.sender_id === currentUserId
           const isActive = currentRoomId === conv.id
@@ -1133,7 +1144,7 @@ useEffect(() => {
             },
             unreadCount: !isMe && !isActive ? (conv.unreadCount || 0) + 1 : conv.unreadCount,
           }
-        }),
+        }))
       )
     }
 
@@ -1356,7 +1367,7 @@ useEffect(() => {
       setMessages((prev) => [...prev, fileMessage])
 
       setConversations((prev) =>
-        prev.map((conv) =>
+        sortByRecentMessage(prev.map((conv) =>
           conv.id === roomId
             ? {
                 ...conv,
@@ -1369,7 +1380,7 @@ useEffect(() => {
                 },
               }
             : conv
-        )
+        ))
       )
 
       setTimeout(() => scrollToBottom(), 50)
@@ -2481,7 +2492,7 @@ useEffect(() => {
       })
 
       setConversations((prev) =>
-        prev.map((conv) =>
+        sortByRecentMessage(prev.map((conv) =>
           conv.id === roomId
             ? {
                 ...conv,
@@ -2494,7 +2505,7 @@ useEffect(() => {
                 },
               }
             : conv
-        )
+        ))
       )
 
       setTimeout(() => scrollToBottom(), 50)
