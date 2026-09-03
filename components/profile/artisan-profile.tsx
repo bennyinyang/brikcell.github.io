@@ -474,7 +474,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
         <div className="min-w-0 flex-1">
         <section className="overflow-hidden rounded-[28px] border border-slate-100 bg-white shadow-sm">
           <div
-            className="relative h-40"
+            className="relative h-48"
             style={
               coverImage
                 ? { backgroundImage: `url(${coverImage})`, backgroundSize: "cover", backgroundPosition: "center" }
@@ -514,19 +514,19 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                 Available for new work
               </div>
             )}
+
+            {/* Avatar anchored to cover — bottom half extends into content area below */}
+            <Avatar className="absolute -bottom-14 left-5 z-10 h-28 w-28 border-4 border-white bg-slate-100 shadow-sm sm:-bottom-16 sm:left-8 sm:h-32 sm:w-32">
+              <AvatarImage src={profileImage} alt={user.name} />
+              <AvatarFallback className="text-2xl font-semibold">
+                {getInitials(user.name)}
+              </AvatarFallback>
+            </Avatar>
           </div>
 
-          <div className="px-5 pb-6 pt-4 sm:px-8">
-            <div className="-mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex flex-col gap-3">
-                <Avatar className="h-28 w-28 border-4 border-white bg-slate-100 shadow-sm sm:h-32 sm:w-32">
-                  <AvatarImage src={profileImage} alt={user.name} />
-                  <AvatarFallback className="text-2xl font-semibold">
-                    {getInitials(user.name)}
-                  </AvatarFallback>
-                </Avatar>
-
-                <div className="pb-1">
+          <div className="px-5 pb-6 pt-20 sm:px-8 sm:pt-24">
+            <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="pb-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
                       {user.name}
@@ -568,7 +568,6 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                       Responds quickly
                     </span>
                   </div>
-                </div>
               </div>
 
               <div className="flex flex-nowrap gap-2 lg:pb-2">
