@@ -516,9 +516,9 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
             )}
           </div>
 
-          <div className="px-5 pb-6 pt-2 sm:px-8">
+          <div className="px-5 pb-6 pt-4 sm:px-8">
             <div className="-mt-6 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="flex flex-col gap-5 sm:flex-row sm:items-end">
+              <div className="flex flex-col gap-3">
                 <Avatar className="h-28 w-28 border-4 border-white bg-slate-100 shadow-sm sm:h-32 sm:w-32">
                   <AvatarImage src={profileImage} alt={user.name} />
                   <AvatarFallback className="text-2xl font-semibold">
