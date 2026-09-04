@@ -225,11 +225,10 @@ function FundWalletPanel({
       const authUrl = response?.authorization_url;
       if (!authUrl) throw new Error("No payment URL returned");
 
-      toast.success("Payment page opened. Complete your payment there.", {
-        id: toastId,
-      });
+      toast.success("Redirecting to payment page…", { id: toastId });
 
-      window.open(authUrl, "_blank");
+      sessionStorage.setItem("brikcell_payment_return_url", "/dashboard/customer/wallet");
+      window.location.href = authUrl;
       setAmount("");
       await onSuccess();
     } catch (error: any) {
@@ -339,8 +338,9 @@ function PaymentMethodPanel({
       const authUrl = response?.authorization_url
       if (!authUrl) throw new Error("No Paystack payment URL returned")
 
-      toast.success("Paystack payment page opened", { id: toastId })
-      window.open(authUrl, "_blank")
+      toast.success("Redirecting to payment page…", { id: toastId })
+      sessionStorage.setItem("brikcell_payment_return_url", "/dashboard/customer/wallet");
+      window.location.href = authUrl
       setShowAddCardModal(false)
     } catch (error: any) {
       toast.error(error?.message || "Unable to open Paystack payment page", {

@@ -62,6 +62,15 @@ export function InnerPage() {
   const [verifyData, setVerifyData] = useState<VerifyResponse | null>(null)
   const [countdown, setCountdown] = useState<number>(5)
 
+  // Read the return URL stored before the Paystack redirect and clear it immediately
+  // so a page refresh doesn't send the user back to the wrong place.
+  const [returnUrl] = useState<string>(() => {
+    if (typeof window === "undefined") return "/dashboard/customer"
+    const stored = sessionStorage.getItem("brikcell_payment_return_url") || "/dashboard/customer"
+    sessionStorage.removeItem("brikcell_payment_return_url")
+    return stored
+  })
+
   // Paystack commonly returns either ?reference=... or ?trxref=... (sometimes both)
   const reference = useMemo(() => {
     const ref = searchParams.get("reference") || searchParams.get("trxref") || ""
@@ -131,7 +140,7 @@ export function InnerPage() {
       setCountdown((c) => {
         if (c <= 1) {
           clearInterval(t)
-          router.replace("/dashboard/customer")
+          router.replace(returnUrl)
           return 0
         }
         return c - 1
@@ -139,7 +148,7 @@ export function InnerPage() {
     }, 1000)
 
     return () => clearInterval(t)
-  }, [uiState, router])
+  }, [uiState, router, returnUrl])
 
   const badge = (() => {
     if (uiState === "success") return <Badge className="bg-green-600">SUCCESS</Badge>
@@ -214,8 +223,8 @@ export function InnerPage() {
             <div className="flex flex-col sm:flex-row gap-2">
               {uiState === "success" ? (
                 <>
-                  <Button className="flex-1" onClick={() => router.replace("/dashboard")}>
-                    Go to Dashboard ({countdown})
+                  <Button className="flex-1" onClick={() => router.replace(returnUrl)}>
+                    Continue ({countdown})
                   </Button>
                   <Button
                     className="flex-1"
