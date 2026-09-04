@@ -9,6 +9,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
@@ -16,8 +17,13 @@ import {
   Menu, X, MessageSquare, Search, User,
   Bell, LogOut, Briefcase, Calendar, Plus,
   CheckCheck, Wallet, Milestone, FileText, ShieldAlert,
+  ArrowLeftRight, Loader2,
 } from "lucide-react"
-import { getAuth, logoutEverywhere, getArtisanProfile, getMyProfile, type NotificationDTO } from "@/lib/api"
+import {
+  getAuth, logoutEverywhere, getArtisanProfile, getMyProfile,
+  switchRole as apiSwitchRole, saveAuth,
+  type NotificationDTO,
+} from "@/lib/api"
 import { useUnreadMessages } from "@/lib/useUnreadMessages"
 import { useNotifications } from "@/lib/useNotifications"
 
@@ -45,9 +51,19 @@ function notifIcon(type: string) {
   return <FileText className="h-4 w-4" />
 }
 
-function notifHref(type: string): string | null {
-  if (type === "message_request") return "/messages"
-  if (type === "message_request_accepted" || type === "message_request_declined") return "/messages"
+// Route notification tap to the right dashboard based on acting_role in meta
+function notifHref(n: NotificationDTO): string | null {
+  const actingRole = (n.meta as any)?.acting_role as string | undefined
+
+  if (n.type === "message_request") {
+    return actingRole === "artisan" ? "/dashboard/artisan" : "/messages"
+  }
+  if (n.type === "message_request_accepted" || n.type === "message_request_declined") {
+    return "/messages"
+  }
+  if (n.type?.startsWith("milestone")) {
+    return actingRole === "artisan" ? "/dashboard/artisan" : "/dashboard/customer"
+  }
   return null
 }
 
@@ -104,7 +120,6 @@ function NotificationPanel({
                 n.is_read ? "opacity-60" : ""
               }`}
             >
-              {/* Type icon */}
               <div className={`mt-0.5 flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-full ${
                 n.is_read ? "bg-gray-100 text-gray-400" : "bg-primary/10 text-primary"
               }`}>
@@ -132,6 +147,20 @@ function NotificationPanel({
   )
 }
 
+// Role badge pill shown in dropdown
+function RoleBadge({ role }: { role: string }) {
+  const isArtisan = role === "artisan"
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+      isArtisan
+        ? "bg-secondary/10 text-secondary"
+        : "bg-primary/10 text-primary"
+    }`}>
+      {isArtisan ? "Artisan" : "Employer"}
+    </span>
+  )
+}
+
 export function Header() {
   const router = useRouter()
   const searchRef = useRef<HTMLInputElement>(null)
@@ -142,36 +171,45 @@ export function Header() {
   const [userName, setUserName] = useState("")
   const [profileImageUrl, setProfileImageUrl] = useState("")
   const [searchQuery, setSearchQuery] = useState("")
+  const [availableRoles, setAvailableRoles] = useState<string[]>([])
+  const [activeRole, setActiveRole] = useState<string>("")
+  const [switchingRole, setSwitchingRole] = useState(false)
+  const [switchError, setSwitchError] = useState<string | null>(null)
   const unreadMessages = useUnreadMessages()
   const { notifications, unreadCount: unreadNotifs, markRead, markAllRead } = useNotifications()
 
-  useEffect(() => {
-    const sync = async () => {
-      const auth = getAuth()
-      const loggedIn = !!auth?.token
-      setIsLoggedIn(loggedIn)
-      setUserName(auth?.user?.name || "")
-      const artisan = auth?.user?.role === "artisan"
-      setIsArtisan(artisan)
+  const syncAuth = async () => {
+    const auth = getAuth()
+    const loggedIn = !!auth?.token
+    setIsLoggedIn(loggedIn)
+    setUserName(auth?.user?.name || "")
 
-      if (loggedIn && auth?.user?.id) {
-        try {
-          if (artisan) {
-            const data = await getArtisanProfile(auth.user.id)
-            setProfileImageUrl(data?.profile?.profileImage || "")
-          } else {
-            const data = await getMyProfile() as any
-            setProfileImageUrl(data?.avatar_url || "")
-          }
-        } catch {
-          // silently ignore — fallback to initials
+    // active_role is what they're acting as right now; falls back to primary role
+    const currentActive = auth?.user?.active_role || auth?.user?.role || "employer"
+    const artisan = currentActive === "artisan"
+    setIsArtisan(artisan)
+    setActiveRole(currentActive)
+    setAvailableRoles(auth?.user?.roles || [auth?.user?.role || "employer"])
+
+    if (loggedIn && auth?.user?.id) {
+      try {
+        if (artisan) {
+          const data = await getArtisanProfile(auth.user.id)
+          setProfileImageUrl(data?.profile?.profileImage || "")
+        } else {
+          const data = await getMyProfile() as any
+          setProfileImageUrl(data?.avatar_url || "")
         }
+      } catch {
+        // silently ignore — fallback to initials
       }
     }
+  }
 
-    sync()
-    window.addEventListener("storage", sync)
-    return () => window.removeEventListener("storage", sync)
+  useEffect(() => {
+    syncAuth()
+    window.addEventListener("storage", syncAuth)
+    return () => window.removeEventListener("storage", syncAuth)
   }, [])
 
   const handleLogout = async () => {
@@ -181,6 +219,28 @@ export function Header() {
     setProfileImageUrl("")
     setIsMenuOpen(false)
     router.push("/auth/login")
+  }
+
+  const handleSwitchRole = async (targetRole: "artisan" | "employer") => {
+    if (targetRole === activeRole || switchingRole) return
+    setSwitchingRole(true)
+    setSwitchError(null)
+    try {
+      await apiSwitchRole(targetRole)
+      // syncAuth picks up the new active_role from updated localStorage
+      await syncAuth()
+      setIsMenuOpen(false)
+      // Redirect to the right dashboard for the new role
+      router.push(targetRole === "artisan" ? "/dashboard/artisan" : "/dashboard/customer")
+    } catch (err: any) {
+      if (err?.code === "ARTISAN_PROFILE_INCOMPLETE" || err?.status === 422) {
+        setSwitchError(err?.message || "Complete your artisan profile before switching.")
+      } else {
+        setSwitchError("Could not switch role. Please try again.")
+      }
+    } finally {
+      setSwitchingRole(false)
+    }
   }
 
   const handleSearch = (e: React.FormEvent) => {
@@ -199,6 +259,10 @@ export function Header() {
     ? userName.split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase()
     : "U"
 
+  // The other role the user can switch to (if they have it unlocked or can unlock it)
+  const otherRole = isArtisan ? "employer" : "artisan"
+  const canSwitch = availableRoles.length > 1 || true // always show — backend gates completeness
+
   return (
     <header className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -207,7 +271,6 @@ export function Header() {
           {/* ── Logo ── */}
           <Link href="/" className="flex items-center space-x-2 flex-shrink-0" onClick={closeMobileMenu}>
             <img src="/logomark.svg" alt="Brikcell Logo" className="h-8 w-7" />
-            {/* <span className="text-2xl text-[rgba(167,59,218,1)] font-semibold">Brikcell</span> */}
           </Link>
 
           {/* ── Desktop Navigation (logged in) ── */}
@@ -304,7 +367,7 @@ export function Header() {
                       onMarkRead={markRead}
                       onMarkAllRead={markAllRead}
                       onNotifClick={(n) => {
-                        const href = notifHref(n.type)
+                        const href = notifHref(n)
                         if (href) router.push(href)
                       }}
                     />
@@ -312,7 +375,7 @@ export function Header() {
                 </DropdownMenu>
 
                 {/* Profile avatar dropdown */}
-                <DropdownMenu>
+                <DropdownMenu onOpenChange={() => setSwitchError(null)}>
                   <DropdownMenuTrigger asChild>
                     <button type="button" className="focus:outline-none rounded-full ring-offset-2 focus:ring-2 focus:ring-primary/40">
                       <Avatar className="h-9 w-9 cursor-pointer">
@@ -323,13 +386,47 @@ export function Header() {
                       </Avatar>
                     </button>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-44 mt-1">
+                  <DropdownMenuContent align="end" className="w-52 mt-1">
+
+                    {/* Current role indicator */}
+                    <DropdownMenuLabel className="flex items-center justify-between py-2">
+                      <span className="text-xs text-gray-500 font-normal">Active role</span>
+                      <RoleBadge role={activeRole} />
+                    </DropdownMenuLabel>
+
+                    <DropdownMenuSeparator />
+
+                    {/* My Profile */}
                     <DropdownMenuItem asChild>
                       <Link href="/profile/setup" className="flex items-center gap-2 cursor-pointer">
                         <User className="h-4 w-4" />
                         My Profile
                       </Link>
                     </DropdownMenuItem>
+
+                    {/* Switch Role */}
+                    {canSwitch && (
+                      <DropdownMenuItem
+                        onClick={() => handleSwitchRole(otherRole as "artisan" | "employer")}
+                        disabled={switchingRole}
+                        className="flex items-center gap-2 cursor-pointer"
+                      >
+                        {switchingRole ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <ArrowLeftRight className="h-4 w-4" />
+                        )}
+                        Switch to {otherRole === "artisan" ? "Artisan" : "Employer"}
+                      </DropdownMenuItem>
+                    )}
+
+                    {/* Profile incomplete error */}
+                    {switchError && (
+                      <div className="px-3 py-2 text-[11px] text-red-600 bg-red-50 mx-1 mb-1 rounded-md leading-snug">
+                        {switchError}
+                      </div>
+                    )}
+
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
                       onClick={handleLogout}
@@ -371,6 +468,12 @@ export function Header() {
 
             {isLoggedIn ? (
               <>
+                {/* Active role badge */}
+                <div className="flex items-center justify-between px-3 py-2 mb-1">
+                  <span className="text-xs text-gray-500">Active role</span>
+                  <RoleBadge role={activeRole} />
+                </div>
+
                 {/* Mobile search */}
                 <form onSubmit={(e) => { handleSearch(e); closeMobileMenu() }} className="relative px-1 mb-3">
                   <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
@@ -449,6 +552,30 @@ export function Header() {
                   <User className="h-5 w-5 flex-shrink-0" />
                   <span className="text-sm font-medium">My Profile</span>
                 </Link>
+
+                {/* Switch Role — mobile */}
+                {canSwitch && (
+                  <button
+                    onClick={() => handleSwitchRole(otherRole as "artisan" | "employer")}
+                    disabled={switchingRole}
+                    className="flex items-center space-x-3 px-3 py-3 rounded-xl text-gray-700 hover:bg-gray-50 hover:text-primary transition-colors w-full text-left disabled:opacity-50"
+                  >
+                    {switchingRole ? (
+                      <Loader2 className="h-5 w-5 flex-shrink-0 animate-spin" />
+                    ) : (
+                      <ArrowLeftRight className="h-5 w-5 flex-shrink-0" />
+                    )}
+                    <span className="text-sm font-medium">
+                      Switch to {otherRole === "artisan" ? "Artisan" : "Employer"}
+                    </span>
+                  </button>
+                )}
+
+                {switchError && (
+                  <div className="mx-3 px-3 py-2 text-xs text-red-600 bg-red-50 rounded-xl leading-snug">
+                    {switchError}
+                  </div>
+                )}
 
                 <div className="pt-2 border-t border-gray-100 mt-2">
                   <button

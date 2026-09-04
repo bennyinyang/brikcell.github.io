@@ -203,6 +203,8 @@ export type UserDTO = {
   id: string;
   email: string;
   role: "artisan" | "employer" | "admin" | "support";
+  active_role?: "artisan" | "employer";
+  roles?: ("artisan" | "employer")[];
   name: string;
 };
 
@@ -2114,6 +2116,20 @@ export function clearAuth() {
   if (typeof window === "undefined") return;
   localStorage.removeItem("auth_user");
   localStorage.removeItem("auth_jwt");
+}
+
+export async function switchRole(targetRole: "artisan" | "employer"): Promise<{
+  token: string;
+  user: UserDTO;
+}> {
+  const result = await request<{ token: string; user: UserDTO }>("/auth/switch-role", {
+    method: "POST",
+    body: JSON.stringify({ target_role: targetRole }),
+  });
+  // Persist new token + updated user (with new active_role) immediately
+  saveAuth(result.token, result.user);
+  window.dispatchEvent(new Event("storage")); // notify header to re-sync
+  return result;
 }
 // ── Favourite Artisans (employer) ──────────────────────────────
 export function getFavouriteArtisans() {
