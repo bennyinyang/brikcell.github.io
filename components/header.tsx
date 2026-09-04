@@ -426,8 +426,15 @@ export function Header() {
 
                     {/* Profile incomplete / error — stays visible because dropdown stays open */}
                     {switchError && (
-                      <div className="px-3 py-2 text-[11px] text-red-600 bg-red-50 mx-1 mb-1 rounded-md leading-snug">
-                        {switchError}
+                      <div className="px-3 py-2 mx-1 mb-1 rounded-md bg-red-50 leading-snug">
+                        <p className="text-[11px] text-red-600">{switchError}</p>
+                        <Link
+                          href="/profile/setup"
+                          onClick={() => setSwitchError(null)}
+                          className="mt-1 inline-block text-[11px] font-medium text-primary underline underline-offset-2"
+                        >
+                          Go to profile settings →
+                        </Link>
                       </div>
                     )}
 
@@ -576,8 +583,15 @@ export function Header() {
                 )}
 
                 {switchError && (
-                  <div className="mx-3 px-3 py-2 text-xs text-red-600 bg-red-50 rounded-xl leading-snug">
-                    {switchError}
+                  <div className="mx-3 px-3 py-2 bg-red-50 rounded-xl leading-snug">
+                    <p className="text-xs text-red-600">{switchError}</p>
+                    <Link
+                      href="/profile/setup"
+                      onClick={() => { setSwitchError(null); closeMobileMenu() }}
+                      className="mt-1 inline-block text-xs font-medium text-primary underline underline-offset-2"
+                    >
+                      Go to profile settings →
+                    </Link>
                   </div>
                 )}
 
