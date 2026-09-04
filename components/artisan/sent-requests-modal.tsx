@@ -1,10 +1,32 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import { Send, Clock, X, Loader2, User } from "lucide-react"
+import { Send, Clock, X, Loader2, User, CheckCircle2, XCircle } from "lucide-react"
 import { getSentMessageRequests } from "@/lib/api"
 
 const LIMIT = 8
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === "accepted")
+    return (
+      <span className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">
+        <CheckCircle2 className="h-3 w-3" />
+        Accepted
+      </span>
+    )
+  if (status === "declined")
+    return (
+      <span className="mt-0.5 flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-600">
+        <XCircle className="h-3 w-3" />
+        Declined
+      </span>
+    )
+  return (
+    <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+      Pending
+    </span>
+  )
+}
 
 export function SentRequestsModal({
   open,
@@ -53,7 +75,7 @@ export function SentRequestsModal({
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <div className="flex items-center gap-2">
             <Send className="h-4 w-4 text-primary" />
-            <h2 className="text-sm font-semibold text-slate-900">Message Requests Sent</h2>
+            <h2 className="text-sm font-semibold text-slate-900">Application History</h2>
             {total > 0 && (
               <span className="flex h-5 min-w-[20px] items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-semibold text-white">
                 {total}
@@ -78,9 +100,9 @@ export function SentRequestsModal({
           ) : requests.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-10 text-center">
               <Send className="mb-3 h-8 w-8 text-slate-300" />
-              <p className="text-sm font-medium text-slate-600">No pending requests</p>
+              <p className="text-sm font-medium text-slate-600">No applications yet</p>
               <p className="mt-1 text-xs text-slate-400">
-                Requests accepted by employers are removed automatically.
+                When you send a message request to an employer it will appear here.
               </p>
             </div>
           ) : (
@@ -114,9 +136,7 @@ export function SentRequestsModal({
                       })}
                     </div>
                   </div>
-                  <span className="mt-0.5 shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">
-                    Pending
-                  </span>
+                  <StatusBadge status={req.status} />
                 </div>
               ))}
             </div>
@@ -148,11 +168,17 @@ export function SentRequestsModal({
           </div>
         )}
 
-        {/* Footer note */}
-        <div className="border-t border-slate-100 px-5 py-3">
-          <p className="text-center text-[11px] text-slate-400">
-            Employers who accept are removed from this list automatically
-          </p>
+        {/* Legend */}
+        <div className="flex items-center justify-center gap-4 border-t border-slate-100 px-5 py-3">
+          <span className="flex items-center gap-1 text-[11px] text-slate-400">
+            <span className="h-2 w-2 rounded-full bg-amber-400" /> Pending
+          </span>
+          <span className="flex items-center gap-1 text-[11px] text-slate-400">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" /> Accepted
+          </span>
+          <span className="flex items-center gap-1 text-[11px] text-slate-400">
+            <span className="h-2 w-2 rounded-full bg-red-400" /> Declined
+          </span>
         </div>
       </div>
     </div>
