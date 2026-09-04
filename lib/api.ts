@@ -96,7 +96,9 @@ async function request<T>(path: string, opts: FetchOptions = {}): Promise<T> {
       (typeof data?.error === "string" ? data.error : data?.error?.message) ||
       `HTTP ${res.status}`;
     const err: any = new Error(message);
-    err.status = res.status;
+    err.status  = res.status;
+    err.code    = data?.code;    // e.g. 'ARTISAN_PROFILE_INCOMPLETE'
+    err.missing = data?.missing; // array of missing fields
     throw err;
   }
 
@@ -2124,7 +2126,7 @@ export async function switchRole(targetRole: "artisan" | "employer"): Promise<{
 }> {
   const result = await request<{ token: string; user: UserDTO }>("/auth/switch-role", {
     method: "POST",
-    body: JSON.stringify({ target_role: targetRole }),
+    json: { target_role: targetRole }, // must use json: so Content-Type is set for body-parser
   });
   // Persist new token + updated user (with new active_role) immediately
   saveAuth(result.token, result.user);

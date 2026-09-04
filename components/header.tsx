@@ -227,17 +227,18 @@ export function Header() {
     setSwitchError(null)
     try {
       await apiSwitchRole(targetRole)
-      // syncAuth picks up the new active_role from updated localStorage
       await syncAuth()
       setIsMenuOpen(false)
-      // Redirect to the right dashboard for the new role
       router.push(targetRole === "artisan" ? "/dashboard/artisan" : "/dashboard/customer")
     } catch (err: any) {
-      if (err?.code === "ARTISAN_PROFILE_INCOMPLETE" || err?.status === 422) {
-        setSwitchError(err?.message || "Complete your artisan profile before switching.")
-      } else {
-        setSwitchError("Could not switch role. Please try again.")
-      }
+      // Covers both 422 profile-incomplete AND any other failure
+      const msg =
+        err?.message ||
+        (err?.missing?.length
+          ? `Complete your artisan profile. Missing: ${err.missing.join(", ")}.`
+          : null) ||
+        "Could not switch role. Please try again."
+      setSwitchError(msg)
     } finally {
       setSwitchingRole(false)
     }
@@ -375,7 +376,7 @@ export function Header() {
                 </DropdownMenu>
 
                 {/* Profile avatar dropdown */}
-                <DropdownMenu onOpenChange={() => setSwitchError(null)}>
+                <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <button type="button" className="focus:outline-none rounded-full ring-offset-2 focus:ring-2 focus:ring-primary/40">
                       <Avatar className="h-9 w-9 cursor-pointer">
@@ -404,9 +405,10 @@ export function Header() {
                       </Link>
                     </DropdownMenuItem>
 
-                    {/* Switch Role */}
+                    {/* Switch Role — onSelect preventDefault keeps dropdown open during/after request */}
                     {canSwitch && (
                       <DropdownMenuItem
+                        onSelect={(e) => e.preventDefault()}
                         onClick={() => handleSwitchRole(otherRole as "artisan" | "employer")}
                         disabled={switchingRole}
                         className="flex items-center gap-2 cursor-pointer"
@@ -416,11 +418,13 @@ export function Header() {
                         ) : (
                           <ArrowLeftRight className="h-4 w-4" />
                         )}
-                        Switch to {otherRole === "artisan" ? "Artisan" : "Employer"}
+                        {switchingRole
+                          ? "Switching…"
+                          : `Switch to ${otherRole === "artisan" ? "Artisan" : "Employer"}`}
                       </DropdownMenuItem>
                     )}
 
-                    {/* Profile incomplete error */}
+                    {/* Profile incomplete / error — stays visible because dropdown stays open */}
                     {switchError && (
                       <div className="px-3 py-2 text-[11px] text-red-600 bg-red-50 mx-1 mb-1 rounded-md leading-snug">
                         {switchError}
