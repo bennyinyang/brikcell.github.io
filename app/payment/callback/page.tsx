@@ -224,7 +224,7 @@ export function InnerPage() {
               {uiState === "success" ? (
                 <>
                   <Button className="flex-1" onClick={() => router.replace(returnUrl)}>
-                    Continue ({countdown})
+                    Dashboard ({countdown})
                   </Button>
                   <Button
                     className="flex-1"
