@@ -209,7 +209,7 @@ export function MessagingInterface() {
   console.log("[Messaging] auth.user.id =", auth?.user?.id)
   console.log("[Messaging] auth.user.role =", auth?.user?.role)
   //console.log("[Messaging] tokenExists =", Boolean(auth?.token))
-  const currentUserRole = auth?.user?.role
+  const currentUserRole = auth?.user?.active_role || auth?.user?.role
   const currentUserId = auth?.user?.id as string | undefined
 
   const canStartFromUrl = Boolean(incomingArtisanId || incomingArtisanEmail)
@@ -3078,7 +3078,7 @@ useEffect(() => {
                   e.target.value = ""
                 }}
               />
-              {auth?.user?.role === "artisan" && (
+              {currentUserRole === "artisan" && (
                 <Button
                   variant="ghost"
                   size="sm"

@@ -198,11 +198,10 @@ export function BookingModal({
   initialBooking = null,
   onSaved,
 }: BookingModalProps) {
-  const isEmployer =
-    currentUser?.role === "employer"
+  const effectiveRole = currentUser?.active_role || currentUser?.role
 
-  const isArtisan =
-    currentUser?.role === "artisan"
+  const isEmployer = effectiveRole === "employer"
+  const isArtisan  = effectiveRole === "artisan"
 
   /**
    * This string changes only when the actual contract IDs

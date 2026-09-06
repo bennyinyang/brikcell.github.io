@@ -825,7 +825,7 @@ export default function SupportPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const auth = getAuth()
-  const role = auth?.user?.role
+  const role = auth?.user?.active_role || auth?.user?.role
   const isArtisan = role === "artisan"
 
   // Page view state

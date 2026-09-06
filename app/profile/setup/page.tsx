@@ -77,7 +77,8 @@ export default function ProfileSetupPage() {
 
   useEffect(() => {
     const auth = getAuth()
-    setRole(auth?.user?.role === "artisan" ? "artisan" : "employer")
+    const effectiveRole = auth?.user?.active_role || auth?.user?.role
+    setRole(effectiveRole === "artisan" ? "artisan" : "employer")
   }, [])
 
   return (

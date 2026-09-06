@@ -67,7 +67,8 @@ function ProfileNavSidebar() {
 
   useEffect(() => {
     const auth = getAuth()
-    if (auth?.user?.role === "artisan") setNavItems(ARTISAN_NAV)
+    const effectiveRole = auth?.user?.active_role || auth?.user?.role
+    if (effectiveRole === "artisan") setNavItems(ARTISAN_NAV)
   }, [])
 
   return (
@@ -247,7 +248,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
 
   useEffect(() => {
     const auth = getAuth()
-    setViewerIsArtisan(auth?.user?.role === "artisan")
+    setViewerIsArtisan((auth?.user?.active_role || auth?.user?.role) === "artisan")
   }, [])
 
   useEffect(() => {
@@ -274,7 +275,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
           )
 
           // Load favourite status for employers
-          if (auth?.user?.role === "employer") {
+          if ((auth?.user?.active_role || auth?.user?.role) === "employer") {
             try {
               const { getFavouriteArtisans } = await import("@/lib/api")
               const favs: any[] = await getFavouriteArtisans()
