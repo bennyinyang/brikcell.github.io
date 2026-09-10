@@ -682,44 +682,58 @@ function ArtisanJobsInner() {
           </div>
 
           <section>
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-end">
-              <div className="relative w-full sm:max-w-[330px]">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  value={searchText}
-                  onChange={(e) => setSearchText(e.target.value)}
-                  placeholder="Search Jobs"
-                  className="h-10 rounded-md pl-10 text-sm"
-                />
-              </div>
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              {/* Requests Sent — always visible, left side */}
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex w-full shrink-0 items-center gap-2 border-primary/30 text-primary hover:bg-primary/5 sm:w-auto"
+                onClick={() => setShowSentRequests(true)}
+              >
+                <Send className="h-4 w-4" />
+                Requests Sent
+              </Button>
 
-              <Select value={sortBy} onValueChange={setSortBy}>
-                <SelectTrigger className="hidden h-10 w-[140px] rounded-md sm:flex">
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="latest">Sort by latest</SelectItem>
-                  <SelectItem value="budget-high">Budget high</SelectItem>
-                  <SelectItem value="budget-low">Budget low</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* Search + Sort — right side */}
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+                <div className="relative w-full sm:max-w-[330px]">
+                  <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    placeholder="Search Jobs"
+                    className="h-10 rounded-md pl-10 text-sm"
+                  />
+                </div>
 
-              <div className="grid grid-cols-2 gap-2 sm:hidden">
-                <Button variant="ghost" size="sm" className="gap-2" type="button">
-                  <SlidersHorizontal className="h-4 w-4" />
-                  Sort by
-                </Button>
+                <Select value={sortBy} onValueChange={setSortBy}>
+                  <SelectTrigger className="hidden h-10 w-[140px] rounded-md sm:flex">
+                    <SelectValue placeholder="Sort by" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="latest">Sort by latest</SelectItem>
+                    <SelectItem value="budget-high">Budget high</SelectItem>
+                    <SelectItem value="budget-low">Budget low</SelectItem>
+                  </SelectContent>
+                </Select>
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="gap-2"
-                  type="button"
-                  onClick={() => setShowMobileFilters(true)}
-                >
-                  <SlidersHorizontal className="h-4 w-4" />
-                  Filter
-                </Button>
+                <div className="grid grid-cols-2 gap-2 sm:hidden">
+                  <Button variant="ghost" size="sm" className="gap-2" type="button">
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Sort by
+                  </Button>
+
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="gap-2"
+                    type="button"
+                    onClick={() => setShowMobileFilters(true)}
+                  >
+                    <SlidersHorizontal className="h-4 w-4" />
+                    Filter
+                  </Button>
+                </div>
               </div>
             </div>
 
@@ -918,6 +932,9 @@ function ArtisanJobsInner() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Sent requests modal — triggered from toolbar button or detail panel footer */}
+      <SentRequestsModal open={showSentRequests} onClose={() => setShowSentRequests(false)} />
 
       {/* Backdrop */}
       {selectedJob && (
@@ -1142,7 +1159,6 @@ function ArtisanJobsInner() {
 
             {/* Sticky footer actions */}
             <div className="shrink-0 border-t border-slate-100 bg-white p-4">
-              <SentRequestsModal open={showSentRequests} onClose={() => setShowSentRequests(false)} />
               {(() => {
                 const empId = String((selectedJob as any).employer_id || selectedJob.employer?.id || "")
                 const requested = requestedEmployers.has(empId)
