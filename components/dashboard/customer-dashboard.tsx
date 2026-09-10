@@ -1116,12 +1116,6 @@ function EmployerServiceCard({
             </div>
           )}
 
-          {history && (
-            <Button size="sm" className="bg-red-600 hover:bg-red-700">
-              Request revision
-            </Button>
-          )}
-
           {hasReleasedMilestone && job.artisanId && (
             <Button
               size="sm"
