@@ -9,6 +9,8 @@ import {
   Calendar,
   Camera,
   CheckCircle,
+  ChevronLeft,
+  ChevronRight,
   Clock,
   Heart,
   HelpCircle,
@@ -227,6 +229,81 @@ function responseLabel(value: string | null | undefined) {
   return RESPONSE_OPTIONS.find((o) => o.value === value)?.label ?? "Within a few hours"
 }
 
+type PortfolioItemType = {
+  key: string
+  title: string
+  images: string[]
+  isService: boolean
+  [key: string]: any
+}
+
+function GalleryCard({
+  item,
+  onOpen,
+}: {
+  item: PortfolioItemType
+  onOpen: (startIdx: number) => void
+}) {
+  const [idx, setIdx] = useState(0)
+  const total = item.images.length
+
+  return (
+    <div
+      className="group cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md"
+      onClick={() => onOpen(idx)}
+    >
+      {/* Image area with prev/next overlaid */}
+      <div className="relative aspect-square overflow-hidden bg-slate-100">
+        {item.images[idx] ? (
+          <img
+            src={item.images[idx]}
+            alt={`Portfolio image ${idx + 1}`}
+            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-slate-300">
+            <ImageIcon className="h-10 w-10" />
+          </div>
+        )}
+
+        {total > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIdx((i) => (i - 1 + total) % total) }}
+              className="absolute left-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/60"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setIdx((i) => (i + 1) % total) }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full bg-black/40 p-1 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black/60"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+
+            {/* Dot indicators */}
+            <div className="absolute bottom-2 left-1/2 flex -translate-x-1/2 gap-1">
+              {item.images.map((_: string, i: number) => (
+                <span
+                  key={i}
+                  className={`block h-1.5 w-1.5 rounded-full transition ${i === idx ? "bg-white" : "bg-white/50"}`}
+                />
+              ))}
+            </div>
+
+            {/* Image counter badge */}
+            <span className="absolute right-2 top-2 rounded-full bg-black/50 px-2 py-0.5 text-[10px] font-medium text-white">
+              {idx + 1} / {total}
+            </span>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
   const [activeTab, setActiveTab] = useState("overview")
   const [isFavorited, setIsFavorited] = useState(false)
@@ -237,6 +314,7 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
   const [editingField, setEditingField] = useState<"currentStatus" | "responseTime" | "remoteServices" | null>(null)
   const [selectedPortfolioItem, setSelectedPortfolioItem] = useState<any | null>(null)
   const [lightboxImage, setLightboxImage] = useState<string | null>(null)
+  const [galleryModalIdx, setGalleryModalIdx] = useState(0)
   const [availabilityState, setAvailabilityState] = useState({
     currentStatus: "available",
     responseTime: "within_few_hours",
@@ -389,12 +467,13 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
           .filter((item: PortfolioItem) => item.images.length > 0 || item.title)
       : []
 
-    const galleryItems: PortfolioItem[] = galleryUrls.map((url, i) => ({
-      key: `gallery-${i}`,
-      title: "",
-      images: [url],
+    // All gallery images go into one card with an internal image browser
+    const galleryItems: PortfolioItem[] = galleryUrls.length > 0 ? [{
+      key: "gallery",
+      title: "Portfolio Gallery",
+      images: galleryUrls,
       isService: false,
-    }))
+    }] : []
 
     return [...serviceItems, ...galleryItems]
   }, [data, profile])
@@ -822,26 +901,27 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
           <TabsContent value="portfolio" className="mt-6">
             {portfolioItems.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {portfolioItems.map((item) => (
-                  <div
-                    key={item.key}
-                    className="group cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md"
-                    onClick={() => setSelectedPortfolioItem(item)}
-                  >
-                    <div className={`overflow-hidden bg-slate-100 ${item.isService ? "aspect-[4/3]" : "aspect-square"}`}>
-                      {item.images[0] ? (
-                        <img
-                          src={item.images[0]}
-                          alt={item.title || "Portfolio image"}
-                          className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
-                        />
-                      ) : (
-                        <div className="flex h-full w-full items-center justify-center text-slate-300">
-                          <ImageIcon className="h-10 w-10" />
-                        </div>
-                      )}
-                    </div>
-                    {item.isService && (
+                {portfolioItems.map((item) =>
+                  item.isService ? (
+                    /* ── Service card: 4:3 image + text beneath ── */
+                    <div
+                      key={item.key}
+                      className="group cursor-pointer overflow-hidden rounded-3xl border border-slate-100 bg-white shadow-sm transition hover:shadow-md"
+                      onClick={() => setSelectedPortfolioItem(item)}
+                    >
+                      <div className="aspect-[4/3] overflow-hidden bg-slate-100">
+                        {item.images[0] ? (
+                          <img
+                            src={item.images[0]}
+                            alt={item.title || "Portfolio image"}
+                            className="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+                          />
+                        ) : (
+                          <div className="flex h-full w-full items-center justify-center text-slate-300">
+                            <ImageIcon className="h-10 w-10" />
+                          </div>
+                        )}
+                      </div>
                       <div className="p-4">
                         <p className="text-sm font-medium text-slate-950 line-clamp-1">
                           {item.title || "Work sample"}
@@ -850,9 +930,19 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                           {item.service_type || `Work sample from ${firstName}`}
                         </p>
                       </div>
-                    )}
-                  </div>
-                ))}
+                    </div>
+                  ) : (
+                    /* ── Gallery card: full-width with internal prev/next browser ── */
+                    <GalleryCard
+                      key={item.key}
+                      item={item}
+                      onOpen={(startIdx) => {
+                        setGalleryModalIdx(startIdx)
+                        setSelectedPortfolioItem(item)
+                      }}
+                    />
+                  )
+                )}
               </div>
             ) : (
               <EmptyState
@@ -957,23 +1047,51 @@ export function ArtisanProfile({ artisanId }: ArtisanProfileProps) {
                     </div>
                   </div>
                 ) : (
-                  /* ── Gallery popup: full-width image, no empty details panel ── */
+                  /* ── Gallery popup: image browser with prev/next navigation ── */
                   <div
-                    className="relative w-full max-w-3xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+                    className="relative w-full max-w-3xl overflow-hidden rounded-2xl bg-black shadow-2xl"
                     onClick={(e) => e.stopPropagation()}
                   >
+                    {/* Close */}
                     <button
                       type="button"
                       onClick={() => setSelectedPortfolioItem(null)}
-                      className="absolute right-3 top-3 z-10 rounded-lg bg-black/40 p-1.5 text-white hover:bg-black/60"
+                      className="absolute right-3 top-3 z-10 rounded-lg bg-black/50 p-1.5 text-white hover:bg-black/70"
                     >
                       <X className="h-5 w-5" />
                     </button>
+
+                    {/* Image */}
                     <img
-                      src={selectedPortfolioItem.images[0]}
-                      alt="Portfolio image"
+                      src={selectedPortfolioItem.images[galleryModalIdx]}
+                      alt={`Portfolio image ${galleryModalIdx + 1}`}
                       className="block max-h-[85vh] w-full object-contain"
                     />
+
+                    {/* Prev / Next arrows */}
+                    {selectedPortfolioItem.images.length > 1 && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setGalleryModalIdx((i) => (i - 1 + selectedPortfolioItem.images.length) % selectedPortfolioItem.images.length)}
+                          className="absolute left-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
+                        >
+                          <ChevronLeft className="h-5 w-5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setGalleryModalIdx((i) => (i + 1) % selectedPortfolioItem.images.length)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full bg-black/50 p-2 text-white hover:bg-black/70"
+                        >
+                          <ChevronRight className="h-5 w-5" />
+                        </button>
+
+                        {/* Counter */}
+                        <div className="absolute bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-black/50 px-3 py-1 text-xs font-medium text-white">
+                          {galleryModalIdx + 1} / {selectedPortfolioItem.images.length}
+                        </div>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
