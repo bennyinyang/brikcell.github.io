@@ -43,16 +43,45 @@ const tabs: { key: TabKey; label: string }[] = [
 ]
 
 const serviceCategories = [
-  "plumbing",
-  "carpentry",
-  "hairstyling",
-  "electrical",
-  "painting",
-  "cleaning",
-  "autorepair",
-  "techsupport",
-  "general",
+  // Physical / Local
+  "plumbing", "carpentry", "electrical", "painting", "cleaning",
+  "hairstyling", "autorepair", "techsupport", "landscaping", "moving",
+  "hvac", "roofing", "flooring", "pestcontrol", "interiordesign",
+  "masonry", "poolmaintenance", "appliancerepair", "welding", "securitycctv",
+  "photography", "catering", "personaltraining", "childcare", "elderlycare",
+  "tailoring", "laundry", "windowcleaning", "furnitureassembly", "homeinspection",
+  "tiling",
+  // Digital / Remote
+  "webdevelopment", "mobiledev", "graphicdesign", "logodesign", "videoediting",
+  "socialmedia", "contentwriting", "seomarketing", "virtualassistant", "bookkeeping",
+  "translation", "tutoring", "musicproduction", "animation", "uiuxdesign",
+  "cybersecurity", "qatesting", "voiceover",
 ]
+
+const SERVICE_LABEL: Record<string, string> = {
+  plumbing: "Plumbing", carpentry: "Carpentry", electrical: "Electrical",
+  painting: "Painting", cleaning: "House Cleaning", hairstyling: "Hair Styling",
+  autorepair: "Auto Repair", techsupport: "Tech Support", landscaping: "Landscaping",
+  moving: "Moving Services", hvac: "HVAC (Heating & Cooling)", roofing: "Roofing",
+  flooring: "Flooring", pestcontrol: "Pest Control", interiordesign: "Interior Design",
+  masonry: "Masonry & Concrete", poolmaintenance: "Pool Maintenance",
+  appliancerepair: "Appliance Repair", welding: "Welding & Fabrication",
+  securitycctv: "Security & CCTV", photography: "Photography",
+  catering: "Catering & Cooking", personaltraining: "Personal Training",
+  childcare: "Childcare & Babysitting", elderlycare: "Elderly Care",
+  tailoring: "Tailoring & Alterations", laundry: "Laundry & Dry Cleaning",
+  windowcleaning: "Window Cleaning", furnitureassembly: "Furniture Assembly",
+  homeinspection: "Home Inspection", tiling: "Tiling",
+  webdevelopment: "Web Development", mobiledev: "Mobile App Development",
+  graphicdesign: "Graphic Design", logodesign: "Logo & Brand Design",
+  videoediting: "Video Editing", socialmedia: "Social Media Management",
+  contentwriting: "Content Writing & Copywriting", seomarketing: "SEO & Digital Marketing",
+  virtualassistant: "Virtual Assistant", bookkeeping: "Bookkeeping & Accounting",
+  translation: "Translation & Interpretation", tutoring: "Tutoring & Academic Help",
+  musicproduction: "Music Production", animation: "Animation & Motion Graphics",
+  uiuxdesign: "UI/UX Design", cybersecurity: "Cybersecurity",
+  qatesting: "Software QA & Testing", voiceover: "Voice Over",
+}
 
 function splitName(name?: string) {
   const parts = String(name || "").trim().split(" ").filter(Boolean)
@@ -471,16 +500,19 @@ const handlePortfolioUpload = async (files: FileList | null) => {
   //   }
   // }
 
+  const getImageUrl = (item: any): string =>
+    typeof item === "string" ? item : (item?.url || item?.secure_url || "")
+
   const removePortfolioImage = (index: number) => {
     setProfessional((prev) => {
       const nextGallery = prev.portfolioGallery.filter((_, i) => i !== index)
-
+      const removedUrl = getImageUrl(prev.portfolioGallery[index])
       return {
         ...prev,
         portfolioGallery: nextGallery,
         profile_image:
-          prev.profile_image === prev.portfolioGallery[index]
-            ? nextGallery[0] || ""
+          prev.profile_image === removedUrl
+            ? getImageUrl(nextGallery[0]) || ""
             : prev.profile_image,
       }
     })
@@ -669,31 +701,39 @@ const handlePortfolioUpload = async (files: FileList | null) => {
                             <SelectTrigger>
                               <SelectValue placeholder="Specify the type of jobs or skilled area" />
                             </SelectTrigger>
-                            <SelectContent>
+                            <SelectContent className="max-h-64">
                               {serviceCategories.map((item) => (
                                 <SelectItem key={item} value={item}>
-                                  {item}
+                                  {SERVICE_LABEL[item] ?? item}
                                 </SelectItem>
                               ))}
                             </SelectContent>
                           </Select>
 
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {serviceCategories.slice(0, 5).map((skill) => (
-                              <button
-                                type="button"
-                                key={skill}
-                                onClick={() => toggleSkill(skill)}
-                                className={`rounded-md border px-3 py-1 text-xs ${
-                                  professional.skills.includes(skill)
-                                    ? "border-primary bg-primary/10 text-primary"
-                                    : "border-slate-200 text-slate-600"
-                                }`}
-                              >
-                                {skill}
-                              </button>
-                            ))}
+                          <p className="mt-3 text-[11px] text-slate-400">Select all skills that apply</p>
+                          <div className="mt-2 max-h-44 overflow-y-auto rounded-lg border border-slate-100 p-3">
+                            <div className="flex flex-wrap gap-2">
+                              {serviceCategories.map((skill) => (
+                                <button
+                                  type="button"
+                                  key={skill}
+                                  onClick={() => toggleSkill(skill)}
+                                  className={`rounded-md border px-3 py-1 text-xs transition ${
+                                    professional.skills.includes(skill)
+                                      ? "border-primary bg-primary/10 text-primary"
+                                      : "border-slate-200 text-slate-600 hover:border-primary/40 hover:text-primary"
+                                  }`}
+                                >
+                                  {SERVICE_LABEL[skill] ?? skill}
+                                </button>
+                              ))}
+                            </div>
                           </div>
+                          {professional.skills.length > 0 && (
+                            <p className="mt-2 text-[11px] text-slate-500">
+                              {professional.skills.length} skill{professional.skills.length !== 1 ? "s" : ""} selected
+                            </p>
+                          )}
                         </div>
                       </div>
 
@@ -726,26 +766,29 @@ const handlePortfolioUpload = async (files: FileList | null) => {
 
                           {professional.portfolioGallery.length > 0 && (
                             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4">
-                              {professional.portfolioGallery.map((image, index) => (
-                                <div
-                                  key={`${image}-${index}`}
-                                  className="group relative overflow-hidden rounded-lg border border-slate-100"
-                                >
-                                  <img
-                                    src={image}
-                                    alt={`Portfolio ${index + 1}`}
-                                    className="h-24 w-full object-cover"
-                                  />
-
-                                  <button
-                                    type="button"
-                                    onClick={() => removePortfolioImage(index)}
-                                    className="absolute right-1 top-1 rounded-full bg-red-600 p-1 text-white opacity-90 hover:bg-red-700"
+                              {professional.portfolioGallery.map((image, index) => {
+                                // image can be a URL string or an object { url, public_id, ... }
+                                const src = typeof image === "string" ? image : (image?.url || image?.secure_url || "")
+                                return (
+                                  <div
+                                    key={`portfolio-${index}`}
+                                    className="group relative overflow-hidden rounded-lg border border-slate-100"
                                   >
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              ))}
+                                    <img
+                                      src={src}
+                                      alt={`Portfolio ${index + 1}`}
+                                      className="h-24 w-full object-cover"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => removePortfolioImage(index)}
+                                      className="absolute right-1 top-1 rounded-full bg-red-600 p-1 text-white opacity-90 hover:bg-red-700"
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                )
+                              })}
                             </div>
                           )}
                         </div>
