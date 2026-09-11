@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { Plus, Wallet } from "lucide-react"
+import { Wallet } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -628,59 +628,6 @@ export default function ArtisanWalletPage() {
                   />
                 </div>
 
-                {/* Figma email/bank detail section */}
-                <div className="border-t border-slate-100 pt-6">
-                  <div className="grid gap-4 sm:grid-cols-[160px_minmax(0,1fr)]">
-                    <div>
-                      <p className="text-xs font-medium text-slate-700">
-                        Contact email
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        Where should invoices be sent?
-                      </p>
-                    </div>
-
-                    <div className="space-y-3 text-xs text-slate-600">
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="wallet-email"
-                          defaultChecked
-                          className="h-3.5 w-3.5 accent-primary"
-                        />
-                        <span>Send to my account email</span>
-                      </label>
-
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="radio"
-                          name="wallet-email"
-                          className="h-3.5 w-3.5 accent-primary"
-                        />
-                        <span>Send to an alternative email</span>
-                      </label>
-                    </div>
-                  </div>
-
-                  <div className="mt-6 grid gap-4 border-t border-slate-100 pt-6 sm:grid-cols-[160px_minmax(0,1fr)]">
-                    <div>
-                      <p className="text-xs font-medium text-slate-700">
-                        Bank details
-                      </p>
-                      <p className="mt-1 text-[11px] text-slate-500">
-                        Select default withdrawal method
-                      </p>
-                    </div>
-
-                    <button
-                      type="button"
-                      className="flex items-center gap-2 text-xs font-medium text-slate-700"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Add new withdrawal method
-                    </button>
-                  </div>
-                </div>
               </div>
 
               {withdrawals.length > 0 && (
