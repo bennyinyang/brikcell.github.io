@@ -26,6 +26,11 @@ export const metadata: Metadata = {
   description:
     "Find skilled artisans for plumbing, carpentry, hair styling, electrical work and more. Your perfect artisan awaits!",
   generator: "Brikcell Marketplace",
+  icons: {
+    icon: "/logomark.svg",
+    shortcut: "/logomark.svg",
+    apple: "/logomark.svg",
+  },
 }
 
 export default function RootLayout({

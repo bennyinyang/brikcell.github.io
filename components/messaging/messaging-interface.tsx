@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { SentRequestsModal } from "@/components/artisan/sent-requests-modal"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Separator } from "@/components/ui/separator"
@@ -199,6 +200,7 @@ export function MessagingInterface() {
 
   const [pendingRequests, setPendingRequests] = useState<MessageRequestDTO[]>([])
   const [requestActionLoading, setRequestActionLoading] = useState<string | null>(null)
+  const [showSentRequests, setShowSentRequests] = useState(false)
 
   const searchParams = useSearchParams()
   const incomingArtisanId = searchParams.get("artisanId")
@@ -2551,6 +2553,8 @@ useEffect(() => {
         }}
       />
 
+      <SentRequestsModal open={showSentRequests} onClose={() => setShowSentRequests(false)} />
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 lg:gap-4 h-[calc(100vh-5.5rem)] sm:h-[calc(100vh-7rem)] lg:h-[calc(100vh-9.5rem)]">
         {/* Conversations List - Left Panel */}
         <Card className={`lg:col-span-3 py-0 flex flex-col overflow-hidden border-gray-100/80 shadow-sm ${showConversationList ? "flex" : "hidden"} lg:flex`}>
@@ -2561,6 +2565,16 @@ useEffect(() => {
                 {conversations.length}
               </Badge>
             </CardTitle>
+            {currentUserRole === "artisan" && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="mb-2 h-8 w-full text-xs font-medium"
+                onClick={() => setShowSentRequests(true)}
+              >
+                Requests Sent
+              </Button>
+            )}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
               <Input

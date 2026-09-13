@@ -13,7 +13,16 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AuthAPI } from "@/lib/api"
+
+const NIGERIA_STATES = [
+  "Abia", "Adamawa", "Akwa Ibom", "Anambra", "Bauchi", "Bayelsa", "Benue",
+  "Borno", "Cross River", "Delta", "Ebonyi", "Edo", "Ekiti", "Enugu",
+  "FCT - Abuja", "Gombe", "Imo", "Jigawa", "Kaduna", "Kano", "Katsina",
+  "Kebbi", "Kogi", "Kwara", "Lagos", "Nasarawa", "Niger", "Ogun", "Ondo",
+  "Osun", "Oyo", "Plateau", "Rivers", "Sokoto", "Taraba", "Yobe", "Zamfara",
+]
 
 const API = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
 
@@ -287,12 +296,12 @@ export default function SignUpPage() {
                       onChange={(e) =>
                         handleInputChange("skills", e.target.value)
                       }
-                      placeholder="Enter your business name"
+                      placeholder="e.g. Plumbing, Carpentry, Electrical"
                       className="h-11 rounded-md border-slate-200 text-[15px]"
                     />
                   </FieldError>
 
-                  <div className="grid grid-cols-[1fr_110px] gap-3">
+                  <div className="grid grid-cols-[1fr_130px] gap-3">
                     <FieldError error={errors.location}>
                       <Label
                         htmlFor="location"
@@ -300,15 +309,19 @@ export default function SignUpPage() {
                       >
                         Location
                       </Label>
-                      <Input
-                        id="location"
+                      <Select
                         value={formData.location}
-                        onChange={(e) =>
-                          handleInputChange("location", e.target.value)
-                        }
-                        placeholder="City, State"
-                        className="h-11 rounded-md border-slate-200 text-[15px]"
-                      />
+                        onValueChange={(value) => handleInputChange("location", value)}
+                      >
+                        <SelectTrigger id="location" className="h-11 rounded-md border-slate-200 text-[15px]">
+                          <SelectValue placeholder="Select state" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-64">
+                          {NIGERIA_STATES.map((state) => (
+                            <SelectItem key={state} value={state}>{state}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </FieldError>
 
                     <FieldError error={errors.phone}>
@@ -318,15 +331,20 @@ export default function SignUpPage() {
                       >
                         Phone number
                       </Label>
-                      <Input
-                        id="phone"
-                        value={formData.phone}
-                        onChange={(e) =>
-                          handleInputChange("phone", e.target.value)
-                        }
-                        placeholder="234"
-                        className="h-11 rounded-md border-slate-200 text-[15px]"
-                      />
+                      <div className="flex h-11 overflow-hidden rounded-md border border-slate-200 focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-0">
+                        <span className="flex items-center bg-slate-50 px-2.5 text-[13px] text-slate-500 border-r border-slate-200 shrink-0">
+                          +234
+                        </span>
+                        <Input
+                          id="phone"
+                          value={formData.phone}
+                          onChange={(e) =>
+                            handleInputChange("phone", e.target.value)
+                          }
+                          placeholder="8012345678"
+                          className="h-full rounded-none border-0 text-[15px] shadow-none focus-visible:ring-0"
+                        />
+                      </div>
                     </FieldError>
                   </div>
 
