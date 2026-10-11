@@ -35,6 +35,7 @@ import {
   FileText,
 } from "lucide-react"
 import Link from "next/link"
+import { useEmployerLocation } from "@/lib/useEmployerLocation"
 import {
   CustomerDashboardAPI,
   searchArtisans,
@@ -93,6 +94,7 @@ type SuggestedArtisan = {
   reviewsCount: number
   hourlyRate: number
   bio: string
+  distance_km: number | null
 }
 
 type MilestonePhase = {
@@ -208,6 +210,7 @@ function mapSuggestedArtisan(raw: any): SuggestedArtisan {
     reviewsCount: toNumber(raw?.reviewsCount || raw?.reviews_count || 0),
     hourlyRate: toNumber(raw?.hourly_rate || raw?.hourlyRate),
     bio: raw?.bio || "",
+    distance_km: raw?.distance_km != null ? Math.round(Number(raw.distance_km) * 10) / 10 : null,
   }
 }
 
@@ -1280,6 +1283,153 @@ function PostedGigModal({
   )
 }
 
+function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
+  const [gpsEnabled, setGpsEnabled] = useState(false)
+  const { geo, requestLocation } = useEmployerLocation(gpsEnabled)
+  const [nearby, setNearby] = useState<SuggestedArtisan[]>([])
+  const [fetching, setFetching] = useState(false)
+
+  const resolvedCoords = geo.status === "resolved" ? { lat: geo.lat, lng: geo.lng } : null
+
+  useEffect(() => {
+    if (!resolvedCoords) return
+    let cancelled = false
+    async function fetchNearby() {
+      setFetching(true)
+      try {
+        const data: any = await searchArtisans({ lat: resolvedCoords!.lat, lng: resolvedCoords!.lng, radius: 50, limit: 4 })
+        if (cancelled) return
+        const rows: any[] = Array.isArray(data?.results) ? data.results : []
+        setNearby(rows.map(mapSuggestedArtisan))
+      } catch {}
+      if (!cancelled) setFetching(false)
+    }
+    fetchNearby()
+    return () => { cancelled = true }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedCoords?.lat, resolvedCoords?.lng])
+
+  function handleToggleGps() {
+    if (gpsEnabled) {
+      setGpsEnabled(false)
+      setNearby([])
+    } else {
+      setGpsEnabled(true)
+      requestLocation()
+    }
+  }
+
+  const shown = gpsEnabled && resolvedCoords ? nearby : fallback.slice(0, 4)
+  const isLoading = gpsEnabled && (geo.status === "pending" || fetching)
+
+  return (
+    <Card className="rounded-2xl border border-slate-100 shadow-sm">
+      <CardHeader className="p-4 pb-3">
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-900">
+            <MapPin className="h-4 w-4 text-primary" />
+            {gpsEnabled && resolvedCoords ? "Artisans Near You" : "Suggested Talent"}
+          </CardTitle>
+          <button
+            type="button"
+            onClick={handleToggleGps}
+            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium transition ${
+              gpsEnabled && resolvedCoords
+                ? "bg-primary/10 text-primary"
+                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+            }`}
+          >
+            <MapPin className="h-2.5 w-2.5" />
+            {gpsEnabled && resolvedCoords ? "Near me" : "Use location"}
+          </button>
+        </div>
+      </CardHeader>
+
+      <CardContent className="px-4 pb-4 pt-0">
+        {isLoading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="flex items-center gap-3">
+                <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-slate-100" />
+                <div className="flex-1 space-y-1.5">
+                  <div className="h-3 w-3/4 animate-pulse rounded bg-slate-100" />
+                  <div className="h-2.5 w-1/2 animate-pulse rounded bg-slate-100" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : shown.length === 0 ? (
+          <div className="py-4 text-center">
+            <p className="text-xs text-slate-400">
+              {gpsEnabled && resolvedCoords
+                ? "No artisans found within 50 km."
+                : "No suggested artisans yet."}
+            </p>
+            <Link
+              href="/search"
+              className="mt-2 inline-block text-xs font-medium text-primary hover:underline"
+            >
+              Browse all artisans →
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {shown.map((a, idx) => (
+              <div key={a.id || idx}>
+                {idx > 0 && <div className="border-t border-slate-50" />}
+                <Link
+                  href={`/artisan/${a.id}`}
+                  className="group flex items-start gap-3 rounded-lg py-2 transition hover:bg-slate-50 px-1 -mx-1"
+                >
+                  <div className="relative h-9 w-9 shrink-0 overflow-hidden rounded-full border border-slate-100 bg-slate-100">
+                    {a.profileImage ? (
+                      <img src={a.profileImage} alt={a.name} className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center text-sm font-semibold text-slate-400">
+                        {a.name.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-slate-900 group-hover:text-primary">
+                      {a.name}
+                    </p>
+                    <p className="truncate text-[10px] text-slate-500">{a.serviceType}</p>
+                    <div className="mt-1 flex items-center gap-2">
+                      {a.rating > 0 && (
+                        <span className="flex items-center gap-0.5 text-[10px] text-amber-500">
+                          <Star className="h-2.5 w-2.5 fill-amber-400 stroke-amber-400" />
+                          {a.rating.toFixed(1)}
+                        </span>
+                      )}
+                      <span className="flex items-center gap-0.5 text-[10px] text-slate-400">
+                        <MapPin className="h-2.5 w-2.5" />
+                        {a.distance_km != null
+                          ? `~${a.distance_km < 1 ? "<1" : Math.round(a.distance_km)} km`
+                          : a.location || "Location unknown"}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              </div>
+            ))}
+
+            <div className="pt-1">
+              <Link
+                href="/search"
+                className="block w-full rounded-lg border border-slate-200 py-2 text-center text-xs font-medium text-slate-600 transition hover:border-primary/40 hover:text-primary"
+              >
+                View all artisans →
+              </Link>
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function CustomerDashboard() {
   const [activeTab, setActiveTab] = useState("active")
   const [stats, setStats] = useState<DashboardStats>({
@@ -1463,7 +1613,7 @@ const [historyPagination, setHistoryPagination] =
             </section>
 
             {/* Wallet aside */}
-            <aside>
+            <aside className="space-y-4">
               <Card className="rounded-2xl border border-slate-100 shadow-sm">
                 <CardHeader className="pb-3">
                   <div className="h-5 w-24 animate-pulse rounded bg-slate-100" />
@@ -1479,6 +1629,22 @@ const [historyPagination, setHistoryPagination] =
                   </div>
                   <div className="h-9 w-full animate-pulse rounded-md bg-slate-100" />
                   <div className="h-9 w-full animate-pulse rounded-md bg-slate-100" />
+                </CardContent>
+              </Card>
+              <Card className="rounded-2xl border border-slate-100 shadow-sm">
+                <CardHeader className="pb-3">
+                  <div className="h-5 w-32 animate-pulse rounded bg-slate-100" />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="h-9 w-9 shrink-0 animate-pulse rounded-full bg-slate-100" />
+                      <div className="flex-1 space-y-1.5">
+                        <div className="h-3 w-3/4 animate-pulse rounded bg-slate-100" />
+                        <div className="h-2.5 w-1/2 animate-pulse rounded bg-slate-100" />
+                      </div>
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             </aside>
@@ -1708,6 +1874,7 @@ const [historyPagination, setHistoryPagination] =
               onShowFunding={() => setShowFunding((prev) => !prev)}
               onShowWithdrawal={() => setShowWithdrawal((prev) => !prev)}
             />
+            <NearbyArtisansPanel fallback={suggestedArtisans} />
           </aside>
         </div>
       </main>
