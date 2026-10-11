@@ -21,13 +21,15 @@ import {
   ArrowLeft,
   ChevronDown,
   X,
+  Loader2,
 } from "lucide-react"
 import Link from "next/link"
-import { 
-  searchArtisans, 
+import {
+  searchArtisans,
   normalizePaginatedResponse,
-  type PaginationMeta, 
+  type PaginationMeta,
 } from "@/lib/api"
+import { useEmployerLocation } from "@/lib/useEmployerLocation"
 import { PaginationControl } from "@/components/pagination-control"
 
 const CATEGORY_MAP: Record<string, string | null> = {
@@ -96,6 +98,7 @@ const RATING_FILTERS = [
 ]
 
 const SORT_OPTIONS = [
+  { label: "Nearest first", value: "nearest" },
   { label: "Newest", value: "newest" },
   { label: "Oldest", value: "oldest" },
   { label: "Low to High pricing", value: "low-price" },
@@ -213,6 +216,8 @@ function FilterPanel({
   setStateLocation,
   availableToday,
   setAvailableToday,
+  selectedRadius,
+  setSelectedRadius,
   selectedRating,
   setSelectedRating,
   minPrice,
@@ -231,6 +236,8 @@ function FilterPanel({
   setStateLocation: (value: string) => void
   availableToday: boolean
   setAvailableToday: (value: boolean) => void
+  selectedRadius: string
+  setSelectedRadius: (value: string) => void
   selectedRating: string
   setSelectedRating: (value: string) => void
   minPrice: string
@@ -338,12 +345,12 @@ function FilterPanel({
         <div>
           <p className="mb-3 text-xs text-slate-500">Within</p>
           <div className="grid grid-cols-2 gap-2">
-            {["5 km", "10 km", "20 km", "50 km"].map((distance) => (
+            {[["5", "5 km"], ["10", "10 km"], ["20", "20 km"], ["50", "50 km"]].map(([val, label]) => (
               <CheckRow
-                key={distance}
-                label={distance}
-                checked={false}
-                onCheckedChange={() => {}}
+                key={val}
+                label={label}
+                checked={selectedRadius === val}
+                onCheckedChange={() => setSelectedRadius(selectedRadius === val ? "50" : val)}
               />
             ))}
           </div>
@@ -483,6 +490,12 @@ function ArtisanCard({ artisan }: { artisan: any }) {
               {artisan.location || "Location not added"}
             </p>
           </div>
+
+          {artisan.distance_km != null && (
+            <span className="ml-auto shrink-0 text-[10px] text-slate-400">
+              {artisan.distance_km} km
+            </span>
+          )}
         </div>
 
         <Button
@@ -507,11 +520,12 @@ export function SearchAndBrowse() {
   const [selectedServices, setSelectedServices] = useState<string[]>([])
   const [selectedRating, setSelectedRating] = useState("all")
   const [availableToday, setAvailableToday] = useState(false)
+  const [selectedRadius, setSelectedRadius] = useState("50")
   const [city, setCity] = useState("")
   const [stateLocation, setStateLocation] = useState("")
   const [minPrice, setMinPrice] = useState("")
   const [maxPrice, setMaxPrice] = useState("")
-  const [sortBy, setSortBy] = useState("newest")
+  const [sortBy, setSortBy] = useState("nearest")
   const [showMobileFilter, setShowMobileFilter] = useState(false)
   const [showMobileSort, setShowMobileSort] = useState(false)
 
@@ -520,6 +534,8 @@ export function SearchAndBrowse() {
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
   const [pagination, setPagination] = useState<PaginationMeta | null>(null)
+
+  const { geo, requestLocation } = useEmployerLocation(availableToday)
 
   const toggleService = (service: string) => {
     setSelectedServices((prev) =>
@@ -534,6 +550,7 @@ export function SearchAndBrowse() {
     setSelectedServices([])
     setSelectedRating("all")
     setAvailableToday(false)
+    setSelectedRadius("50")
     setCity("")
     setStateLocation("")
     setMinPrice("")
@@ -551,12 +568,17 @@ export function SearchAndBrowse() {
 
   const locationQuery = city || stateLocation || searchQuery || undefined
 
+  const hasGps = geo.status === "resolved"
+
   try {
     const data: any = await searchArtisans({
       types: backendTypes.length ? backendTypes : undefined,
-      location: locationQuery,
+      location: !hasGps ? locationQuery : undefined,
       rating: selectedRating !== "all" ? selectedRating : undefined,
       available: availableToday ? true : undefined,
+      lat:    hasGps ? geo.lat    : undefined,
+      lng:    hasGps ? geo.lng    : undefined,
+      radius: hasGps ? Number(selectedRadius) : undefined,
       page,
       limit: 24,
     })
@@ -586,8 +608,10 @@ export function SearchAndBrowse() {
     selectedServices,
     selectedRating,
     availableToday,
+    selectedRadius,
     city,
     stateLocation,
+    geo.status,
   ])
 
   useEffect(() => {
@@ -598,8 +622,10 @@ export function SearchAndBrowse() {
     selectedServices,
     selectedRating,
     availableToday,
+    selectedRadius,
     city,
     stateLocation,
+    geo.status,
   ])
   
   const filteredAndSortedResults = useMemo(() => {
@@ -616,13 +642,16 @@ export function SearchAndBrowse() {
     })
 
     return [...filtered].sort((a, b) => {
-      const aPrice = toNumber(a.hourlyRate || a.hourly_rate)
-      const bPrice = toNumber(b.hourlyRate || b.hourly_rate)
+      const aPrice  = toNumber(a.hourlyRate || a.hourly_rate)
+      const bPrice  = toNumber(b.hourlyRate || b.hourly_rate)
       const aRating = toNumber(a.rating)
       const bRating = toNumber(b.rating)
+      const aDist   = a.distance_km != null ? Number(a.distance_km) : Infinity
+      const bDist   = b.distance_km != null ? Number(b.distance_km) : Infinity
 
-      if (sortBy === "low-price") return aPrice - bPrice
-      if (sortBy === "high-price") return bPrice - aPrice
+      if (sortBy === "nearest")      return aDist  - bDist
+      if (sortBy === "low-price")    return aPrice  - bPrice
+      if (sortBy === "high-price")   return bPrice  - aPrice
       if (sortBy === "highest-rated") return bRating - aRating
       if (sortBy === "oldest") return String(a.artisanId || "").localeCompare(String(b.artisanId || ""))
 
@@ -670,6 +699,7 @@ export function SearchAndBrowse() {
       raw?.profile_image ||
       user?.avatar_url ||
       null,
+    distance_km: raw?.distance_km != null ? raw.distance_km : null,
     }
   }
 
@@ -703,6 +733,8 @@ export function SearchAndBrowse() {
               setStateLocation={setStateLocation}
               availableToday={availableToday}
               setAvailableToday={setAvailableToday}
+              selectedRadius={selectedRadius}
+              setSelectedRadius={setSelectedRadius}
               selectedRating={selectedRating}
               setSelectedRating={setSelectedRating}
               minPrice={minPrice}
@@ -799,6 +831,8 @@ export function SearchAndBrowse() {
                     setStateLocation={setStateLocation}
                     availableToday={availableToday}
                     setAvailableToday={setAvailableToday}
+                    selectedRadius={selectedRadius}
+                    setSelectedRadius={setSelectedRadius}
                     selectedRating={selectedRating}
                     setSelectedRating={setSelectedRating}
                     minPrice={minPrice}
@@ -810,6 +844,31 @@ export function SearchAndBrowse() {
                 </div>
               </div>
             </div>
+
+            {availableToday && geo.status === "pending" && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs text-blue-700">
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Getting your location…
+              </div>
+            )}
+            {availableToday && geo.status === "error" && (
+              <div className="mb-4 flex items-center justify-between rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                <span>Location unavailable — showing all artisans.</span>
+                <button
+                  type="button"
+                  className="ml-2 shrink-0 underline"
+                  onClick={requestLocation}
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {availableToday && geo.status === "resolved" && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-100 bg-green-50 px-3 py-2 text-xs text-green-700">
+                <MapPin className="h-3.5 w-3.5" />
+                Showing artisans within {selectedRadius} km of your location
+              </div>
+            )}
 
             {loading && (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

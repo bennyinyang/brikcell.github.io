@@ -148,7 +148,6 @@ export default function SignUpPage() {
         if (formData.phone) payload.phone = formData.phone
         if (formData.location) payload.location = formData.location
       }
-
       await AuthAPI.signup(payload)
       setShowConfirmationModal(true)
     } catch (err: any) {

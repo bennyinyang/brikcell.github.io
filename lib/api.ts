@@ -347,6 +347,9 @@ export function searchArtisans(params: {
   available?: boolean;
   page?: number;
   limit?: number;
+  lat?: number;
+  lng?: number;
+  radius?: number;
 }) {
   const qs = new URLSearchParams();
 
@@ -357,16 +360,24 @@ export function searchArtisans(params: {
   }
 
   if (params.location) qs.append("location", params.location)
-  if (params.rating) qs.append("rating", params.rating)
+  if (params.rating)   qs.append("rating",   params.rating)
 
   if (params.available !== undefined) {
     qs.append("available", params.available ? "true" : "false")
   }
 
-  qs.append("page", String(params.page ?? 1))
+  if (params.lat    != null) qs.append("lat",    String(params.lat))
+  if (params.lng    != null) qs.append("lng",    String(params.lng))
+  if (params.radius != null) qs.append("radius", String(params.radius))
+
+  qs.append("page",  String(params.page  ?? 1))
   qs.append("limit", String(params.limit ?? 24))
 
   return request<any>(`/artisans/search?${qs.toString()}`)
+}
+
+export function updateUserLocation(payload: { latitude: number; longitude: number; geo_source?: string }) {
+  return request<{ ok: boolean }>('/geo/location', { method: 'PUT', json: payload });
 }
 
 /* ============================================================
