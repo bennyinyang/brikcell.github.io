@@ -1344,35 +1344,38 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
   const panelTitle = isGeoActive
     ? "Artisans Near You"
     : isStateActive
-      ? `Artisans in ${nearestState}`
+      ? "Artisans in Your Area"
       : "Suggested Talent"
 
   return (
     <Card className="rounded-2xl border border-slate-100 shadow-sm">
       <CardHeader className="p-4 pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-900">
-            <MapPin className="h-4 w-4 text-primary" />
-            {panelTitle}
+        <div className="flex items-center gap-2">
+          {/* Title — shrinks to give the badge room */}
+          <CardTitle className="flex min-w-0 flex-1 items-center gap-1.5 text-sm font-semibold text-slate-900">
+            <MapPin className="h-4 w-4 shrink-0 text-primary" />
+            <span className="truncate">{panelTitle}</span>
           </CardTitle>
+
+          {/* Badge — fixed width, never wraps */}
           {isGeoActive ? (
-            <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
-              <MapPin className="h-2.5 w-2.5" />
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
+              <MapPin className="h-2.5 w-2.5 shrink-0" />
               Near me
             </span>
           ) : isStateActive ? (
-            <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-500">
-              <MapPin className="h-2.5 w-2.5" />
-              {nearestState}
+            <span className="flex w-[80px] shrink-0 items-center gap-1 overflow-hidden rounded-full bg-slate-100 px-2 py-1 text-[10px] font-medium text-slate-500">
+              <MapPin className="h-2.5 w-2.5 shrink-0" />
+              <span className="truncate">{nearestState}</span>
             </span>
           ) : geoFailed ? (
             <button
               type="button"
               onClick={requestLocation}
-              className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-500 transition hover:bg-slate-200"
+              className="flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-500 transition hover:bg-slate-200"
             >
-              <MapPin className="h-2.5 w-2.5" />
-              Allow location
+              <MapPin className="h-2.5 w-2.5 shrink-0" />
+              Allow
             </button>
           ) : null}
         </div>
@@ -1604,9 +1607,9 @@ const [historyPagination, setHistoryPagination] =
               <div className="border-b border-slate-100 pb-6">
                 <div className="h-8 w-56 animate-pulse rounded bg-slate-100" />
                 <div className="mt-2 h-4 w-72 animate-pulse rounded bg-slate-100" />
-                <div className="mt-6 flex flex-wrap gap-x-10 gap-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="h-4 w-20 animate-pulse rounded bg-slate-100" />
+                <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-x-8 sm:gap-y-2">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div key={i} className="h-9 animate-pulse rounded-lg bg-slate-100 sm:h-4 sm:w-20 sm:rounded" />
                   ))}
                 </div>
               </div>
@@ -1704,11 +1707,22 @@ const [historyPagination, setHistoryPagination] =
                 Here is a quick overview of your activities
               </p>
 
-              <div className="mt-6 flex flex-wrap gap-x-10 gap-y-3 text-sm text-primary">
-                <Link href="/post-job">Post a job</Link>
-                <Link href="/search">Book a service</Link>
-                <Link href="/search">View services</Link>
-                <Link href="/dashboard/customer/favourites">Favourite artisans</Link>
+              <div className="mt-6 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-x-8 sm:gap-y-2">
+                {[
+                  { label: "Post a Job",         href: "/post-job",                          icon: <Plus className="h-3.5 w-3.5" /> },
+                  { label: "Book a Service",      href: "/search",                            icon: <Search className="h-3.5 w-3.5" /> },
+                  { label: "View Services",       href: "/search",                            icon: <Briefcase className="h-3.5 w-3.5" /> },
+                  { label: "Favourite Artisans",  href: "/dashboard/customer/favourites",     icon: <Star className="h-3.5 w-3.5" /> },
+                ].map(({ label, href, icon }) => (
+                  <Link
+                    key={label}
+                    href={href}
+                    className="flex items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition hover:bg-primary/10 sm:justify-start sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-sm sm:hover:bg-transparent sm:hover:underline"
+                  >
+                    <span className="sm:hidden">{icon}</span>
+                    {label}
+                  </Link>
+                ))}
               </div>
             </div>
 
