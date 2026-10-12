@@ -18,6 +18,8 @@ import {
   MapPin,
   Briefcase,
   Clock,
+  Plus,
+  Bookmark,
 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -1033,18 +1035,23 @@ const [selectedActiveJob, setSelectedActiveJob] =
             </p>
           </div>
 
-          <div className="mb-7 flex flex-wrap gap-x-10 gap-y-4 border-b border-slate-100 pb-6 text-sm font-medium text-primary">
-            <Link href="/profile/setup">
-              Manage profile
-            </Link>
-
-            <Link href={`/artisan/${artisan.artisanId}`}>
-              View public profile
-            </Link>
-
-            <Link href="/dashboard/services/post">Post A Service</Link>
-            <Link href="/dashboard/jobs">Top clients</Link>
-            <Link href="/dashboard/saved-jobs">Saved jobs</Link>
+          <div className="mb-7 grid grid-cols-2 gap-2 border-b border-slate-100 pb-6 sm:flex sm:flex-wrap sm:gap-x-8 sm:gap-y-2">
+            {[
+              { label: "Manage Profile",       href: "/profile/setup",                         icon: <User className="h-3.5 w-3.5" /> },
+              { label: "View Public Profile",  href: `//artisan/${artisan.artisanId}`,          icon: <CircleUserRound className="h-3.5 w-3.5" /> },
+              { label: "Post a Service",       href: "/dashboard/services/post",               icon: <Plus className="h-3.5 w-3.5" /> },
+              { label: "Top Clients",          href: "/dashboard/jobs",                        icon: <Star className="h-3.5 w-3.5" /> },
+              { label: "Saved Jobs",           href: "/dashboard/saved-jobs",                  icon: <Bookmark className="h-3.5 w-3.5" /> },
+            ].map(({ label, href, icon }, idx, arr) => (
+              <Link
+                key={label}
+                href={href}
+                className={`flex items-center justify-center gap-1.5 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-medium text-primary transition hover:bg-primary/10 sm:justify-start sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:text-sm sm:hover:bg-transparent sm:hover:underline${idx === arr.length - 1 && arr.length % 2 !== 0 ? " col-span-2" : ""}`}
+              >
+                <span className="sm:hidden">{icon}</span>
+                {label}
+              </Link>
+            ))}
           </div>
 
           <Tabs value={activeTab} onValueChange={setActiveTab}>
