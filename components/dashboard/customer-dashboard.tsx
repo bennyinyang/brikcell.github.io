@@ -36,6 +36,7 @@ import {
 } from "lucide-react"
 import Link from "next/link"
 import { useEmployerLocation } from "@/lib/useEmployerLocation"
+import { findNearestState } from "@/lib/nigeria-states"
 import {
   CustomerDashboardAPI,
   searchArtisans,
@@ -1286,7 +1287,9 @@ function PostedGigModal({
 function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
   // Auto-request on mount — same behaviour as "Nearest First" on Find Artisan page
   const { geo, requestLocation } = useEmployerLocation(true)
-  const [nearby, setNearby] = useState<SuggestedArtisan[]>([])
+  const [nearby, setNearby]           = useState<SuggestedArtisan[]>([])
+  const [stateArtisans, setStateArtisans] = useState<SuggestedArtisan[]>([])
+  const [nearestState, setNearestState]   = useState<string | null>(null)
   const [fetching, setFetching] = useState(false)
 
   const resolvedCoords = geo.status === "resolved" ? { lat: geo.lat, lng: geo.lng } : null
@@ -1298,10 +1301,27 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
     async function fetchNearby() {
       setFetching(true)
       try {
-        const data: any = await searchArtisans({ lat: resolvedCoords!.lat, lng: resolvedCoords!.lng, radius: 50, limit: 4 })
+        // 1) Try proximity within 50 km first
+        const data: any = await searchArtisans({
+          lat: resolvedCoords!.lat, lng: resolvedCoords!.lng, radius: 50, limit: 4,
+        })
         if (cancelled) return
         const rows: any[] = Array.isArray(data?.results) ? data.results : []
-        setNearby(rows.map(mapSuggestedArtisan))
+
+        if (rows.length > 0) {
+          setNearby(rows.map(mapSuggestedArtisan))
+        } else {
+          // 2) No one nearby — fall back to artisans in the same state
+          const state = findNearestState(resolvedCoords!.lat, resolvedCoords!.lng)
+          setNearestState(state)
+          if (state) {
+            const stateData: any = await searchArtisans({ location: state, limit: 4 })
+            if (!cancelled) {
+              const stateRows: any[] = Array.isArray(stateData?.results) ? stateData.results : []
+              setStateArtisans(stateRows.map(mapSuggestedArtisan))
+            }
+          }
+        }
       } catch {}
       if (!cancelled) setFetching(false)
     }
@@ -1310,11 +1330,22 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedCoords?.lat, resolvedCoords?.lng])
 
-  // Use geo results when they exist; fall back to overview suggested list if geo is
-  // unavailable OR returned no artisans within range (employer is in an uncovered area)
-  const isGeoActive = !!resolvedCoords && nearby.length > 0
-  const shown = isGeoActive ? nearby : fallback.slice(0, 4)
+  // Priority: proximity → same state → overview suggested
+  const isGeoActive   = !!resolvedCoords && nearby.length > 0
+  const isStateActive = !!resolvedCoords && !isGeoActive && stateArtisans.length > 0
+  const shown = isGeoActive
+    ? nearby
+    : isStateActive
+      ? stateArtisans
+      : fallback.slice(0, 4)
+
   const isLoading = geo.status === "pending" || (!!resolvedCoords && fetching)
+
+  const panelTitle = isGeoActive
+    ? "Artisans Near You"
+    : isStateActive
+      ? `Artisans in ${nearestState}`
+      : "Suggested Talent"
 
   return (
     <Card className="rounded-2xl border border-slate-100 shadow-sm">
@@ -1322,12 +1353,17 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <MapPin className="h-4 w-4 text-primary" />
-            {isGeoActive ? "Artisans Near You" : "Suggested Talent"}
+            {panelTitle}
           </CardTitle>
           {isGeoActive ? (
             <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
               <MapPin className="h-2.5 w-2.5" />
               Near me
+            </span>
+          ) : isStateActive ? (
+            <span className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-500">
+              <MapPin className="h-2.5 w-2.5" />
+              {nearestState}
             </span>
           ) : geoFailed ? (
             <button
@@ -1360,7 +1396,9 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
             <p className="text-xs text-slate-400">
               {isGeoActive
                 ? "No artisans found within 50 km."
-                : "No suggested artisans yet."}
+                : isStateActive
+                  ? `No artisans found in ${nearestState}.`
+                  : "No suggested artisans yet."}
             </p>
             <Link
               href="/search"
