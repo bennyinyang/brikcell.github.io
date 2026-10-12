@@ -1284,12 +1284,13 @@ function PostedGigModal({
 }
 
 function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
-  const [gpsEnabled, setGpsEnabled] = useState(false)
-  const { geo, requestLocation } = useEmployerLocation(gpsEnabled)
+  // Auto-request on mount — same behaviour as "Nearest First" on Find Artisan page
+  const { geo, requestLocation } = useEmployerLocation(true)
   const [nearby, setNearby] = useState<SuggestedArtisan[]>([])
   const [fetching, setFetching] = useState(false)
 
   const resolvedCoords = geo.status === "resolved" ? { lat: geo.lat, lng: geo.lng } : null
+  const geoFailed = geo.status === "error"
 
   useEffect(() => {
     if (!resolvedCoords) return
@@ -1309,18 +1310,10 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedCoords?.lat, resolvedCoords?.lng])
 
-  function handleToggleGps() {
-    if (gpsEnabled) {
-      setGpsEnabled(false)
-      setNearby([])
-    } else {
-      setGpsEnabled(true)
-      requestLocation()
-    }
-  }
-
-  const shown = gpsEnabled && resolvedCoords ? nearby : fallback.slice(0, 4)
-  const isLoading = gpsEnabled && (geo.status === "pending" || fetching)
+  // Geo results when available; silently fall back to overview suggested list otherwise
+  const shown = resolvedCoords ? nearby : fallback.slice(0, 4)
+  const isLoading = geo.status === "pending" || (!!resolvedCoords && fetching)
+  const isGeoActive = !!resolvedCoords && nearby.length > 0
 
   return (
     <Card className="rounded-2xl border border-slate-100 shadow-sm">
@@ -1328,20 +1321,23 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2 text-sm font-semibold text-slate-900">
             <MapPin className="h-4 w-4 text-primary" />
-            {gpsEnabled && resolvedCoords ? "Artisans Near You" : "Suggested Talent"}
+            {isGeoActive ? "Artisans Near You" : "Suggested Talent"}
           </CardTitle>
-          <button
-            type="button"
-            onClick={handleToggleGps}
-            className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-medium transition ${
-              gpsEnabled && resolvedCoords
-                ? "bg-primary/10 text-primary"
-                : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-            }`}
-          >
-            <MapPin className="h-2.5 w-2.5" />
-            {gpsEnabled && resolvedCoords ? "Near me" : "Use location"}
-          </button>
+          {isGeoActive ? (
+            <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-1 text-[10px] font-medium text-primary">
+              <MapPin className="h-2.5 w-2.5" />
+              Near me
+            </span>
+          ) : geoFailed ? (
+            <button
+              type="button"
+              onClick={requestLocation}
+              className="flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-medium text-slate-500 transition hover:bg-slate-200"
+            >
+              <MapPin className="h-2.5 w-2.5" />
+              Allow location
+            </button>
+          ) : null}
         </div>
       </CardHeader>
 
@@ -1361,7 +1357,7 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
         ) : shown.length === 0 ? (
           <div className="py-4 text-center">
             <p className="text-xs text-slate-400">
-              {gpsEnabled && resolvedCoords
+              {isGeoActive
                 ? "No artisans found within 50 km."
                 : "No suggested artisans yet."}
             </p>
