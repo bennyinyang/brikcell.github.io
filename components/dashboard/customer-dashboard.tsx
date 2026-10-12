@@ -1310,10 +1310,11 @@ function NearbyArtisansPanel({ fallback }: { fallback: SuggestedArtisan[] }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedCoords?.lat, resolvedCoords?.lng])
 
-  // Geo results when available; silently fall back to overview suggested list otherwise
-  const shown = resolvedCoords ? nearby : fallback.slice(0, 4)
-  const isLoading = geo.status === "pending" || (!!resolvedCoords && fetching)
+  // Use geo results when they exist; fall back to overview suggested list if geo is
+  // unavailable OR returned no artisans within range (employer is in an uncovered area)
   const isGeoActive = !!resolvedCoords && nearby.length > 0
+  const shown = isGeoActive ? nearby : fallback.slice(0, 4)
+  const isLoading = geo.status === "pending" || (!!resolvedCoords && fetching)
 
   return (
     <Card className="rounded-2xl border border-slate-100 shadow-sm">
