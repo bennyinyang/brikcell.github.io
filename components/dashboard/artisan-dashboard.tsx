@@ -1038,7 +1038,7 @@ const [selectedActiveJob, setSelectedActiveJob] =
           <div className="mb-7 grid grid-cols-2 gap-2 border-b border-slate-100 pb-6 sm:flex sm:flex-wrap sm:gap-x-8 sm:gap-y-2">
             {[
               { label: "Manage Profile",       href: "/profile/setup",                         icon: <User className="h-3.5 w-3.5" /> },
-              { label: "View Public Profile",  href: `//artisan/${artisan.artisanId}`,          icon: <CircleUserRound className="h-3.5 w-3.5" /> },
+              { label: "View Public Profile",  href: `/artisan/${artisan.artisanId}`,           icon: <CircleUserRound className="h-3.5 w-3.5" /> },
               { label: "Post a Service",       href: "/dashboard/services/post",               icon: <Plus className="h-3.5 w-3.5" /> },
               { label: "Top Clients",          href: "/dashboard/jobs",                        icon: <Star className="h-3.5 w-3.5" /> },
               { label: "Saved Jobs",           href: "/dashboard/saved-jobs",                  icon: <Bookmark className="h-3.5 w-3.5" /> },
